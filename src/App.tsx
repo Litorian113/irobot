@@ -7,6 +7,8 @@ const API_KEY = import.meta.env.VITE_OPENAI_API_KEY as string | undefined
 
 /** Dev aid: `?preview=happy` forms the face with that expression and fakes speech (no API calls). */
 const PREVIEW = new URLSearchParams(window.location.search).get('preview') as Expression | null
+/** Dev aid: `?facepass=1` shows the raw head texture (depth/light) the lattice samples. */
+const DEBUG_FACE = new URLSearchParams(window.location.search).has('facepass')
 
 const MIC_STORAGE_KEY = 'viki.mic'
 
@@ -50,14 +52,14 @@ export default function App() {
   const [assistantText, setAssistantText] = useState('')
   const [userText, setUserText] = useState('')
   const [error, setError] = useState<string | null>(null)
-  const [micLevel, setMicLevel] = useState(0)
+  const meterRef = useRef<HTMLSpanElement>(null)
   const [mics, setMics] = useState<MicInfo[]>([])
   const [micId, setMicId] = useState<string>(loadMicChoice)
 
   // Renderer lifecycle
   useEffect(() => {
     if (!canvasRef.current) return
-    const face = new ParticleFace(canvasRef.current)
+    const face = new ParticleFace(canvasRef.current, { debugFace: DEBUG_FACE })
     faceRef.current = face
     ;(window as unknown as { __viki?: () => unknown }).__viki = () => face.debug()
     if (PREVIEW) {
@@ -81,23 +83,20 @@ export default function App() {
     const face = faceRef.current
     if (!face || PREVIEW) return
     face.setTarget(STATE_FORM[status])
+    face.setActive(status !== 'idle' && status !== 'error')
     if (status === 'thinking') face.setExpression('thinking')
     face.setMouthSource(status === 'speaking' && lipRef.current ? () => lipRef.current!.sample() : null)
   }, [status])
 
-  // Mic meter while connected
+  // Mic meter while connected (writes to the DOM directly: no React re-render per frame)
   useEffect(() => {
     if (status === 'idle' || status === 'error') return
-    let raf = 0
-    const loop = () => {
-      raf = requestAnimationFrame(loop)
-      if (micLipRef.current) setMicLevel(micLipRef.current.level())
-    }
-    loop()
-    return () => {
-      cancelAnimationFrame(raf)
-      setMicLevel(0)
-    }
+    const meter = meterRef.current
+    const id = window.setInterval(() => {
+      if (!meter || !micLipRef.current) return
+      meter.style.transform = `scaleX(${0.08 + micLipRef.current.level() * 0.92})`
+    }, 66)
+    return () => window.clearInterval(id)
   }, [status])
 
   // Refresh the microphone list (labels only appear once permission was granted)
@@ -236,7 +235,7 @@ export default function App() {
             {connected ? (
               <>
                 <div className="meter" aria-hidden="true">
-                  <span style={{ transform: `scaleX(${0.08 + micLevel * 0.92})` }} />
+                  <span ref={meterRef} />
                 </div>
                 <button type="button" className="btn ghost" onClick={disconnect}>
                   Sever link

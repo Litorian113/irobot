@@ -4,6 +4,7 @@ import { RenderPass } from 'three/addons/postprocessing/RenderPass.js'
 import { ShaderPass } from 'three/addons/postprocessing/ShaderPass.js'
 import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js'
 import { OutputPass } from 'three/addons/postprocessing/OutputPass.js'
+import { FacePass } from './FacePass'
 import { fragmentShader, vertexShader } from './faceShader'
 
 export type Expression =
@@ -41,12 +42,14 @@ export interface MouthSample {
 }
 
 const GRID_X = 72
-const GRID_Y = 72
-const GRID_Z = 28
+const GRID_Y = 88
+const GRID_Z = 24
 const CAM_DIST = 4.2
 const FOV = 40
+const MAX_PIXEL_RATIO = 1.5
+const IDLE_FPS = 24
+const ACTIVE_FPS = 60
 
-/** Smooth-follow per parameter (units of "fraction per second" style time constants). */
 /**
  * Additive particles can stack far above 1.0 per pixel. This knee compresses everything above
  * `knee` towards `ceiling` before bloom, so the face can never turn into a white blob.
@@ -74,6 +77,21 @@ const SoftClampShader = {
     }`,
 }
 
+/** Debug view of the face texture: depth as blue, luminance as brightness. */
+const FaceDebugShader = {
+  uniforms: { tDiffuse: { value: null as THREE.Texture | null } },
+  vertexShader: SoftClampShader.vertexShader,
+  fragmentShader: /* glsl */ `
+    uniform sampler2D tDiffuse;
+    varying vec2 vUv;
+    void main() {
+      vec4 f = texture2D(tDiffuse, vUv);
+      float depth = f.r * 0.5 + 0.5;
+      gl_FragColor = vec4(vec3(f.g) * f.b + vec3(0.0, 0.0, depth * 0.35) * f.b, 1.0);
+    }`,
+}
+
+/** Smooth-follow rates per parameter (higher = snappier). */
 const RATES: Record<keyof FaceState, number> = {
   face: 1.6,
   turb: 3.0,
@@ -89,12 +107,22 @@ export class ParticleFace {
   private composer: EffectComposer
   private bloom: UnrealBloomPass
   private material: THREE.ShaderMaterial
+  private facePass = new FacePass(256)
+  private debugQuad: THREE.Mesh | null = null
+  private debugCamera = new THREE.OrthographicCamera(-1, 1, 1, -1, 0, 1)
   private group = new THREE.Group()
   private clock = new THREE.Clock()
   private raf = 0
   private disposed = false
+  private active = false
+  private lastFrame = 0
+  private frameMs = 0
+  private renderedFps = 0
+  private fpsCount = 0
+  private fpsSince = 0
+  private canvas: HTMLCanvasElement
 
-  private current: FaceState = { face: 0.15, turb: 0.35, smile: 0.05, brow: 0, eyeOpen: 1 }
+  private current: FaceState = { face: 0.12, turb: 0.0, smile: 0.05, brow: 0, eyeOpen: 1 }
   private target: FaceState = { ...this.current }
 
   private mouth: MouthSample = { open: 0, wide: 0 }
@@ -105,12 +133,11 @@ export class ParticleFace {
 
   private nextBlink = 2
   private blinkUntil = -1
-  private canvas: HTMLCanvasElement
 
-  constructor(canvas: HTMLCanvasElement) {
+  constructor(canvas: HTMLCanvasElement, opts: { debugFace?: boolean } = {}) {
     this.canvas = canvas
     this.renderer = new THREE.WebGLRenderer({ canvas, antialias: false, alpha: false, powerPreference: 'high-performance' })
-    this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2))
+    this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, MAX_PIXEL_RATIO))
     this.renderer.setClearColor(0x02050c, 1)
     this.renderer.toneMapping = THREE.ACESFilmicToneMapping
     this.renderer.toneMappingExposure = 1.05
@@ -126,19 +153,15 @@ export class ParticleFace {
       depthTest: false,
       blending: THREE.AdditiveBlending,
       uniforms: {
+        uFaceTex: { value: this.facePass.target.texture },
         uTime: { value: 0 },
         uFace: { value: this.current.face },
-        uMouthOpen: { value: 0 },
-        uMouthWide: { value: 0 },
-        uSmile: { value: this.current.smile },
-        uBrow: { value: this.current.brow },
-        uEyeOpen: { value: this.current.eyeOpen },
         uTurb: { value: this.current.turb },
         uPointBase: { value: 4 },
         uCamDist: { value: CAM_DIST },
-        uColorDim: { value: new THREE.Color(0x1d3f8a) },
-        uColorBright: { value: new THREE.Color(0x67b4ff) },
-        uColorHot: { value: new THREE.Color(0xe8f6ff) },
+        uColorDim: { value: new THREE.Color(0x24467e) },
+        uColorBright: { value: new THREE.Color(0x9fd0ff) },
+        uColorHot: { value: new THREE.Color(0xf2fbff) },
       },
     })
 
@@ -150,13 +173,24 @@ export class ParticleFace {
     this.composer = new EffectComposer(this.renderer)
     this.composer.addPass(new RenderPass(this.scene, this.camera))
     this.composer.addPass(new ShaderPass(SoftClampShader))
-    this.bloom = new UnrealBloomPass(new THREE.Vector2(1, 1), 0.55, 0.35, 0.75)
+    this.bloom = new UnrealBloomPass(new THREE.Vector2(1, 1), 0.5, 0.3, 0.75)
     this.composer.addPass(this.bloom)
     this.composer.addPass(new OutputPass())
+
+    if (opts.debugFace) {
+      const mat = new THREE.ShaderMaterial({ ...FaceDebugShader })
+      mat.uniforms.tDiffuse.value = this.facePass.target.texture
+      this.debugQuad = new THREE.Mesh(new THREE.PlaneGeometry(2, 2), mat)
+    }
+
+    void this.facePass.load(`${import.meta.env.BASE_URL}models/LeePerrySmith.glb`).catch((e) => {
+      console.error('[viki] head model failed to load', e)
+    })
 
     this.resize()
     window.addEventListener('resize', this.resize)
     window.addEventListener('pointermove', this.onPointer)
+    document.addEventListener('visibilitychange', this.onVisibility)
     this.tick()
   }
 
@@ -188,17 +222,26 @@ export class ParticleFace {
     const pr = this.renderer.getPixelRatio()
     this.renderer.setSize(w, h, false)
     this.composer.setSize(w, h)
-    this.bloom.resolution.set(w, h)
     this.camera.aspect = w / h
     this.camera.updateProjectionMatrix()
     // device pixels per world unit at the camera's focal distance
     const pxPerUnit = (h * pr) / (2 * CAM_DIST * Math.tan((FOV * Math.PI) / 360))
-    this.material.uniforms.uPointBase.value = pxPerUnit * (2 / (GRID_X - 1)) * 1.15
+    this.material.uniforms.uPointBase.value = pxPerUnit * (2 / (GRID_X - 1)) * 1.3
   }
 
   private onPointer = (e: PointerEvent) => {
     this.pointer.x = (e.clientX / window.innerWidth) * 2 - 1
     this.pointer.y = (e.clientY / window.innerHeight) * 2 - 1
+  }
+
+  private onVisibility = () => {
+    if (document.hidden) {
+      cancelAnimationFrame(this.raf)
+      this.raf = 0
+    } else if (!this.raf && !this.disposed) {
+      this.clock.getDelta()
+      this.tick()
+    }
   }
 
   /** Set expression & formation targets; they ease in over time. */
@@ -215,10 +258,21 @@ export class ParticleFace {
     this.mouthSource = fn
   }
 
+  /** Active = a session is running: full frame rate. Idle renders at a low rate to stay cool. */
+  setActive(active: boolean) {
+    this.active = active
+  }
+
   private tick = () => {
     if (this.disposed) return
     this.raf = requestAnimationFrame(this.tick)
-    const dt = Math.min(this.clock.getDelta(), 0.05)
+
+    const now = performance.now()
+    const minInterval = 1000 / (this.active ? ACTIVE_FPS : IDLE_FPS) - 2
+    if (now - this.lastFrame < minInterval) return
+    this.lastFrame = now
+
+    const dt = Math.min(this.clock.getDelta(), 0.1)
     const t = this.clock.elapsedTime
 
     for (const key of Object.keys(RATES) as (keyof FaceState)[]) {
@@ -242,26 +296,43 @@ export class ParticleFace {
     this.mouth.open += (targetOpen - this.mouth.open) * (targetOpen > this.mouth.open ? attack : release)
     this.mouth.wide += (targetWide - this.mouth.wide) * release
 
-    // subtle life: micro brow drift, breathing scale
+    // head pass uniforms (expression + mouth)
+    const fu = this.facePass.uniforms
+    fu.uMouthOpen.value = this.mouth.open
+    fu.uMouthWide.value = this.mouth.wide
+    fu.uSmile.value = this.current.smile
+    fu.uBrow.value = this.current.brow + Math.sin(t * 0.7) * 0.04
+    fu.uEyeOpen.value = this.current.eyeOpen * blink
+
+    // lattice uniforms
     const u = this.material.uniforms
     u.uTime.value = t
     u.uFace.value = this.current.face
     u.uTurb.value = this.current.turb
-    u.uSmile.value = this.current.smile
-    u.uBrow.value = this.current.brow + Math.sin(t * 0.7) * 0.04
-    u.uEyeOpen.value = this.current.eyeOpen * blink
-    u.uMouthOpen.value = this.mouth.open
-    u.uMouthWide.value = this.mouth.wide
 
     // lattice rotation with pointer parallax
     this.pointerSmooth.x += (this.pointer.x - this.pointerSmooth.x) * (1 - Math.exp(-3 * dt))
     this.pointerSmooth.y += (this.pointer.y - this.pointerSmooth.y) * (1 - Math.exp(-3 * dt))
-    this.group.rotation.y = Math.sin(t * 0.18) * 0.22 + this.pointerSmooth.x * 0.28
-    this.group.rotation.x = Math.sin(t * 0.13) * 0.06 - this.pointerSmooth.y * 0.14
-    const breathe = 1 + Math.sin(t * 0.9) * 0.006
-    this.group.scale.setScalar(breathe)
+    this.group.rotation.y = Math.sin(t * 0.18) * 0.1 + this.pointerSmooth.x * 0.16
+    this.group.rotation.x = Math.sin(t * 0.13) * 0.04 - this.pointerSmooth.y * 0.08
+    this.group.scale.setScalar(1 + Math.sin(t * 0.9) * 0.006)
 
+    const t0 = performance.now()
+    this.facePass.render(this.renderer)
+    this.fpsCount++
+    if (now - this.fpsSince > 1000) {
+      this.renderedFps = this.fpsCount
+      this.fpsCount = 0
+      this.fpsSince = now
+    }
+
+    if (this.debugQuad) {
+      this.renderer.setRenderTarget(null)
+      this.renderer.render(this.debugQuad, this.debugCamera)
+      return
+    }
     this.composer.render()
+    this.frameMs += (performance.now() - t0 - this.frameMs) * 0.1
   }
 
   /** Snapshot of the animated state (dev aid). */
@@ -269,7 +340,17 @@ export class ParticleFace {
     const u = this.material.uniforms
     const uniforms: Record<string, unknown> = {}
     for (const k of Object.keys(u)) if (typeof u[k].value === 'number') uniforms[k] = u[k].value
-    return { current: { ...this.current }, target: { ...this.target }, mouth: { ...this.mouth }, uniforms }
+    return {
+      current: { ...this.current },
+      target: { ...this.target },
+      mouth: { ...this.mouth },
+      headLoaded: this.facePass.ready,
+      active: this.active,
+      pixelRatio: this.renderer.getPixelRatio(),
+      renderedFps: this.renderedFps,
+      cpuFrameMs: Number(this.frameMs.toFixed(2)),
+      uniforms,
+    }
   }
 
   dispose() {
@@ -277,10 +358,12 @@ export class ParticleFace {
     cancelAnimationFrame(this.raf)
     window.removeEventListener('resize', this.resize)
     window.removeEventListener('pointermove', this.onPointer)
+    document.removeEventListener('visibilitychange', this.onVisibility)
     this.group.traverse((o) => {
       if (o instanceof THREE.Points) o.geometry.dispose()
     })
     this.material.dispose()
+    this.facePass.dispose()
     this.composer.dispose()
     this.renderer.dispose()
   }
