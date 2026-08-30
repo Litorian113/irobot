@@ -1,32 +1,26 @@
-# React + TypeScript + Vite
+# V.I.K.I. — particle-face voice hero
 
-This template provides a minimal setup to get React working in Vite with HMR and some Oxlint rules.
+A single full-page hero inspired by the V.I.K.I. scene in *I, Robot*: a 3-D lattice of light particles that forms
+a face and talks to you. Voice comes from OpenAI's Realtime API (WebRTC); the mouth is driven by live audio analysis
+of her voice, and expressions are chosen by the model itself through a `set_expression` tool.
 
-Currently, two official plugins are available:
+## Run
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Oxc](https://oxc.rs)
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/)
-
-## React Compiler
-
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
-
-## Expanding the Oxlint configuration
-
-If you are developing a production application, we recommend enabling type-aware lint rules by installing `oxlint-tsgolint` and editing `.oxlintrc.json`:
-
-```json
-{
-  "$schema": "./node_modules/oxlint/configuration_schema.json",
-  "plugins": ["react", "typescript", "oxc"],
-  "options": {
-    "typeAware": true
-  },
-  "rules": {
-    "react/rules-of-hooks": "error",
-    "react/only-export-components": ["warn", { "allowConstantExport": true }]
-  }
-}
+```
+cp .env.example .env   # then put your key in VITE_OPENAI_API_KEY
+npm install
+npm run dev
 ```
 
-See the [Oxlint rules documentation](https://oxc.rs/docs/guide/usage/linter/rules) for the full list of rules and categories.
+Click **Initiate link**, allow the microphone, and talk.
+
+> Note: `VITE_*` variables are inlined into the browser bundle. This is fine for a local prototype, but never deploy it
+> publicly with a real key — mint ephemeral Realtime tokens from a small backend instead.
+
+## Layout
+
+- `src/viki/faceShader.ts` — GLSL: procedural face height-field evaluated per particle (mouth, brows, eyes, smile as uniforms)
+- `src/viki/ParticleFace.ts` — three.js scene, bloom, easing of expression targets, blinking, parallax
+- `src/viki/lipsync.ts` — band-energy analysis of the remote audio → mouth open / wide
+- `src/viki/realtime.ts` — WebRTC handshake with `gpt-realtime`, event handling, tool round-trip
+- `src/App.tsx` — HUD, status, captions
