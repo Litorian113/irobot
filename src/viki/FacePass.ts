@@ -63,6 +63,19 @@ void main() {
   q.y += uBrow * 0.045 * brow;
   q.z += max(-uBrow, 0.0) * 0.02 * brow;
 
+  // feminine proportions on the scan: narrower jaw & neck, softer brow ridge,
+  // smaller nose, cheekbones, tapered chin, slightly narrower head
+  float below = smoothstep(uMouthY + 0.15, uMouthY - 0.45, q.y);
+  q.x *= 0.96 - 0.11 * below;
+  float ridge = g2(ax - 0.20, q.y - (uBrowY - 0.03), 0.25, 0.05) * front;
+  q.z -= 0.035 * ridge;
+  float nose = g2(q.x, q.y - (uBrowY - 0.30), 0.07, 0.11) * front;
+  q.z -= 0.03 * nose;
+  float cheek = g2(ax - 0.30, q.y - (uBrowY - 0.30), 0.10, 0.08) * front;
+  q.z += 0.02 * cheek;
+  float chin = g2(q.x, q.y - (uMouthY - 0.22), 0.14, 0.08) * front;
+  q.x *= 1.0 - 0.10 * chin;
+
   vPos = q;
   vNormal = normalize(mat3(modelMatrix) * normal);
   gl_Position = projectionMatrix * viewMatrix * vec4(q, 1.0);
@@ -89,26 +102,38 @@ void main() {
   vec3 n = normalize(vNormal);
   vec3 key = normalize(vec3(0.35, 0.55, 1.0));
   vec3 fill = normalize(vec3(-0.6, 0.1, 0.6));
-  float lum = 0.10 + 0.75 * max(dot(n, key), 0.0) + 0.15 * max(dot(n, fill), 0.0);
-  lum = pow(lum, 1.6) * 1.15;                 // more contrast: sockets, nose and lips read
-  lum += 0.10 * pow(1.0 - max(n.z, 0.0), 3.0); // thin rim
+  float lum = 0.12 + 0.72 * max(dot(n, key), 0.0) + 0.16 * max(dot(n, fill), 0.0);
+  lum = pow(lum, 1.35) * 1.05;                // soft but readable shading
+  lum += 0.08 * pow(1.0 - max(n.z, 0.0), 3.0); // thin rim
 
   float depth = vPos.z;
   float ax = abs(vPos.x);
 
-  // open mouth cavity: dark, pushed back
-  vec2 mouthC = vec2(0.0, uMouthY - 0.07 * uMouthOpen);
-  vec2 mouthR = vec2(0.13 + 0.05 * uMouthWide - 0.02 * uMouthOpen, 0.012 + 0.085 * uMouthOpen);
-  float cav = ell(vPos.xy, mouthC, mouthR) * smoothstep(0.0, 0.15, uMouthOpen);
-  lum *= 1.0 - 0.92 * cav;
-  depth -= 0.22 * cav;
+  // mouth: a wide lens. The upper lip stays put, the lower lip drops with the jaw.
+  float mw = 0.15 + 0.04 * uMouthWide;                 // half width
+  float u = clamp(vPos.x / mw, -1.0, 1.0);
+  float lens = pow(max(1.0 - u * u, 0.0), 0.7);        // 1 at centre, 0 at the corners
+  float openH = (0.006 + 0.075 * uMouthOpen) * lens;   // how far the lower lip is down
+  float top = uMouthY + 0.008 * lens;
+  float bottom = uMouthY - openH;
+  float inside = smoothstep(bottom - 0.012, bottom + 0.004, vPos.y) * (1.0 - smoothstep(top - 0.004, top + 0.012, vPos.y));
+  inside *= 1.0 - smoothstep(0.85, 1.0, abs(vPos.x / mw));
+  float cav = inside * smoothstep(0.02, 0.12, uMouthOpen);
+  lum *= 1.0 - 0.9 * cav;
+  depth -= 0.2 * cav;
+  // fuller lips: a soft highlight just around the mouth line
+  float lips = exp(-pow((vPos.y - uMouthY) / 0.03, 2.0)) * lens * (1.0 - cav);
+  lum += 0.12 * lips;
 
-  // eyes: glow when open, go dark on a blink
-  float eye = ell(vec2(ax, vPos.y), vec2(uEyeX, uEyeY), vec2(0.06, 0.03));
-  lum += 0.55 * eye * smoothstep(0.2, 0.9, uEyeOpen);
+  // eyes: soft almond glow when open, dark on a blink
+  float eye = ell(vec2(ax, vPos.y), vec2(uEyeX, uEyeY), vec2(0.075, 0.034));
+  lum += 0.5 * eye * smoothstep(0.2, 0.9, uEyeOpen);
   lum *= 1.0 - 0.6 * eye * (1.0 - smoothstep(0.0, 0.3, uEyeOpen));
 
-  gl_FragColor = vec4(depth, lum, 1.0, 1.0);
+  // fade the neck out below the chin: no shoulders in the lattice
+  float maskv = smoothstep(-1.0, -0.66, vPos.y);
+
+  gl_FragColor = vec4(depth, lum * maskv, maskv, 1.0);
 }
 `
 

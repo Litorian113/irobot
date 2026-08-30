@@ -128,8 +128,12 @@ export class ParticleFace {
   private mouth: MouthSample = { open: 0, wide: 0 }
   private mouthSource: (() => MouthSample | null) | null = null
 
-  private pointer = { x: 0, y: 0 }
-  private pointerSmooth = { x: 0, y: 0 }
+  // drag-to-rotate: yaw/pitch with inertia, easing back to the front when released
+  private drag = { active: false, lastX: 0, lastY: 0, dx: 0, dy: 0, pointerId: -1 }
+  private yaw = 0
+  private pitch = 0
+  private yawVel = 0
+  private pitchVel = 0
 
   private nextBlink = 2
   private blinkUntil = -1
@@ -140,7 +144,7 @@ export class ParticleFace {
     this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, MAX_PIXEL_RATIO))
     this.renderer.setClearColor(0x02050c, 1)
     this.renderer.toneMapping = THREE.ACESFilmicToneMapping
-    this.renderer.toneMappingExposure = 1.05
+    this.renderer.toneMappingExposure = 0.95
 
     this.camera = new THREE.PerspectiveCamera(FOV, 1, 0.1, 50)
     this.camera.position.set(0, 0, CAM_DIST)
@@ -189,7 +193,10 @@ export class ParticleFace {
 
     this.resize()
     window.addEventListener('resize', this.resize)
-    window.addEventListener('pointermove', this.onPointer)
+    canvas.addEventListener('pointerdown', this.onPointerDown)
+    window.addEventListener('pointermove', this.onPointerMove)
+    window.addEventListener('pointerup', this.onPointerUp)
+    window.addEventListener('pointercancel', this.onPointerUp)
     document.addEventListener('visibilitychange', this.onVisibility)
     this.tick()
   }
@@ -229,9 +236,30 @@ export class ParticleFace {
     this.material.uniforms.uPointBase.value = pxPerUnit * (2 / (GRID_X - 1)) * 1.3
   }
 
-  private onPointer = (e: PointerEvent) => {
-    this.pointer.x = (e.clientX / window.innerWidth) * 2 - 1
-    this.pointer.y = (e.clientY / window.innerHeight) * 2 - 1
+  private onPointerDown = (e: PointerEvent) => {
+    if (e.button !== 0 && e.pointerType === 'mouse') return
+    this.drag.active = true
+    this.drag.pointerId = e.pointerId
+    this.drag.lastX = e.clientX
+    this.drag.lastY = e.clientY
+    this.drag.dx = 0
+    this.drag.dy = 0
+    this.canvas.setPointerCapture?.(e.pointerId)
+    this.canvas.style.cursor = 'grabbing'
+  }
+
+  private onPointerMove = (e: PointerEvent) => {
+    if (!this.drag.active || e.pointerId !== this.drag.pointerId) return
+    this.drag.dx += e.clientX - this.drag.lastX
+    this.drag.dy += e.clientY - this.drag.lastY
+    this.drag.lastX = e.clientX
+    this.drag.lastY = e.clientY
+  }
+
+  private onPointerUp = (e: PointerEvent) => {
+    if (!this.drag.active || e.pointerId !== this.drag.pointerId) return
+    this.drag.active = false
+    this.canvas.style.cursor = 'grab'
   }
 
   private onVisibility = () => {
@@ -310,11 +338,33 @@ export class ParticleFace {
     u.uFace.value = this.current.face
     u.uTurb.value = this.current.turb
 
-    // lattice rotation with pointer parallax
-    this.pointerSmooth.x += (this.pointer.x - this.pointerSmooth.x) * (1 - Math.exp(-3 * dt))
-    this.pointerSmooth.y += (this.pointer.y - this.pointerSmooth.y) * (1 - Math.exp(-3 * dt))
-    this.group.rotation.y = Math.sin(t * 0.18) * 0.1 + this.pointerSmooth.x * 0.16
-    this.group.rotation.x = Math.sin(t * 0.13) * 0.04 - this.pointerSmooth.y * 0.08
+    // drag rotation: radians per pixel while dragging, inertia + spring back afterwards
+    const perPx = 0.006
+    if (this.drag.active) {
+      const dYaw = this.drag.dx * perPx
+      const dPitch = this.drag.dy * perPx
+      this.drag.dx = 0
+      this.drag.dy = 0
+      this.yaw += dYaw
+      this.pitch += dPitch
+      this.yawVel = dt > 0 ? dYaw / dt : 0
+      this.pitchVel = dt > 0 ? dPitch / dt : 0
+    } else {
+      const friction = Math.exp(-3.5 * dt)
+      this.yawVel *= friction
+      this.pitchVel *= friction
+      this.yaw += this.yawVel * dt
+      this.pitch += this.pitchVel * dt
+      // ease back so she faces you again after a while
+      const home = 1 - Math.exp(-0.35 * dt)
+      this.yaw -= this.yaw * home
+      this.pitch -= this.pitch * home
+    }
+    // keep the face readable: the head is a relief inside the cube, not a full volume
+    this.yaw = Math.max(-1.0, Math.min(1.0, this.yaw))
+    this.pitch = Math.max(-0.6, Math.min(0.6, this.pitch))
+    this.group.rotation.y = Math.sin(t * 0.18) * 0.08 + this.yaw
+    this.group.rotation.x = Math.sin(t * 0.13) * 0.03 + this.pitch
     this.group.scale.setScalar(1 + Math.sin(t * 0.9) * 0.006)
 
     const t0 = performance.now()
@@ -347,6 +397,8 @@ export class ParticleFace {
       headLoaded: this.facePass.ready,
       active: this.active,
       pixelRatio: this.renderer.getPixelRatio(),
+      yaw: Number(this.yaw.toFixed(3)),
+      pitch: Number(this.pitch.toFixed(3)),
       renderedFps: this.renderedFps,
       cpuFrameMs: Number(this.frameMs.toFixed(2)),
       uniforms,
@@ -357,7 +409,10 @@ export class ParticleFace {
     this.disposed = true
     cancelAnimationFrame(this.raf)
     window.removeEventListener('resize', this.resize)
-    window.removeEventListener('pointermove', this.onPointer)
+    this.canvas.removeEventListener('pointerdown', this.onPointerDown)
+    window.removeEventListener('pointermove', this.onPointerMove)
+    window.removeEventListener('pointerup', this.onPointerUp)
+    window.removeEventListener('pointercancel', this.onPointerUp)
     document.removeEventListener('visibilitychange', this.onVisibility)
     this.group.traverse((o) => {
       if (o instanceof THREE.Points) o.geometry.dispose()

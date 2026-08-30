@@ -12,7 +12,7 @@ npm install
 npm run dev
 ```
 
-Click **Initiate link**, allow the microphone, and talk.
+Click **Initiate link**, allow the microphone, and talk. Drag the cube to rotate it; it eases back to the front.
 
 > Note: `VITE_*` variables are inlined into the browser bundle. This is fine for a local prototype, but never deploy it
 > publicly with a real key — mint ephemeral Realtime tokens from a small backend instead.
@@ -23,7 +23,7 @@ The face is a real scanned human head — the **Lee Perry-Smith** head from the 
 (`public/models/LeePerrySmith.glb`, © Infinite-Realities / Lee Perry-Smith, CC BY 3.0). It is rendered off-screen into a
 depth + light texture that the particle lattice samples; jaw, smile and brows are procedural deformations in its vertex shader.
 
-Dev aids: `?preview=happy` (any expression, no API calls), `?facepass=1` (shows the raw head texture), `window.__viki()`
+Dev aids: `?preview=happy` (any expression, no API calls; add `&mouth=0.7` to hold the mouth open), `?facepass=1` (shows the raw head texture), `window.__viki()`
 (animated state in the console).
 
 ## Layout

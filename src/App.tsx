@@ -66,7 +66,9 @@ export default function App() {
       face.setTarget(STATE_FORM.speaking)
       face.setExpression(PREVIEW in EXPRESSIONS ? PREVIEW : 'neutral')
       const t0 = performance.now()
+      const fixedMouth = Number(new URLSearchParams(window.location.search).get('mouth'))
       face.setMouthSource(() => {
+        if (fixedMouth > 0) return { open: fixedMouth, wide: 0.4 }
         const t = (performance.now() - t0) / 1000
         const talk = Math.max(0, Math.sin(t * 9) * 0.6 + Math.sin(t * 5.3) * 0.5)
         return { open: talk, wide: 0.5 + 0.5 * Math.sin(t * 2.1) }

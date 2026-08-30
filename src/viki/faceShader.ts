@@ -56,7 +56,7 @@ void main() {
   // per-cell variation breaks the moiré of a perfectly regular grid
   float amb = (0.045 + 0.075 * noise(p * 3.0 + vec3(0.0, 0.0, uTime * 0.15))) * (0.7 + 0.6 * aSeed);
 
-  float intensity = amb * (1.0 - 0.35 * uFace) + 1.35 * face * uFace * (1.0 - 0.6 * uTurb);
+  float intensity = amb * (1.0 - 0.35 * uFace) + 1.1 * face * uFace * (1.0 - 0.6 * uTurb);
   intensity = min(intensity, 1.1);
   vIntensity = intensity;
 
