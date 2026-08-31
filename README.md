@@ -12,7 +12,8 @@ npm install
 npm run dev
 ```
 
-Click **Initiate link**, allow the microphone, and talk. Drag the cube to rotate it freely (it eases back to the front
+Click **Initiate link**, allow the microphone, and talk. When she wakes up the head rises from deep inside the cube
+towards the front and her eyes, brows and lips come out. Drag the cube to rotate it freely (it eases back to the front
 unless you turn that off).
 
 **Configure** opens the character panel: colors, head size and shape (jaw, chin, cheekbones, brow ridge, nose), hair,

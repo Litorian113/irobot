@@ -32,13 +32,13 @@ const STATUS_LABEL: Record<VoiceStatus, string> = {
 }
 
 /** How formed / turbulent the lattice is per state. */
-const STATE_FORM: Record<VoiceStatus, { face: number; turb: number }> = {
-  idle: { face: 0.15, turb: 0.35 },
-  connecting: { face: 0.35, turb: 1.0 },
-  listening: { face: 1.0, turb: 0.04 },
-  thinking: { face: 0.85, turb: 0.3 },
-  speaking: { face: 1.0, turb: 0.0 },
-  error: { face: 0.2, turb: 0.8 },
+const STATE_FORM: Record<VoiceStatus, { face: number; turb: number; forward: number }> = {
+  idle: { face: 0.15, turb: 0.35, forward: 0 },
+  connecting: { face: 0.35, turb: 1.0, forward: 0.3 },
+  listening: { face: 1.0, turb: 0.04, forward: 1 },
+  thinking: { face: 0.85, turb: 0.3, forward: 0.85 },
+  speaking: { face: 1.0, turb: 0.0, forward: 1 },
+  error: { face: 0.2, turb: 0.8, forward: 0 },
 }
 
 /** Fake speech pattern for previews / the configurator's test mode. */
@@ -99,7 +99,7 @@ export default function App() {
     if (!face || PREVIEW) return
     face.setActive(status !== 'idle' && status !== 'error')
     if (configOpen) {
-      face.setTarget({ face: 1, turb: 0 })
+      face.setTarget({ face: 1, turb: 0, forward: 1 })
       face.setExpression('neutral')
       const t0 = performance.now()
       face.setMouthSource(

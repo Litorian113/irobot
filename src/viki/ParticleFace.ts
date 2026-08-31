@@ -32,6 +32,7 @@ export const EXPRESSIONS: Record<Expression, { smile: number; brow: number; eyeO
 export interface FaceState {
   face: number // 0..1 how formed the face is
   turb: number // 0..1 turbulence
+  forward: number // 0 resting deep in the cube .. 1 awake and forward
   smile: number
   brow: number
   eyeOpen: number
@@ -108,6 +109,7 @@ const FaceDebugShader = {
 const RATES: Record<keyof FaceState, number> = {
   face: 1.6,
   turb: 3.0,
+  forward: 1.1,
   smile: 4.0,
   brow: 4.0,
   eyeOpen: 6.0,
@@ -137,7 +139,7 @@ export class ParticleFace {
   private cellScale = DEFAULT_CONFIG.cellSize
   private autoReturn = DEFAULT_CONFIG.autoReturn
 
-  private current: FaceState = { face: 0.12, turb: 0.0, smile: 0.05, brow: 0, eyeOpen: 1 }
+  private current: FaceState = { face: 0.12, turb: 0.0, forward: 0, smile: 0.05, brow: 0, eyeOpen: 1 }
   private target: FaceState = { ...this.current }
 
   private mouth: MouthSample = { open: 0, wide: 0 }
@@ -380,6 +382,7 @@ export class ParticleFace {
     fu.uSmile.value = this.current.smile
     fu.uBrow.value = this.current.brow + Math.sin(t * 0.7) * 0.04
     fu.uEyeOpen.value = this.current.eyeOpen * blink
+    this.facePass.setForward(this.current.forward)
 
     // lattice uniforms
     const u = this.material.uniforms

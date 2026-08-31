@@ -1,4 +1,7 @@
-/** Everything the configurator can change. Numbers are in lattice space (cube = -1..1). */
+/** The head's reference scale: feature anchors are defined for the head at this size, centred on its placement. */
+export const REF_SCALE = 0.29
+
+/** Everything the configurator can change. Feature positions are head-local (see REF_SCALE). */
 export interface HeadConfig {
   // lattice look
   colorDim: string
@@ -12,6 +15,7 @@ export interface HeadConfig {
   // head placement
   headScale: number
   headY: number
+  oval: number // taller / narrower skull
   // shape
   jawWidth: number // 0 = scan, higher = narrower jaw & neck
   chin: number // taper
@@ -36,28 +40,29 @@ export const DEFAULT_CONFIG: HeadConfig = {
   colorDim: '#24467e',
   colorBright: '#9fd0ff',
   colorHot: '#f2fbff',
-  gain: 1.3,
+  gain: 0.95,
   cellSize: 1.0,
   bloom: 0.5,
   fill: 0.05,
   autoReturn: true,
   headScale: 0.29,
   headY: -0.38,
-  jawWidth: 0.11,
-  chin: 0.1,
-  cheek: 0.02,
-  browRidge: 0.035,
-  noseSize: -0.03,
+  oval: 0.06,
+  jawWidth: 0.16,
+  chin: 0.14,
+  cheek: 0.035,
+  browRidge: 0.05,
+  noseSize: -0.045,
   hair: 0,
-  hairline: 0.5,
-  eyeSize: 1.0,
-  eyeGlow: 0.5,
+  hairline: 0.88,
+  eyeSize: 1.25,
+  eyeGlow: 1.0,
   eyeX: 0.216,
-  eyeY: 0.11,
-  browY: 0.21,
-  mouthY: -0.27,
+  eyeY: 0.49,
+  browY: 0.59,
+  mouthY: 0.11,
   mouthWidth: 0.15,
-  lipFull: 0.12,
+  lipFull: 0.22,
 }
 
 export interface SliderDef {
@@ -79,6 +84,7 @@ export const SLIDER_GROUPS: SliderGroup[] = [
     sliders: [
       { key: 'headScale', label: 'Size', min: 0.2, max: 0.4, step: 0.005 },
       { key: 'headY', label: 'Height', min: -0.6, max: -0.1, step: 0.01 },
+      { key: 'oval', label: 'Oval skull', min: 0, max: 0.15, step: 0.005 },
       { key: 'jawWidth', label: 'Jaw narrowing', min: 0, max: 0.25, step: 0.005 },
       { key: 'chin', label: 'Chin taper', min: 0, max: 0.25, step: 0.005 },
       { key: 'cheek', label: 'Cheekbones', min: 0, max: 0.06, step: 0.002 },
@@ -90,7 +96,7 @@ export const SLIDER_GROUPS: SliderGroup[] = [
     title: 'Hair',
     sliders: [
       { key: 'hair', label: 'Volume', min: 0, max: 1, step: 0.01 },
-      { key: 'hairline', label: 'Hairline', min: 0.25, max: 0.75, step: 0.01 },
+      { key: 'hairline', label: 'Hairline', min: 0.6, max: 1.1, step: 0.01 },
     ],
   },
   {
@@ -99,14 +105,14 @@ export const SLIDER_GROUPS: SliderGroup[] = [
       { key: 'eyeSize', label: 'Eye size', min: 0.5, max: 1.8, step: 0.02 },
       { key: 'eyeGlow', label: 'Eye glow', min: 0, max: 1.2, step: 0.02 },
       { key: 'eyeX', label: 'Eye spacing', min: 0.15, max: 0.3, step: 0.002 },
-      { key: 'eyeY', label: 'Eye height', min: 0, max: 0.25, step: 0.002 },
-      { key: 'browY', label: 'Brow height', min: 0.1, max: 0.35, step: 0.002 },
+      { key: 'eyeY', label: 'Eye height', min: 0.38, max: 0.62, step: 0.002 },
+      { key: 'browY', label: 'Brow height', min: 0.48, max: 0.72, step: 0.002 },
     ],
   },
   {
     title: 'Mouth',
     sliders: [
-      { key: 'mouthY', label: 'Height', min: -0.4, max: -0.15, step: 0.002 },
+      { key: 'mouthY', label: 'Height', min: -0.02, max: 0.25, step: 0.002 },
       { key: 'mouthWidth', label: 'Width', min: 0.08, max: 0.24, step: 0.002 },
       { key: 'lipFull', label: 'Lips', min: 0, max: 0.35, step: 0.01 },
     ],
@@ -128,7 +134,7 @@ export const COLOR_KEYS: { key: keyof HeadConfig; label: string }[] = [
   { key: 'colorHot', label: 'Highlights' },
 ]
 
-const STORAGE_KEY = 'viki.config'
+const STORAGE_KEY = 'viki.config.v2'
 
 export function loadConfig(): HeadConfig {
   try {
