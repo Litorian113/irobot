@@ -214,11 +214,13 @@ export default function App() {
     setError(null)
     setAssistantText('')
     setUserText('')
-    const ctx = new AudioContext()
-    audioCtxRef.current = ctx
-    await ctx.resume()
+    setStatus('connecting')
 
     try {
+      const ctx = new AudioContext()
+      audioCtxRef.current = ctx
+      await ctx.resume()
+
       const session = await connectRealtime(
         API_KEY,
         {
@@ -247,7 +249,7 @@ export default function App() {
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e))
       setStatus('error')
-      await ctx.close().catch(() => {})
+      await audioCtxRef.current?.close().catch(() => {})
       audioCtxRef.current = null
     }
   }, [micId, refreshMics])

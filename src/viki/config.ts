@@ -37,13 +37,13 @@ export interface HeadConfig {
 }
 
 export const DEFAULT_CONFIG: HeadConfig = {
-  colorDim: '#24467e',
-  colorBright: '#9fd0ff',
-  colorHot: '#f2fbff',
-  gain: 0.95,
-  cellSize: 1.0,
-  bloom: 0.5,
-  fill: 0.05,
+  colorDim: '#032611',
+  colorBright: '#1dff6a',
+  colorHot: '#d8ff9a',
+  gain: 1.05,
+  cellSize: 0.82,
+  bloom: 0.32,
+  fill: 0.02,
   autoReturn: true,
   headScale: 0.46,
   headY: -0.55,
@@ -55,8 +55,8 @@ export const DEFAULT_CONFIG: HeadConfig = {
   noseSize: -0.045,
   hair: 0,
   hairline: 0.88,
-  eyeSize: 1.25,
-  eyeGlow: 1.0,
+  eyeSize: 1.32,
+  eyeGlow: 1.15,
   eyeX: 0.216,
   eyeY: 0.49,
   browY: 0.59,
@@ -134,7 +134,7 @@ export const COLOR_KEYS: { key: keyof HeadConfig; label: string }[] = [
   { key: 'colorHot', label: 'Highlights' },
 ]
 
-const STORAGE_KEY = 'viki.config.v2'
+const STORAGE_KEY = 'viki.config.v5'
 
 export function loadConfig(): HeadConfig {
   try {

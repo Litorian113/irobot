@@ -1,10 +1,10 @@
 :root {
   color-scheme: dark;
-  --bg: #02050c;
-  --ink: #9fc4ff;
-  --ink-dim: rgba(159, 196, 255, 0.55);
-  --ink-faint: rgba(159, 196, 255, 0.22);
-  --hot: #dff1ff;
+  --bg: #010804;
+  --ink: #7dff9a;
+  --ink-dim: rgba(125, 255, 154, 0.55);
+  --ink-faint: rgba(125, 255, 154, 0.22);
+  --hot: #e8ffb0;
   --font: 'SF Mono', ui-monospace, Menlo, Consolas, 'Liberation Mono', monospace;
 }
 
@@ -26,7 +26,9 @@ body,
 .hero {
   position: fixed;
   inset: 0;
-  background: radial-gradient(ellipse at center, #071227 0%, var(--bg) 70%);
+  background:
+    radial-gradient(ellipse at center, #06240f 0%, var(--bg) 68%),
+    repeating-linear-gradient(0deg, rgba(0, 255, 70, 0.035) 0 1px, transparent 1px 3px);
 }
 
 .hero canvas {
@@ -70,7 +72,7 @@ body,
   font-size: 22px;
   letter-spacing: 0.35em;
   color: var(--hot);
-  text-shadow: 0 0 18px rgba(103, 180, 255, 0.6);
+  text-shadow: 0 0 18px rgba(50, 255, 120, 0.7);
 }
 
 .brand-sub {
@@ -96,8 +98,8 @@ body,
 
 .status-listening .dot,
 .status-speaking .dot {
-  background: #67b4ff;
-  box-shadow: 0 0 12px #67b4ff;
+  background: #39ff6a;
+  box-shadow: 0 0 12px #39ff6a;
   animation: pulse 1.4s ease-in-out infinite;
 }
 
@@ -158,7 +160,7 @@ body,
 .caption.viki {
   font-size: clamp(15px, 1.6vw, 19px);
   color: var(--hot);
-  text-shadow: 0 0 14px rgba(103, 180, 255, 0.5);
+  text-shadow: 0 0 14px rgba(50, 255, 120, 0.55);
 }
 
 .hud-bottom {
@@ -181,8 +183,8 @@ body,
   letter-spacing: 0.25em;
   text-transform: uppercase;
   color: var(--hot);
-  background: rgba(20, 50, 110, 0.35);
-  border: 1px solid rgba(103, 180, 255, 0.55);
+  background: rgba(8, 40, 18, 0.45);
+  border: 1px solid rgba(50, 255, 120, 0.55);
   padding: 14px 30px;
   cursor: pointer;
   backdrop-filter: blur(6px);
@@ -190,12 +192,12 @@ body,
     background 0.2s,
     box-shadow 0.2s,
     border-color 0.2s;
-  box-shadow: 0 0 22px rgba(103, 180, 255, 0.15);
+  box-shadow: 0 0 22px rgba(50, 255, 120, 0.18);
 }
 
 .btn:hover:not(:disabled) {
-  background: rgba(40, 90, 180, 0.45);
-  box-shadow: 0 0 34px rgba(103, 180, 255, 0.35);
+  background: rgba(12, 70, 30, 0.55);
+  box-shadow: 0 0 34px rgba(50, 255, 120, 0.4);
   border-color: var(--hot);
 }
 
@@ -223,8 +225,8 @@ body,
   display: block;
   height: 100%;
   width: 100%;
-  background: #67b4ff;
-  box-shadow: 0 0 8px #67b4ff;
+  background: #39ff6a;
+  box-shadow: 0 0 8px #39ff6a;
   transform-origin: left center;
   transition: transform 0.06s linear;
 }
@@ -244,7 +246,7 @@ body,
   letter-spacing: 0.05em;
   text-transform: none;
   color: var(--ink);
-  background: rgba(20, 50, 110, 0.35);
+  background: rgba(8, 40, 18, 0.45);
   border: 1px solid var(--ink-faint);
   padding: 6px 10px;
   max-width: 320px;
@@ -321,9 +323,9 @@ body,
   width: min(380px, 100%);
   display: flex;
   flex-direction: column;
-  background: rgba(4, 12, 30, 0.82);
+  background: rgba(2, 14, 8, 0.86);
   backdrop-filter: blur(14px);
-  border-left: 1px solid rgba(103, 180, 255, 0.25);
+  border-left: 1px solid rgba(50, 255, 120, 0.28);
   color: var(--ink);
   font-size: 11px;
   letter-spacing: 0.04em;
@@ -405,7 +407,7 @@ body,
 
 .slider input[type='range'] {
   width: 100%;
-  accent-color: #67b4ff;
+  accent-color: #39ff6a;
   cursor: pointer;
 }
 
@@ -438,9 +440,8 @@ body,
   margin: 8px 0;
   cursor: pointer;
 }
-
 .check input {
-  accent-color: #67b4ff;
+  accent-color: #39ff6a;
 }
 
 .config-foot {
