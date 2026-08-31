@@ -107,8 +107,8 @@ export const STYLE_DEFAULTS: Record<HeadStyle, HeadConfig> = {
     colorB: '#05070c',
     colorC: '#cfe4ff',
     density: 0.5,
-    lineWidth: 0.08,
-    bloom: 0.45,
+    lineWidth: 0.06,
+    bloom: 0.3,
     gain: 1,
   },
   dots: {

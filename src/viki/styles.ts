@@ -69,11 +69,12 @@ void main() {
 
   vec3 nWorld = normalize(vNormalW);
   vec3 view = normalize(cameraPosition - vWorld);
-  float rim = pow(1.0 - max(dot(nWorld, view), 0.0), 3.0);
+  float rim = pow(1.0 - max(dot(nWorld, view), 0.0), 4.0);
 
-  vec3 col = uColorB;
-  col += uColorA * line * (0.3 + 1.0 * lum);
-  col += uColorC * rim * 0.9;
+  // only the lines: the body stays a silhouette that occludes the cage
+  vec3 col = uColorB * 0.25;
+  col += uColorA * line * (0.25 + 0.9 * lum);
+  col += uColorC * rim * 0.22;
   col *= 1.0 - 0.9 * cav;
   col *= mix(0.45, 1.0, uActive);  // dimmer while dormant
   gl_FragColor = vec4(col * uGain * maskv, 1.0);
@@ -161,19 +162,21 @@ void main() {
   vec3 view = normalize(cameraPosition - vWorld);
   float rim = pow(1.0 - max(dot(nWorld, view), 0.0), 2.0);
 
-  // a flame of colour on the crown (uP0 = turbulence)
-  float t = uTime * (0.3 + 1.2 * uP0);
-  vec3 p = vLocal * 3.0 + vec3(0.0, -t * 0.6, 0.0);
-  float nz = noise3(p) * 0.6 + noise3(p * 2.3 + 5.0) * 0.4;
-  float crown = smoothstep(0.72, 1.05, vLocal.y + 0.3 * (nz - 0.5) + 0.35 * vHair);
-  float flame = crown * (0.35 + 0.9 * nz);
-  vec3 pal = mix(uColorA, uColorB, smoothstep(0.25, 0.6, flame));
-  pal = mix(pal, uColorC, smoothstep(0.55, 0.9, flame));
-  pal = mix(pal, vec3(1.0), smoothstep(0.85, 1.15, flame));
+  // a rising, domain-warped flame of colour on the crown (uP0 = turbulence)
+  float t = uTime * (0.4 + 1.4 * uP0);
+  vec3 pp = vLocal * vec3(2.4, 1.7, 2.4);
+  float warp = noise3(pp * 1.4 + vec3(0.0, -t * 0.35, 0.0));
+  float nz = noise3(pp + vec3(warp * 0.9, -t * 0.7, warp * 0.4)) * 0.65
+           + noise3(pp * 2.6 + vec3(0.0, -t * 1.1, 7.0)) * 0.35;
+  float crown = smoothstep(0.6, 1.0, vLocal.y + 0.45 * (nz - 0.5) + 0.35 * vHair);
+  float flame = crown * (0.3 + 1.0 * nz);
+  vec3 pal = mix(uColorA, uColorB, smoothstep(0.15, 0.55, flame));
+  pal = mix(pal, uColorC, smoothstep(0.5, 0.85, flame));
+  pal = mix(pal, vec3(1.0), smoothstep(1.05, 1.45, flame));
 
   vec3 col = uColorA * 0.06;
   col += uColorA * rim * 0.7;
-  col += pal * flame * 1.6;
+  col += pal * flame * 1.35;
   col += uColorA * lum * 0.22 * uActive;   // the face glows through when she is awake
   col *= 1.0 - 0.8 * cav;
   col *= mix(0.5, 1.0, uActive);  // dimmer while dormant
@@ -298,21 +301,22 @@ void main() {
   vec2 uv = (a.x > a.y && a.x > a.z) ? vP.yz : (a.y > a.z ? vP.xz : vP.xy);
   float bright = 0.0;
   if (uMode < 0.5) {
-    // soft lines wrapping the cube; square rings on top and bottom
+    // soft wavy lines wrapping the cube; square rings on top and bottom
     float coord = (a.y > a.x && a.y > a.z) ? max(a.x, a.z) : vP.y * 0.5 + 0.5;
-    float h = coord * 16.0;
+    coord += 0.09 * noiseC(vP * 1.3 + vec3(0.0, uTime * 0.05, 0.0));
+    float h = coord * 10.0;
     float f = fract(h);
     float d = fwidth(h);
-    bright = smoothstep(0.5 - 0.08 - d, 0.5 - 0.08, f) - smoothstep(0.5 + 0.08, 0.5 + 0.08 + d, f);
-    bright = clamp(bright, 0.0, 1.0) * (1.0 - smoothstep(1.0, 3.0, d)) * 0.55;
+    bright = exp(-pow((f - 0.5) / 0.11, 2.0));
+    bright *= (1.0 - smoothstep(0.8, 2.5, d)) * 0.4;
   } else if (uMode < 1.5) {
     // a quiet dot grid on the faces
     vec2 g = fract(uv * 13.0) - 0.5;
     bright = smoothstep(0.30, 0.10, length(g)) * (0.4 + 0.3 * hashC(floor(vec3(uv * 13.0, uMode))));
   } else {
-    // glowing edges + a slow shimmer drifting across the faces
-    float border = pow(max(abs(uv.x), abs(uv.y)), 8.0);
-    bright = border * 0.9 + 0.22 * noiseC(vP * 1.6 + vec3(0.0, uTime * 0.12, 0.0));
+    // thin glowing edges + a faint aurora drifting across the faces
+    float border = pow(max(abs(uv.x), abs(uv.y)), 14.0);
+    bright = border * 1.3 + 0.055 * noiseC(vP * 1.2 + vec3(0.0, uTime * 0.06, 0.0));
   }
   vec3 col = mix(uColorA, uColorB, 0.35 * (1.0 + sin(vP.y * 2.0)));
   gl_FragColor = vec4(col * bright * uIntensity, 1.0);
