@@ -1,13 +1,19 @@
 // GLSL for the V.I.K.I. particle lattice.
-// Each point of a 3-D grid samples the face texture (see FacePass) at its x/y:
-// R = surface depth, G = luminance, B = mask. Points on the surface light up,
-// points behind it glow faintly (volumetric fill), the rest stay a dim lattice.
+// Each point of a 3-D grid samples the head textures (see FacePass), rendered
+// by cameras at +z, -z, +x and -x. A point lights up
+// when it sits on any of those surfaces (a closed 3-D shell), glows faintly
+// inside the head (volumetric fill) and otherwise stays a dim lattice cell.
 
 export const vertexShader = /* glsl */ `
-uniform sampler2D uFaceTex;
+uniform sampler2D uFront;
+uniform sampler2D uBack;
+uniform sampler2D uRight;
+uniform sampler2D uLeft;
 uniform float uTime;
 uniform float uFace;       // 0 = dormant lattice, 1 = fully formed face
 uniform float uTurb;       // 0..1 turbulence / dissolve
+uniform float uGain;       // face brightness
+uniform float uFill;       // interior fill
 uniform float uPointBase;  // device px per grid cell at camera distance
 uniform float uCamDist;
 
@@ -31,6 +37,7 @@ float noise(vec3 x) {
         mix(hash(i + vec3(0, 1, 1)), hash(i + vec3(1, 1, 1)), f.x), f.y),
     f.z);
 }
+float shell(float d) { return exp(-(d * d) / (2.0 * 0.075 * 0.075)); }
 
 void main() {
   vec3 p = position;
@@ -42,21 +49,27 @@ void main() {
       noise(p * 3.0 + uTime * 0.40)) - 0.5) * 0.35 * uTurb;
   }
 
-  vec4 f = texture2D(uFaceTex, p.xy * 0.5 + 0.5);
-  float d = f.r;
-  float lum = f.g;
-  float mask = f.b;
+  // screen-x of each orthographic camera (looking at the origin, up = +y)
+  vec4 f = texture2D(uFront, vec2(0.5 + 0.5 * p.x, 0.5 + 0.5 * p.y)); // camera +z: right = +x
+  vec4 b = texture2D(uBack,  vec2(0.5 - 0.5 * p.x, 0.5 + 0.5 * p.y)); // camera -z: right = -x
+  vec4 r = texture2D(uRight, vec2(0.5 - 0.5 * p.z, 0.5 + 0.5 * p.y)); // camera +x: right = -z
+  vec4 l = texture2D(uLeft,  vec2(0.5 + 0.5 * p.z, 0.5 + 0.5 * p.y)); // camera -x: right = +z
 
-  float dz = p.z - d;
-  float shell = exp(-(dz * dz) / (2.0 * 0.075 * 0.075));
-  float behind = smoothstep(0.02, -0.5, dz);
-  float face = mask * lum * (shell + 0.05 * behind);
+  float sF = shell(p.z - f.r) * f.g * f.b;
+  float sB = shell(p.z - b.r) * b.g * b.b;
+  float sR = shell(p.x - r.a) * r.g * r.b;
+  float sL = shell(p.x - l.a) * l.g * l.b;
+  float surf = max(max(sF, sB), max(sR, sL));
 
-  // slow-drifting dim lattice (no flicker: cheap and calm when idle)
+  float insideZ = f.b * b.b * smoothstep(b.r - 0.03, b.r + 0.03, p.z) * (1.0 - smoothstep(f.r - 0.03, f.r + 0.03, p.z));
+  float insideX = r.b * l.b * smoothstep(l.a - 0.03, l.a + 0.03, p.x) * (1.0 - smoothstep(r.a - 0.03, r.a + 0.03, p.x));
+  float inside = insideZ * insideX;
+  float face = surf + uFill * inside * max(f.g, 0.3);
+
   // per-cell variation breaks the moiré of a perfectly regular grid
   float amb = (0.045 + 0.075 * noise(p * 3.0 + vec3(0.0, 0.0, uTime * 0.15))) * (0.7 + 0.6 * aSeed);
 
-  float intensity = amb * (1.0 - 0.35 * uFace) + 1.1 * face * uFace * (1.0 - 0.6 * uTurb);
+  float intensity = amb * (1.0 - 0.35 * uFace) + uGain * face * uFace * (1.0 - 0.6 * uTurb);
   intensity = min(intensity, 1.1);
   vIntensity = intensity;
 

@@ -12,7 +12,12 @@ npm install
 npm run dev
 ```
 
-Click **Initiate link**, allow the microphone, and talk. Drag the cube to rotate it; it eases back to the front.
+Click **Initiate link**, allow the microphone, and talk. Drag the cube to rotate it freely (it eases back to the front
+unless you turn that off).
+
+**Configure** opens the character panel: colors, head size and shape (jaw, chin, cheekbones, brow ridge, nose), hair,
+eyes, mouth, lattice look and behaviour. Changes preview live on the active face; **Save** stores them in `localStorage`
+(closing without saving discards them), **Reset to standard** returns to the built-in defaults.
 
 > Note: `VITE_*` variables are inlined into the browser bundle. This is fine for a local prototype, but never deploy it
 > publicly with a real key — mint ephemeral Realtime tokens from a small backend instead.
@@ -28,7 +33,9 @@ Dev aids: `?preview=happy` (any expression, no API calls; add `&mouth=0.7` to ho
 
 ## Layout
 
-- `src/viki/FacePass.ts` — head mesh → depth/luminance/mask texture, expression deformation
+- `src/viki/FacePass.ts` — head mesh rendered from four sides → depth/luminance/mask textures, expression + shape deformation
+- `src/viki/config.ts` — configurator settings, defaults, persistence
+- `src/ConfigPanel.tsx` — the configurator UI
 - `src/viki/faceShader.ts` — GLSL: particles sample the face texture; surface shell + faint volumetric fill
 - `src/viki/ParticleFace.ts` — three.js scene, bloom, easing of expression targets, blinking, parallax
 - `src/viki/lipsync.ts` — band-energy analysis of the remote audio → mouth open / wide

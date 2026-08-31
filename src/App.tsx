@@ -1,5 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
+import ConfigPanel from './ConfigPanel'
 import { EXPRESSIONS, ParticleFace, type Expression } from './viki/ParticleFace'
+import { clearConfig, DEFAULT_CONFIG, loadConfig, saveConfig, type HeadConfig } from './viki/config'
 import { LipSync } from './viki/lipsync'
 import { connectRealtime, listMicrophones, type MicInfo, type RealtimeSession, type VoiceStatus } from './viki/realtime'
 
@@ -7,7 +9,7 @@ const API_KEY = import.meta.env.VITE_OPENAI_API_KEY as string | undefined
 
 /** Dev aid: `?preview=happy` forms the face with that expression and fakes speech (no API calls). */
 const PREVIEW = new URLSearchParams(window.location.search).get('preview') as Expression | null
-/** Dev aid: `?facepass=1` shows the raw head texture (depth/light) the lattice samples. */
+/** Dev aid: `?facepass=1` shows the raw head textures (depth/light) the lattice samples. */
 const DEBUG_FACE = new URLSearchParams(window.location.search).has('facepass')
 
 const MIC_STORAGE_KEY = 'viki.mic'
@@ -39,6 +41,13 @@ const STATE_FORM: Record<VoiceStatus, { face: number; turb: number }> = {
   error: { face: 0.2, turb: 0.8 },
 }
 
+/** Fake speech pattern for previews / the configurator's test mode. */
+function fakeTalk(t0: number) {
+  const t = (performance.now() - t0) / 1000
+  const talk = Math.max(0, Math.sin(t * 9) * 0.6 + Math.sin(t * 5.3) * 0.5)
+  return { open: talk, wide: 0.5 + 0.5 * Math.sin(t * 2.1) }
+}
+
 export default function App() {
   const canvasRef = useRef<HTMLCanvasElement>(null)
   const faceRef = useRef<ParticleFace | null>(null)
@@ -47,32 +56,35 @@ export default function App() {
   const lipRef = useRef<LipSync | null>(null)
   const micLipRef = useRef<LipSync | null>(null)
   const relaxTimer = useRef<number | undefined>(undefined)
+  const meterRef = useRef<HTMLSpanElement>(null)
 
   const [status, setStatus] = useState<VoiceStatus>('idle')
   const [assistantText, setAssistantText] = useState('')
   const [userText, setUserText] = useState('')
   const [error, setError] = useState<string | null>(null)
-  const meterRef = useRef<HTMLSpanElement>(null)
   const [mics, setMics] = useState<MicInfo[]>([])
   const [micId, setMicId] = useState<string>(loadMicChoice)
+
+  // configurator
+  const [config, setConfig] = useState<HeadConfig>(loadConfig)
+  const [draft, setDraft] = useState<HeadConfig>(config)
+  const [configOpen, setConfigOpen] = useState(false)
+  const [testSpeech, setTestSpeech] = useState(false)
+  const dirty = JSON.stringify(draft) !== JSON.stringify(config)
 
   // Renderer lifecycle
   useEffect(() => {
     if (!canvasRef.current) return
     const face = new ParticleFace(canvasRef.current, { debugFace: DEBUG_FACE })
     faceRef.current = face
+    face.applyConfig(loadConfig())
     ;(window as unknown as { __viki?: () => unknown }).__viki = () => face.debug()
     if (PREVIEW) {
       face.setTarget(STATE_FORM.speaking)
       face.setExpression(PREVIEW in EXPRESSIONS ? PREVIEW : 'neutral')
       const t0 = performance.now()
       const fixedMouth = Number(new URLSearchParams(window.location.search).get('mouth'))
-      face.setMouthSource(() => {
-        if (fixedMouth > 0) return { open: fixedMouth, wide: 0.4 }
-        const t = (performance.now() - t0) / 1000
-        const talk = Math.max(0, Math.sin(t * 9) * 0.6 + Math.sin(t * 5.3) * 0.5)
-        return { open: talk, wide: 0.5 + 0.5 * Math.sin(t * 2.1) }
-      })
+      face.setMouthSource(() => (fixedMouth > 0 ? { open: fixedMouth, wide: 0.4 } : fakeTalk(t0)))
     }
     return () => {
       face.dispose()
@@ -80,15 +92,53 @@ export default function App() {
     }
   }, [])
 
-  // Map voice status → formation of the lattice + mouth source
+  // Map voice status → formation of the lattice + mouth source.
+  // While the configurator is open the face is forced into its active look.
   useEffect(() => {
     const face = faceRef.current
     if (!face || PREVIEW) return
-    face.setTarget(STATE_FORM[status])
     face.setActive(status !== 'idle' && status !== 'error')
+    if (configOpen) {
+      face.setTarget({ face: 1, turb: 0 })
+      face.setExpression('neutral')
+      const t0 = performance.now()
+      face.setMouthSource(
+        status === 'speaking' && lipRef.current ? () => lipRef.current!.sample() : testSpeech ? () => fakeTalk(t0) : null,
+      )
+      return
+    }
+    face.setTarget(STATE_FORM[status])
     if (status === 'thinking') face.setExpression('thinking')
     face.setMouthSource(status === 'speaking' && lipRef.current ? () => lipRef.current!.sample() : null)
-  }, [status])
+  }, [status, configOpen, testSpeech])
+
+  // Live preview of the draft
+  useEffect(() => {
+    faceRef.current?.applyConfig(draft)
+  }, [draft])
+
+  const openConfig = useCallback(() => {
+    setDraft(config)
+    setConfigOpen(true)
+  }, [config])
+
+  const closeConfig = useCallback(() => {
+    setDraft(config) // discard unsaved changes
+    setTestSpeech(false)
+    setConfigOpen(false)
+  }, [config])
+
+  const saveDraft = useCallback(() => {
+    setConfig(draft)
+    saveConfig(draft)
+  }, [draft])
+
+  const resetConfig = useCallback(() => {
+    clearConfig()
+    setConfig({ ...DEFAULT_CONFIG })
+    setDraft({ ...DEFAULT_CONFIG })
+    faceRef.current?.resetView()
+  }, [])
 
   // Mic meter while connected (writes to the DOM directly: no React re-render per frame)
   useEffect(() => {
@@ -124,27 +174,24 @@ export default function App() {
     }
   }, [refreshMics])
 
-  const chooseMic = useCallback(
-    async (deviceId: string) => {
-      setMicId(deviceId)
-      try {
-        localStorage.setItem(MIC_STORAGE_KEY, deviceId)
-      } catch {
-        /* ignore */
-      }
-      const session = sessionRef.current
-      const ctx = audioCtxRef.current
-      if (!session || !ctx) return
-      try {
-        const stream = await session.setMicrophone(deviceId)
-        micLipRef.current?.dispose()
-        micLipRef.current = new LipSync(ctx, stream)
-      } catch (e) {
-        setError(`Could not switch microphone: ${e instanceof Error ? e.message : String(e)}`)
-      }
-    },
-    [],
-  )
+  const chooseMic = useCallback(async (deviceId: string) => {
+    setMicId(deviceId)
+    try {
+      localStorage.setItem(MIC_STORAGE_KEY, deviceId)
+    } catch {
+      /* ignore */
+    }
+    const session = sessionRef.current
+    const ctx = audioCtxRef.current
+    if (!session || !ctx) return
+    try {
+      const stream = await session.setMicrophone(deviceId)
+      micLipRef.current?.dispose()
+      micLipRef.current = new LipSync(ctx, stream)
+    } catch (e) {
+      setError(`Could not switch microphone: ${e instanceof Error ? e.message : String(e)}`)
+    }
+  }, [])
 
   const disconnect = useCallback(() => {
     sessionRef.current?.disconnect()
@@ -220,9 +267,16 @@ export default function App() {
             <span className="brand-name">V.I.K.I.</span>
             <span className="brand-sub">Virtual Interactive Kinetic Intelligence</span>
           </div>
-          <div className={`status status-${status}`}>
-            <span className="dot" />
-            {STATUS_LABEL[status]}
+          <div className="actions">
+            <div className={`status status-${status}`}>
+              <span className="dot" />
+              {STATUS_LABEL[status]}
+            </div>
+            {!configOpen && (
+              <button type="button" className="btn ghost small" onClick={openConfig}>
+                Configure
+              </button>
+            )}
           </div>
         </header>
 
@@ -263,9 +317,22 @@ export default function App() {
             </label>
           )}
           <p className="hint">
-            {connected ? 'Speak. She is listening.' : 'Microphone access is required. Speak in any language.'}
+            {connected ? 'Speak. She is listening. Drag to turn the cube.' : 'Microphone access is required. Drag to turn the cube.'}
           </p>
         </footer>
+
+        {configOpen && (
+          <ConfigPanel
+            draft={draft}
+            dirty={dirty}
+            testSpeech={testSpeech}
+            onChange={(patch) => setDraft((d) => ({ ...d, ...patch }))}
+            onTestSpeech={setTestSpeech}
+            onSave={saveDraft}
+            onReset={resetConfig}
+            onClose={closeConfig}
+          />
+        )}
       </div>
 
       <div className="corner tl" />

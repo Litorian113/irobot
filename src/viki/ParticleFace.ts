@@ -5,6 +5,7 @@ import { ShaderPass } from 'three/addons/postprocessing/ShaderPass.js'
 import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js'
 import { OutputPass } from 'three/addons/postprocessing/OutputPass.js'
 import { FacePass } from './FacePass'
+import { DEFAULT_CONFIG, type HeadConfig } from './config'
 import { fragmentShader, vertexShader } from './faceShader'
 
 export type Expression =
@@ -43,12 +44,13 @@ export interface MouthSample {
 
 const GRID_X = 72
 const GRID_Y = 88
-const GRID_Z = 24
+const GRID_Z = 28
 const CAM_DIST = 4.2
 const FOV = 40
 const MAX_PIXEL_RATIO = 1.5
 const IDLE_FPS = 24
 const ACTIVE_FPS = 60
+const TWO_PI = Math.PI * 2
 
 /**
  * Additive particles can stack far above 1.0 per pixel. This knee compresses everything above
@@ -77,17 +79,28 @@ const SoftClampShader = {
     }`,
 }
 
-/** Debug view of the face texture: depth as blue, luminance as brightness. */
+/** Debug view: the four head textures tiled 2x2 (front, back / right, left). Luminance, depth as blue. */
 const FaceDebugShader = {
-  uniforms: { tDiffuse: { value: null as THREE.Texture | null } },
+  uniforms: {
+    uFront: { value: null as THREE.Texture | null },
+    uBack: { value: null as THREE.Texture | null },
+    uRight: { value: null as THREE.Texture | null },
+    uLeft: { value: null as THREE.Texture | null },
+  },
   vertexShader: SoftClampShader.vertexShader,
   fragmentShader: /* glsl */ `
-    uniform sampler2D tDiffuse;
+    uniform sampler2D uFront;
+    uniform sampler2D uBack;
+    uniform sampler2D uRight;
+    uniform sampler2D uLeft;
     varying vec2 vUv;
     void main() {
-      vec4 f = texture2D(tDiffuse, vUv);
-      float depth = f.r * 0.5 + 0.5;
-      gl_FragColor = vec4(vec3(f.g) * f.b + vec3(0.0, 0.0, depth * 0.35) * f.b, 1.0);
+      vec2 t = fract(vUv * 2.0);
+      vec4 f;
+      if (vUv.y > 0.5) f = vUv.x < 0.5 ? texture2D(uFront, t) : texture2D(uBack, t);
+      else f = vUv.x < 0.5 ? texture2D(uRight, t) : texture2D(uLeft, t);
+      float depth = (vUv.y > 0.5 ? f.r : f.a) * 0.5 + 0.5;
+      gl_FragColor = vec4(vec3(f.g) + vec3(0.0, 0.0, depth * 0.35) * f.b, 1.0);
     }`,
 }
 
@@ -121,6 +134,8 @@ export class ParticleFace {
   private fpsCount = 0
   private fpsSince = 0
   private canvas: HTMLCanvasElement
+  private cellScale = DEFAULT_CONFIG.cellSize
+  private autoReturn = DEFAULT_CONFIG.autoReturn
 
   private current: FaceState = { face: 0.12, turb: 0.0, smile: 0.05, brow: 0, eyeOpen: 1 }
   private target: FaceState = { ...this.current }
@@ -128,7 +143,7 @@ export class ParticleFace {
   private mouth: MouthSample = { open: 0, wide: 0 }
   private mouthSource: (() => MouthSample | null) | null = null
 
-  // drag-to-rotate: yaw/pitch with inertia, easing back to the front when released
+  // drag-to-rotate: yaw/pitch with inertia, optionally easing back to the front when released
   private drag = { active: false, lastX: 0, lastY: 0, dx: 0, dy: 0, pointerId: -1 }
   private yaw = 0
   private pitch = 0
@@ -149,6 +164,7 @@ export class ParticleFace {
     this.camera = new THREE.PerspectiveCamera(FOV, 1, 0.1, 50)
     this.camera.position.set(0, 0, CAM_DIST)
 
+    const v = this.facePass.views
     this.material = new THREE.ShaderMaterial({
       vertexShader,
       fragmentShader,
@@ -157,15 +173,20 @@ export class ParticleFace {
       depthTest: false,
       blending: THREE.AdditiveBlending,
       uniforms: {
-        uFaceTex: { value: this.facePass.target.texture },
+        uFront: { value: v.front.target.texture },
+        uBack: { value: v.back.target.texture },
+        uRight: { value: v.right.target.texture },
+        uLeft: { value: v.left.target.texture },
         uTime: { value: 0 },
         uFace: { value: this.current.face },
         uTurb: { value: this.current.turb },
+        uGain: { value: DEFAULT_CONFIG.gain },
+        uFill: { value: DEFAULT_CONFIG.fill },
         uPointBase: { value: 4 },
         uCamDist: { value: CAM_DIST },
-        uColorDim: { value: new THREE.Color(0x24467e) },
-        uColorBright: { value: new THREE.Color(0x9fd0ff) },
-        uColorHot: { value: new THREE.Color(0xf2fbff) },
+        uColorDim: { value: new THREE.Color(DEFAULT_CONFIG.colorDim) },
+        uColorBright: { value: new THREE.Color(DEFAULT_CONFIG.colorBright) },
+        uColorHot: { value: new THREE.Color(DEFAULT_CONFIG.colorHot) },
       },
     })
 
@@ -177,13 +198,16 @@ export class ParticleFace {
     this.composer = new EffectComposer(this.renderer)
     this.composer.addPass(new RenderPass(this.scene, this.camera))
     this.composer.addPass(new ShaderPass(SoftClampShader))
-    this.bloom = new UnrealBloomPass(new THREE.Vector2(1, 1), 0.5, 0.3, 0.75)
+    this.bloom = new UnrealBloomPass(new THREE.Vector2(1, 1), DEFAULT_CONFIG.bloom, 0.3, 0.75)
     this.composer.addPass(this.bloom)
     this.composer.addPass(new OutputPass())
 
     if (opts.debugFace) {
       const mat = new THREE.ShaderMaterial({ ...FaceDebugShader })
-      mat.uniforms.tDiffuse.value = this.facePass.target.texture
+      mat.uniforms.uFront.value = v.front.target.texture
+      mat.uniforms.uBack.value = v.back.target.texture
+      mat.uniforms.uRight.value = v.right.target.texture
+      mat.uniforms.uLeft.value = v.left.target.texture
       this.debugQuad = new THREE.Mesh(new THREE.PlaneGeometry(2, 2), mat)
     }
 
@@ -233,7 +257,7 @@ export class ParticleFace {
     this.camera.updateProjectionMatrix()
     // device pixels per world unit at the camera's focal distance
     const pxPerUnit = (h * pr) / (2 * CAM_DIST * Math.tan((FOV * Math.PI) / 360))
-    this.material.uniforms.uPointBase.value = pxPerUnit * (2 / (GRID_X - 1)) * 1.3
+    this.material.uniforms.uPointBase.value = pxPerUnit * (2 / (GRID_X - 1)) * 1.3 * this.cellScale
   }
 
   private onPointerDown = (e: PointerEvent) => {
@@ -291,6 +315,31 @@ export class ParticleFace {
     this.active = active
   }
 
+  /** Apply the configurator's settings (colors, shape, hair, eyes, mouth, lattice). */
+  applyConfig(cfg: HeadConfig) {
+    const u = this.material.uniforms
+    ;(u.uColorDim.value as THREE.Color).set(cfg.colorDim)
+    ;(u.uColorBright.value as THREE.Color).set(cfg.colorBright)
+    ;(u.uColorHot.value as THREE.Color).set(cfg.colorHot)
+    u.uGain.value = cfg.gain
+    u.uFill.value = cfg.fill
+    this.bloom.strength = cfg.bloom
+    this.autoReturn = cfg.autoReturn
+    if (this.cellScale !== cfg.cellSize) {
+      this.cellScale = cfg.cellSize
+      this.resize()
+    }
+    this.facePass.applyConfig(cfg)
+  }
+
+  /** Turn the cube back to the front. */
+  resetView() {
+    this.yaw = 0
+    this.pitch = 0
+    this.yawVel = 0
+    this.pitchVel = 0
+  }
+
   private tick = () => {
     if (this.disposed) return
     this.raf = requestAnimationFrame(this.tick)
@@ -338,7 +387,7 @@ export class ParticleFace {
     u.uFace.value = this.current.face
     u.uTurb.value = this.current.turb
 
-    // drag rotation: radians per pixel while dragging, inertia + spring back afterwards
+    // drag rotation: radians per pixel while dragging, inertia afterwards; fully free
     const perPx = 0.006
     if (this.drag.active) {
       const dYaw = this.drag.dx * perPx
@@ -355,14 +404,16 @@ export class ParticleFace {
       this.pitchVel *= friction
       this.yaw += this.yawVel * dt
       this.pitch += this.pitchVel * dt
-      // ease back so she faces you again after a while
-      const home = 1 - Math.exp(-0.35 * dt)
-      this.yaw -= this.yaw * home
-      this.pitch -= this.pitch * home
+      if (this.autoReturn) {
+        // ease back to the nearest "facing you" orientation
+        const home = 1 - Math.exp(-0.35 * dt)
+        const yawHome = Math.round(this.yaw / TWO_PI) * TWO_PI
+        const pitchHome = Math.round(this.pitch / TWO_PI) * TWO_PI
+        this.yaw += (yawHome - this.yaw) * home
+        this.pitch += (pitchHome - this.pitch) * home
+      }
     }
-    // keep the face readable: the head is a relief inside the cube, not a full volume
-    this.yaw = Math.max(-1.0, Math.min(1.0, this.yaw))
-    this.pitch = Math.max(-0.6, Math.min(0.6, this.pitch))
+    this.group.rotation.order = 'YXZ'
     this.group.rotation.y = Math.sin(t * 0.18) * 0.08 + this.yaw
     this.group.rotation.x = Math.sin(t * 0.13) * 0.03 + this.pitch
     this.group.scale.setScalar(1 + Math.sin(t * 0.9) * 0.006)
