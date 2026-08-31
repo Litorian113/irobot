@@ -75,6 +75,7 @@ void main() {
   col += uColorA * line * (0.3 + 1.0 * lum);
   col += uColorC * rim * 0.9;
   col *= 1.0 - 0.9 * cav;
+  col *= mix(0.45, 1.0, uActive);  // dimmer while dormant
   gl_FragColor = vec4(col * uGain * maskv, 1.0);
 }
 `
@@ -90,7 +91,7 @@ void main() {
   float cav, maskv;
   float lum = paintLum(vLocal, n, vHair, cav, maskv);
   if (maskv < 0.02) discard;
-  gl_FragColor = vec4(vec3(lum * (1.0 - 0.9 * cav) * uGain * maskv), 1.0);
+  gl_FragColor = vec4(vec3(lum * (1.0 - 0.9 * cav) * uGain * maskv * mix(0.45, 1.0, uActive)), 1.0);
 }
 `
 
@@ -175,6 +176,7 @@ void main() {
   col += pal * flame * 1.6;
   col += uColorA * lum * 0.22 * uActive;   // the face glows through when she is awake
   col *= 1.0 - 0.8 * cav;
+  col *= mix(0.5, 1.0, uActive);  // dimmer while dormant
   gl_FragColor = vec4(col * uGain * maskv, 1.0);
 }
 `
