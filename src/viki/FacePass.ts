@@ -90,13 +90,19 @@ export class FacePass {
     this.scene.add(head)
   }
 
-  render(renderer: THREE.WebGLRenderer) {
+  /**
+   * Renders the head textures. The front view updates every call; the back and
+   * side views only when `full` is set — they are invisible while the cube
+   * faces forward, so most frames can skip three of the four passes.
+   */
+  render(renderer: THREE.WebGLRenderer, full = true) {
     if (!this.head) return
     const prevTarget = renderer.getRenderTarget()
     const prevColor = renderer.getClearColor(this.tmpColor)
     const prevAlpha = renderer.getClearAlpha()
     renderer.setClearColor(0x000000, 0)
-    for (const view of Object.values(this.views)) {
+    const views = full ? Object.values(this.views) : [this.views.front]
+    for (const view of views) {
       renderer.setRenderTarget(view.target)
       renderer.clear(true, true, false)
       renderer.render(this.scene, view.camera)

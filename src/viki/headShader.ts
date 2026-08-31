@@ -111,11 +111,13 @@ export const HEAD_PAINT_GLSL = /* glsl */ `
  * writes the open-mouth cavity (0..1) and the neck fade mask (0..1).
  */
 float paintLum(vec3 l, vec3 n, float hair, out float cav, out float maskv) {
-  vec3 key = normalize(vec3(0.35, 0.55, 1.0));
-  vec3 fill = normalize(vec3(-0.6, 0.1, 0.6));
+  // Rembrandt light: a single key high above, falling down the face;
+  // deep sockets, nose and cheek shadows, only a whisper of fill.
+  vec3 key = normalize(vec3(0.42, 0.88, 0.45));
+  vec3 fill = normalize(vec3(-0.55, 0.05, 0.8));
   float wrap = 0.5 + 0.5 * dot(n, key);
-  float lum = 0.08 + 0.85 * pow(wrap, 3.0) + 0.10 * max(dot(n, fill), 0.0);
-  lum += 0.08 * pow(1.0 - abs(n.z), 3.0);
+  float lum = 0.045 + 1.0 * pow(wrap, 3.6) + 0.07 * max(dot(n, fill), 0.0);
+  lum += 0.05 * pow(1.0 - abs(n.z), 3.0);
 
   float ax = abs(l.x);
   float faceZone = smoothstep(0.05, 0.35, l.z);
@@ -138,20 +140,21 @@ float paintLum(vec3 l, vec3 n, float hair, out float cav, out float maskv) {
   lum *= 1.0 - 0.55 * lipLine * boost;
   lum += uLipFull * boost * (1.1 * lowerLip + 0.5 * upperLip);
 
-  // eyes: bright almond, dark iris with a catchlight, lid shadow above; lids close on a blink
+  // eyes: soft almond, a large dark iris with a catchlight; lids close on a blink.
+  // Kept dim overall so they read as eyes, not white bars, at cell resolution.
   vec2 ep = vec2(ax - uEyeX, l.y - uEyeY);
-  vec2 er = vec2(0.075, 0.034) * uEyeSize;
+  vec2 er = vec2(0.068, 0.028) * uEyeSize;
   vec2 en = ep / er;
-  float almond = (1.0 - smoothstep(0.75, 1.0, dot(en, en))) * faceZone;
-  float irisR = length(ep / (er.y * 1.15));
-  float iris = 1.0 - smoothstep(0.55, 0.72, irisR);
-  float pupil = 1.0 - smoothstep(0.22, 0.34, irisR);
-  float catchlight = 1.0 - smoothstep(0.10, 0.22, length((ep - vec2(-0.007, 0.008)) / (er.y * 1.15)));
+  float almond = (1.0 - smoothstep(0.6, 1.0, dot(en, en))) * faceZone;
+  float irisR = length(ep / (er.y * 1.35));
+  float iris = 1.0 - smoothstep(0.5, 0.68, irisR);
+  float pupil = 1.0 - smoothstep(0.2, 0.32, irisR);
+  float catchlight = 1.0 - smoothstep(0.08, 0.2, length((ep - vec2(-0.006, 0.007)) / (er.y * 1.35)));
   float open = smoothstep(0.15, 0.8, uEyeOpen);
-  float eyeLum = 1.0 * (1.0 - 0.8 * iris - 0.2 * pupil) + 0.9 * catchlight * iris;
+  float eyeLum = 0.78 * (1.0 - 0.85 * iris - 0.2 * pupil) + 0.95 * catchlight * iris;
   float eyeMix = almond * open * clamp(uEyeGlow, 0.0, 1.0) * boost;
   lum = mix(lum, eyeLum, eyeMix);
-  lum += 0.25 * uEyeGlow * almond * open * boost;
+  lum += 0.1 * uEyeGlow * almond * open * boost;
   lum *= 1.0 - 0.45 * almond * (1.0 - open);
   vec2 en2 = (ep - vec2(0.0, er.y * 0.55)) / (er * vec2(1.25, 1.35));
   float lidShadow = max(0.0, (1.0 - smoothstep(0.7, 1.15, dot(en2, en2))) - almond) * faceZone;
@@ -247,6 +250,10 @@ export const HEAD_Z_REST = -0.95
 export const HEAD_Z_ACTIVE = -0.3
 const REST_SCALE_MUL = 0.8
 
+const tmpPos = new THREE.Vector3()
+const tmpQuat = new THREE.Quaternion()
+const tmpScale = new THREE.Vector3()
+
 /** Compose the head placement (scale + offset, "forward" 0..1) into the shared uniforms. */
 export function applyPlacement(u: HeadUniforms, cfg: HeadConfig, forward: number) {
   const grow = REST_SCALE_MUL + (1 - REST_SCALE_MUL) * forward
@@ -256,6 +263,6 @@ export function applyPlacement(u: HeadUniforms, cfg: HeadConfig, forward: number
   const z = HEAD_Z_REST + (HEAD_Z_ACTIVE - HEAD_Z_REST) * forward
   u.uHeadScale.value.set(sx, sy, sz)
   u.uHeadOffset.value.set(0, cfg.headY, z)
-  u.uHeadMatrix.value.compose(new THREE.Vector3(0, cfg.headY, z), new THREE.Quaternion(), new THREE.Vector3(sx, sy, sz))
+  u.uHeadMatrix.value.compose(tmpPos.set(0, cfg.headY, z), tmpQuat.identity(), tmpScale.set(sx, sy, sz))
   u.uActive.value = forward
 }

@@ -52,7 +52,7 @@ const GRID_Z = 28
 const CAM_DIST = 4.2
 const FOV = 40
 const MAX_PIXEL_RATIO = 1.5
-const IDLE_FPS = 24
+const IDLE_FPS = 20
 const ACTIVE_FPS = 60
 const TWO_PI = Math.PI * 2
 
@@ -173,6 +173,7 @@ export class ParticleFace {
 
   private nextBlink = 2
   private blinkUntil = -1
+  private frameIndex = 0
 
   constructor(canvas: HTMLCanvasElement, opts: { debugFace?: boolean } = {}) {
     this.canvas = canvas
@@ -500,7 +501,13 @@ export class ParticleFace {
     this.group.scale.setScalar(1 + Math.sin(t * 0.9) * 0.006)
 
     const t0 = performance.now()
-    if (this.style === 'lattice' || this.debugQuad) this.facePass.render(this.renderer)
+    this.frameIndex++
+    if (this.style === 'lattice' || this.debugQuad) {
+      // the side/back head textures only matter while the cube is turned
+      const rotated =
+        this.drag.active || Math.abs(this.group.rotation.y) > 0.09 || Math.abs(this.group.rotation.x) > 0.09
+      this.facePass.render(this.renderer, rotated || this.frameIndex % 10 === 0 || Boolean(this.debugQuad))
+    }
     this.fpsCount++
     if (now - this.fpsSince > 1000) {
       this.renderedFps = this.fpsCount
