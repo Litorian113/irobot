@@ -203,6 +203,7 @@ export class ParticleFace {
         uTurb: { value: this.current.turb },
         uGain: { value: 1 },
         uFill: { value: 0.05 },
+        uCage: { value: 0.5 },
         uPointBase: { value: 4 },
         uCamDist: { value: CAM_DIST },
         uColorDim: { value: new THREE.Color() },
@@ -260,6 +261,7 @@ export class ParticleFace {
     const styles = createStyles(this.headUniforms, geometry, CAM_DIST)
     this.styles = styles
     this.group.add(styles.contour, styles.dots, styles.plasma, styles.dust)
+    this.group.add(styles.cages.contour, styles.cages.dots, styles.cages.plasma, styles.cages.dust)
     // post passes owned by styles, inserted between soft clamp and bloom
     const passes = this.composer.passes
     const bloomIndex = passes.indexOf(this.bloom)
@@ -375,6 +377,10 @@ export class ParticleFace {
       s.dots.visible = style === 'dots'
       s.plasma.visible = style === 'plasma'
       s.dust.visible = style === 'dust'
+      s.cages.contour.visible = style === 'contour'
+      s.cages.dots.visible = style === 'dots'
+      s.cages.plasma.visible = style === 'plasma'
+      s.cages.dust.visible = style === 'dust'
     }
     this.softClamp.enabled = style === 'lattice' || style === 'dust' || style === 'plasma'
     if (this.dotPass) this.dotPass.enabled = style === 'dots'
@@ -395,6 +401,7 @@ export class ParticleFace {
     ;(u.uColorHot.value as THREE.Color).set(cfg.colorC)
     u.uGain.value = cfg.gain
     u.uFill.value = cfg.fill
+    u.uCage.value = cfg.cage
     this.bloom.strength = cfg.bloom
     this.material.uniforms.uPointBase.value =
       ((this.canvas.clientHeight || window.innerHeight) * this.renderer.getPixelRatio()) /

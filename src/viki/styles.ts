@@ -261,6 +261,146 @@ void main() {
 }
 `
 
+// ---------------------------------------------------------------- cages
+// Every style gets a faint surrounding cube drawn in its own language:
+// contour = soft wrapping lines, dots = a dot grid on the faces,
+// plasma = softly glowing edges with a drifting shimmer, dust = thin haze.
+
+const cageVertex = /* glsl */ `
+varying vec3 vP;
+void main() {
+  vP = position;
+  gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+}
+`
+
+const cageFragment = /* glsl */ `
+uniform vec3 uColorA;
+uniform vec3 uColorB;
+uniform float uIntensity;
+uniform float uTime;
+uniform float uMode; // 0 lines, 1 dots, 2 plasma
+varying vec3 vP;
+float hashC(vec3 p) {
+  p = fract(p * 0.3183099 + 0.1);
+  p *= 17.0;
+  return fract(p.x * p.y * p.z * (p.x + p.y + p.z));
+}
+float noiseC(vec3 x) {
+  vec3 i = floor(x); vec3 f = fract(x); f = f * f * (3.0 - 2.0 * f);
+  return mix(
+    mix(mix(hashC(i), hashC(i + vec3(1, 0, 0)), f.x), mix(hashC(i + vec3(0, 1, 0)), hashC(i + vec3(1, 1, 0)), f.x), f.y),
+    mix(mix(hashC(i + vec3(0, 0, 1)), hashC(i + vec3(1, 0, 1)), f.x), mix(hashC(i + vec3(0, 1, 1)), hashC(i + vec3(1, 1, 1)), f.x), f.y),
+    f.z);
+}
+void main() {
+  vec3 a = abs(vP);
+  vec2 uv = (a.x > a.y && a.x > a.z) ? vP.yz : (a.y > a.z ? vP.xz : vP.xy);
+  float bright = 0.0;
+  if (uMode < 0.5) {
+    // soft lines wrapping the cube; square rings on top and bottom
+    float coord = (a.y > a.x && a.y > a.z) ? max(a.x, a.z) : vP.y * 0.5 + 0.5;
+    float h = coord * 16.0;
+    float f = fract(h);
+    float d = fwidth(h);
+    bright = smoothstep(0.5 - 0.08 - d, 0.5 - 0.08, f) - smoothstep(0.5 + 0.08, 0.5 + 0.08 + d, f);
+    bright = clamp(bright, 0.0, 1.0) * (1.0 - smoothstep(1.0, 3.0, d)) * 0.55;
+  } else if (uMode < 1.5) {
+    // a quiet dot grid on the faces
+    vec2 g = fract(uv * 13.0) - 0.5;
+    bright = smoothstep(0.30, 0.10, length(g)) * (0.4 + 0.3 * hashC(floor(vec3(uv * 13.0, uMode))));
+  } else {
+    // glowing edges + a slow shimmer drifting across the faces
+    float border = pow(max(abs(uv.x), abs(uv.y)), 8.0);
+    bright = border * 0.9 + 0.22 * noiseC(vP * 1.6 + vec3(0.0, uTime * 0.12, 0.0));
+  }
+  vec3 col = mix(uColorA, uColorB, 0.35 * (1.0 + sin(vP.y * 2.0)));
+  gl_FragColor = vec4(col * bright * uIntensity, 1.0);
+}
+`
+
+function makeCage(mode: number): THREE.Mesh {
+  const mat = new THREE.ShaderMaterial({
+    vertexShader: cageVertex,
+    fragmentShader: cageFragment,
+    uniforms: {
+      uColorA: { value: new THREE.Color() },
+      uColorB: { value: new THREE.Color() },
+      uIntensity: { value: 0.06 },
+      uTime: { value: 0 },
+      uMode: { value: mode },
+    },
+    transparent: true,
+    depthWrite: false,
+    depthTest: false,
+    blending: THREE.AdditiveBlending,
+    side: THREE.DoubleSide,
+  })
+  const mesh = new THREE.Mesh(new THREE.BoxGeometry(2, 2, 2), mat)
+  mesh.frustumCulled = false
+  mesh.visible = false
+  mesh.renderOrder = -1
+  return mesh
+}
+
+const cageDustVertex = /* glsl */ `
+uniform float uTime;
+uniform float uPointBase;
+attribute vec3 aSeed;
+varying float vA;
+void main() {
+  vec3 p = position + 0.04 * sin(uTime * 0.4 + aSeed * 6.2831);
+  vec4 mv = modelViewMatrix * vec4(p, 1.0);
+  gl_Position = projectionMatrix * mv;
+  gl_PointSize = uPointBase * (0.6 + aSeed.x) * (4.2 / -mv.z);
+  vA = 0.5 + 0.5 * aSeed.y;
+}
+`
+
+const cageDustFragment = /* glsl */ `
+uniform vec3 uColorB;
+uniform float uIntensity;
+varying float vA;
+void main() {
+  vec2 c = gl_PointCoord - 0.5;
+  if (dot(c, c) > 0.25) discard;
+  gl_FragColor = vec4(uColorB * vA * uIntensity, 1.0);
+}
+`
+
+function makeDustCage(): THREE.Points {
+  const N = 3500
+  const pos = new Float32Array(N * 3)
+  const seed = new Float32Array(N * 3)
+  for (let i = 0; i < N * 3; i++) {
+    pos[i] = Math.random() * 2 - 1
+    seed[i] = Math.random()
+  }
+  const geo = new THREE.BufferGeometry()
+  geo.setAttribute('position', new THREE.BufferAttribute(pos, 3))
+  geo.setAttribute('aSeed', new THREE.BufferAttribute(seed, 3))
+  const mat = new THREE.ShaderMaterial({
+    vertexShader: cageDustVertex,
+    fragmentShader: cageDustFragment,
+    uniforms: {
+      uColorA: { value: new THREE.Color() },
+      uColorB: { value: new THREE.Color() },
+      uIntensity: { value: 0.3 },
+      uTime: { value: 0 },
+      uPointBase: { value: 2 },
+    },
+    transparent: true,
+    depthWrite: false,
+    depthTest: false,
+    blending: THREE.AdditiveBlending,
+  })
+  const pts = new THREE.Points(geo, mat)
+  pts.frustumCulled = false
+  pts.visible = false
+  pts.renderOrder = -1
+  return pts
+}
+
 const DUST_MAX = 220000
 
 export interface StyleSet {
@@ -268,6 +408,7 @@ export interface StyleSet {
   dots: THREE.Mesh
   plasma: THREE.Mesh
   dust: THREE.Points
+  cages: { contour: THREE.Mesh; dots: THREE.Mesh; plasma: THREE.Mesh; dust: THREE.Points }
   dotMatrix: THREE.ShaderMaterial
   chroma: THREE.ShaderMaterial
   setTime: (t: number) => void
@@ -339,6 +480,9 @@ export function createStyles(uniforms: HeadUniforms, geometry: THREE.BufferGeome
   dust.frustumCulled = false
   dust.visible = false
 
+  const cages = { contour: makeCage(0), dots: makeCage(1), plasma: makeCage(2), dust: makeDustCage() }
+  const cageMat = (o: THREE.Object3D) => (o as THREE.Mesh).material as THREE.ShaderMaterial
+
   const dotMatrix = new THREE.ShaderMaterial({ ...DotMatrixShader, uniforms: THREE.UniformsUtils.clone(DotMatrixShader.uniforms) })
   const chroma = new THREE.ShaderMaterial({ ...ChromaShader, uniforms: THREE.UniformsUtils.clone(ChromaShader.uniforms) })
 
@@ -354,6 +498,7 @@ export function createStyles(uniforms: HeadUniforms, geometry: THREE.BufferGeome
     dots,
     plasma,
     dust,
+    cages,
     dotMatrix,
     chroma,
     setTime: (t) => {
@@ -362,8 +507,16 @@ export function createStyles(uniforms: HeadUniforms, geometry: THREE.BufferGeome
       plasmaMat.uniforms.uTime.value = t
       dustMat.uniforms.uTime.value = t
       dotMatrix.uniforms.uTime.value = t
+      for (const c of Object.values(cages)) cageMat(c).uniforms.uTime.value = t
     },
     applyConfig: (cfg, styleId) => {
+      const cage = cages[styleId as keyof typeof cages] as THREE.Object3D | undefined
+      if (cage) {
+        const u = cageMat(cage).uniforms
+        ;(u.uColorA.value as THREE.Color).set(cfg.colorA)
+        ;(u.uColorB.value as THREE.Color).set(styleId === 'contour' ? cfg.colorA : cfg.colorB)
+        u.uIntensity.value = (styleId === 'dust' ? 0.55 : 0.12) * cfg.cage
+      }
       switch (styleId) {
         case 'contour':
           setColors(contourMat.uniforms, cfg)
@@ -393,8 +546,13 @@ export function createStyles(uniforms: HeadUniforms, geometry: THREE.BufferGeome
     },
     setDustBase: (pointBase) => {
       dustMat.uniforms.uPointBase.value = pointBase
+      cageMat(cages.dust).uniforms.uPointBase.value = pointBase
     },
     dispose: () => {
+      for (const c of Object.values(cages)) {
+        cageMat(c).dispose()
+        ;(c as THREE.Mesh).geometry.dispose()
+      }
       contourMat.dispose()
       dotsMat.dispose()
       plasmaMat.dispose()

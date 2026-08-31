@@ -27,6 +27,7 @@ export interface HeadConfig {
   scatter: number // dust edge scatter
   chroma: number // plasma chromatic aberration
   dotSize: number // dust particle size
+  cage: number // brightness of the surrounding cube/cage
   autoReturn: boolean // ease back to the front after a drag
   // head placement
   headScale: number
@@ -76,6 +77,7 @@ const SHAPE_DEFAULTS = {
 }
 
 const APPEARANCE_BASE = {
+  cage: 0.5,
   gain: 1,
   cellSize: 1,
   bloom: 0.5,
@@ -213,6 +215,7 @@ export const STYLE_GROUPS: Record<HeadStyle, SliderGroup> = {
       { key: 'cellSize', label: 'Cell size', min: 0.5, max: 1.8, step: 0.02 },
       { key: 'bloom', label: 'Bloom', min: 0, max: 1.5, step: 0.02 },
       { key: 'fill', label: 'Interior fill', min: 0, max: 0.2, step: 0.005 },
+      { key: 'cage', label: 'Cage brightness', min: 0, max: 1, step: 0.01 },
     ],
   },
   contour: {
@@ -222,6 +225,7 @@ export const STYLE_GROUPS: Record<HeadStyle, SliderGroup> = {
       { key: 'lineWidth', label: 'Line width', min: 0.02, max: 0.25, step: 0.005 },
       { key: 'gain', label: 'Brightness', min: 0.4, max: 2, step: 0.02 },
       { key: 'bloom', label: 'Glow', min: 0, max: 1.5, step: 0.02 },
+      { key: 'cage', label: 'Cage', min: 0, max: 1, step: 0.01 },
     ],
   },
   dots: {
@@ -231,6 +235,7 @@ export const STYLE_GROUPS: Record<HeadStyle, SliderGroup> = {
       { key: 'flicker', label: 'Flicker', min: 0, max: 1, step: 0.01 },
       { key: 'gain', label: 'Brightness', min: 0.4, max: 2, step: 0.02 },
       { key: 'bloom', label: 'Glow', min: 0, max: 1.5, step: 0.02 },
+      { key: 'cage', label: 'Cage', min: 0, max: 1, step: 0.01 },
     ],
   },
   plasma: {
@@ -240,6 +245,7 @@ export const STYLE_GROUPS: Record<HeadStyle, SliderGroup> = {
       { key: 'chroma', label: 'Colour split', min: 0, max: 1, step: 0.01 },
       { key: 'gain', label: 'Brightness', min: 0.4, max: 2, step: 0.02 },
       { key: 'bloom', label: 'Blur / glow', min: 0, max: 2, step: 0.02 },
+      { key: 'cage', label: 'Cage', min: 0, max: 1, step: 0.01 },
     ],
   },
   dust: {
@@ -250,6 +256,7 @@ export const STYLE_GROUPS: Record<HeadStyle, SliderGroup> = {
       { key: 'scatter', label: 'Edge scatter', min: 0, max: 1, step: 0.01 },
       { key: 'gain', label: 'Brightness', min: 0.4, max: 2, step: 0.02 },
       { key: 'bloom', label: 'Glow', min: 0, max: 1.5, step: 0.02 },
+      { key: 'cage', label: 'Cage', min: 0, max: 1, step: 0.01 },
     ],
   },
 }

@@ -14,6 +14,7 @@ uniform float uFace;       // 0 = dormant lattice, 1 = fully formed face
 uniform float uTurb;       // 0..1 turbulence / dissolve
 uniform float uGain;       // face brightness
 uniform float uFill;       // interior fill
+uniform float uCage;       // ambience brightness
 uniform float uPointBase;  // device px per grid cell at camera distance
 uniform float uCamDist;
 
@@ -67,7 +68,7 @@ void main() {
   float face = surf + uFill * inside * max(f.g, 0.3);
 
   // per-cell variation breaks the moiré of a perfectly regular grid
-  float amb = (0.045 + 0.075 * noise(p * 3.0 + vec3(0.0, 0.0, uTime * 0.15))) * (0.7 + 0.6 * aSeed);
+  float amb = (0.045 + 0.075 * noise(p * 3.0 + vec3(0.0, 0.0, uTime * 0.15))) * (0.7 + 0.6 * aSeed) * (0.3 + 1.4 * uCage);
 
   float intensity = amb * (1.0 - 0.35 * uFace) + uGain * face * uFace * (1.0 - 0.6 * uTurb);
   intensity = min(intensity, 1.1);
