@@ -205,6 +205,7 @@ export class ParticleFace {
         uGain: { value: 1 },
         uFill: { value: 0.05 },
         uCage: { value: 0.5 },
+        uFlicker: { value: 0.6 },
         uPointBase: { value: 4 },
         uCamDist: { value: CAM_DIST },
         uColorDim: { value: new THREE.Color() },
@@ -403,6 +404,7 @@ export class ParticleFace {
     u.uGain.value = cfg.gain
     u.uFill.value = cfg.fill
     u.uCage.value = cfg.cage
+    u.uFlicker.value = cfg.flicker
     this.bloom.strength = cfg.bloom
     this.material.uniforms.uPointBase.value =
       ((this.canvas.clientHeight || window.innerHeight) * this.renderer.getPixelRatio()) /

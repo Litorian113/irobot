@@ -15,6 +15,7 @@ uniform float uTurb;       // 0..1 turbulence / dissolve
 uniform float uGain;       // face brightness
 uniform float uFill;       // interior fill
 uniform float uCage;       // ambience brightness
+uniform float uFlicker;    // per-cell brightness variation (the movie's data-cell sparkle)
 uniform float uPointBase;  // device px per grid cell at camera distance
 uniform float uCamDist;
 
@@ -66,6 +67,10 @@ void main() {
   float insideX = r.b * l.b * smoothstep(l.a - 0.03, l.a + 0.03, p.x) * (1.0 - smoothstep(r.a - 0.03, r.a + 0.03, p.x));
   float inside = insideZ * insideX;
   float face = surf + uFill * inside * max(f.g, 0.3);
+
+  // every cell is its own little screen: random brightness, slowly shimmering
+  float cellVar = 0.45 + 1.1 * noise(vec3(aSeed * 217.0, uTime * 0.45, aSeed * 91.0));
+  face *= mix(1.0, cellVar, uFlicker);
 
   // per-cell variation breaks the moiré of a perfectly regular grid
   float amb = (0.045 + 0.075 * noise(p * 3.0 + vec3(0.0, 0.0, uTime * 0.15))) * (0.7 + 0.6 * aSeed) * (0.3 + 1.4 * uCage);

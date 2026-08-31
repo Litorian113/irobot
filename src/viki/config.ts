@@ -94,11 +94,14 @@ export const STYLE_DEFAULTS: Record<HeadStyle, HeadConfig> = {
   lattice: {
     ...APPEARANCE_BASE,
     ...SHAPE_DEFAULTS,
-    colorA: '#24467e',
-    colorB: '#9fd0ff',
-    colorC: '#f2fbff',
+    // the film look: silver cells on near-black, dark hollow eyes
+    colorA: '#31363d',
+    colorB: '#c8d1d9',
+    colorC: '#ffffff',
     gain: 0.95,
-    bloom: 0.5,
+    bloom: 0.45,
+    flicker: 0.6,
+    eyeGlow: 0.25,
   },
   contour: {
     ...APPEARANCE_BASE,
@@ -215,6 +218,7 @@ export const STYLE_GROUPS: Record<HeadStyle, SliderGroup> = {
       { key: 'cellSize', label: 'Cell size', min: 0.5, max: 1.8, step: 0.02 },
       { key: 'bloom', label: 'Bloom', min: 0, max: 1.5, step: 0.02 },
       { key: 'fill', label: 'Interior fill', min: 0, max: 0.2, step: 0.005 },
+      { key: 'flicker', label: 'Cell variation', min: 0, max: 1, step: 0.01 },
       { key: 'cage', label: 'Cage brightness', min: 0, max: 1, step: 0.01 },
     ],
   },
