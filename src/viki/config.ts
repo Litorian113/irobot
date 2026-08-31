@@ -45,8 +45,8 @@ export const DEFAULT_CONFIG: HeadConfig = {
   bloom: 0.5,
   fill: 0.05,
   autoReturn: true,
-  headScale: 0.29,
-  headY: -0.38,
+  headScale: 0.46,
+  headY: -0.55,
   oval: 0.06,
   jawWidth: 0.16,
   chin: 0.14,
@@ -82,8 +82,8 @@ export const SLIDER_GROUPS: SliderGroup[] = [
   {
     title: 'Head',
     sliders: [
-      { key: 'headScale', label: 'Size', min: 0.2, max: 0.4, step: 0.005 },
-      { key: 'headY', label: 'Height', min: -0.6, max: -0.1, step: 0.01 },
+      { key: 'headScale', label: 'Size', min: 0.25, max: 0.6, step: 0.005 },
+      { key: 'headY', label: 'Height', min: -0.9, max: -0.2, step: 0.01 },
       { key: 'oval', label: 'Oval skull', min: 0, max: 0.15, step: 0.005 },
       { key: 'jawWidth', label: 'Jaw narrowing', min: 0, max: 0.25, step: 0.005 },
       { key: 'chin', label: 'Chin taper', min: 0, max: 0.25, step: 0.005 },

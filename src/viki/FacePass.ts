@@ -16,9 +16,10 @@ import { DEFAULT_CONFIG, REF_SCALE } from './config'
  * the size/height sliders and the "come forward" motion carry the features along.
  */
 
-/** Rest / active depth of the head inside the cube (it moves forward when she wakes up). */
-export const HEAD_Z_REST = -0.42
-export const HEAD_Z_ACTIVE = 0.0
+/** Rest / active depth of the head inside the cube (it moves forward and grows when she wakes up). */
+export const HEAD_Z_REST = -0.95
+export const HEAD_Z_ACTIVE = -0.3
+const REST_SCALE_MUL = 0.8
 
 const shaderCommon = /* glsl */ `
 uniform vec3 uHeadOffset;   // placement of the head in the cube
@@ -326,9 +327,10 @@ export class FacePass {
   }
 
   private applyPlacement() {
-    const sx = this.scale * (1 - 0.5 * this.oval)
-    const sy = this.scale * (1 + this.oval)
-    const sz = this.scale
+    const grow = REST_SCALE_MUL + (1 - REST_SCALE_MUL) * this.forward
+    const sx = this.scale * grow * (1 - 0.5 * this.oval)
+    const sy = this.scale * grow * (1 + this.oval)
+    const sz = this.scale * grow
     const z = HEAD_Z_REST + (HEAD_Z_ACTIVE - HEAD_Z_REST) * this.forward
     this.uniforms.uHeadScale.value.set(sx, sy, sz)
     this.uniforms.uHeadOffset.value.set(0, this.offsetY, z)
