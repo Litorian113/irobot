@@ -138,7 +138,7 @@ float paintLum(vec3 l, vec3 n, float hair, out float cav, out float maskv) {
   float lowerLip = exp(-pow((l.y - (uMouthY - 0.026)) / 0.016, 2.0)) * lens * (1.0 - cav) * faceZone;
   float upperLip = exp(-pow((l.y - (uMouthY + 0.018)) / 0.012, 2.0)) * lens * (1.0 - cav) * faceZone;
   lum *= 1.0 - 0.55 * lipLine * boost;
-  lum += uLipFull * boost * (1.1 * lowerLip + 0.5 * upperLip);
+  lum += uLipFull * boost * (0.35 * lowerLip + 0.12 * upperLip);
 
   // eyes: soft almond, a large dark iris with a catchlight; lids close on a blink.
   // Kept dim overall so they read as eyes, not white bars, at cell resolution.
@@ -168,11 +168,15 @@ float paintLum(vec3 l, vec3 n, float hair, out float cav, out float maskv) {
 
   // cheekbone highlight
   float cheekHi = g2(ax - 0.33, l.y - (uEyeY - 0.12), 0.09, 0.05) * faceZone;
-  lum += 0.12 * cheekHi * boost;
+  lum += 0.06 * cheekHi * boost;
 
   // hair: a little darker with a fine strand-like grain
   lum *= 1.0 - 0.3 * hair;
   lum += hair * 0.35 * hashH(floor(l * vec3(90.0, 14.0, 90.0)));
+
+  // soft highlight roll-off: nothing clips to a flat white blob
+  float over = max(lum - 0.8, 0.0);
+  lum = 0.8 + over / (1.0 + 1.7 * over);
 
   // fade the neck out below the chin: no shoulders
   maskv = smoothstep(-0.62, -0.28, l.y);

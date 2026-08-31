@@ -69,7 +69,8 @@ void main() {
   float face = surf + uFill * inside * max(f.g, 0.3);
 
   // every cell is its own little screen: random brightness, slowly shimmering
-  float cellVar = 0.45 + 1.1 * noise(vec3(aSeed * 217.0, uTime * 0.45, aSeed * 91.0));
+  // mostly dims, only a little over-brightening: sparkle without white patches
+  float cellVar = 0.55 + 0.75 * noise(vec3(aSeed * 217.0, uTime * 0.45, aSeed * 91.0));
   face *= mix(1.0, cellVar, uFlicker);
 
   // per-cell variation breaks the moiré of a perfectly regular grid
