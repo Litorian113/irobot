@@ -293,26 +293,12 @@ export default function App() {
     <div className="hero">
       <canvas ref={canvasRef} />
 
-      <div className="hud">
+      <div className={`hud${configOpen ? ' config-open' : ''}`}>
         <header className="hud-top">
           <div className="brand">
             <span className="brand-name">V.I.K.I.</span>
             <span className="brand-sub">Virtual Interactive Kinetic Intelligence</span>
           </div>
-          <nav className="tabs" aria-label="Head style">
-            {STYLES.map((s, i) => (
-              <button
-                key={s.id}
-                type="button"
-                className={`tab${s.id === style ? ' active' : ''}`}
-                onClick={() => chooseStyle(s.id)}
-                title={s.hint}
-              >
-                <span className="tab-index">{String(i + 1).padStart(2, '0')}</span>
-                {s.label}
-              </button>
-            ))}
-          </nav>
           <div className="actions">
             <div className={`status status-${status}`}>
               <span className="dot" />
@@ -325,6 +311,21 @@ export default function App() {
             )}
           </div>
         </header>
+
+        <nav className="tabs" aria-label="Head style">
+          {STYLES.map((s, i) => (
+            <button
+              key={s.id}
+              type="button"
+              className={`tab${s.id === style ? ' active' : ''}`}
+              onClick={() => chooseStyle(s.id)}
+              title={s.hint}
+            >
+              <span className="tab-index">{String(i + 1).padStart(2, '0')}</span>
+              {s.label}
+            </button>
+          ))}
+        </nav>
 
         <div className="captions" aria-live="polite">
           {userText && <p className="caption user">{userText}</p>}

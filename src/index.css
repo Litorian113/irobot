@@ -461,17 +461,26 @@ body,
   }
 }
 
-/* ---------- head style tabs ---------- */
+/* ---------- head style tabs (vertical, right edge) ---------- */
 
 .tabs {
+  position: absolute;
+  right: clamp(14px, 2vw, 28px);
+  top: 50%;
+  transform: translateY(-50%);
   display: flex;
+  flex-direction: column;
   gap: 4px;
   pointer-events: auto;
   border: 1px solid var(--ink-faint);
   padding: 4px;
   background: rgba(4, 12, 30, 0.55);
   backdrop-filter: blur(8px);
-  align-self: flex-start;
+  transition: right 0.25s ease-out;
+}
+
+.hud.config-open .tabs {
+  right: calc(min(380px, 100%) + 16px);
 }
 
 .tab {
@@ -482,11 +491,14 @@ body,
   color: var(--ink-dim);
   background: transparent;
   border: 1px solid transparent;
-  padding: 8px 12px;
+  padding: 10px 14px;
   cursor: pointer;
-  display: inline-flex;
+  display: flex;
   align-items: center;
-  gap: 8px;
+  justify-content: flex-start;
+  gap: 10px;
+  width: 100%;
+  text-align: left;
   transition:
     color 0.2s,
     background 0.2s,
@@ -514,12 +526,17 @@ body,
 }
 
 @media (max-width: 900px) {
-  .hud-top {
-    flex-wrap: wrap;
-  }
   .tabs {
-    order: 3;
-    width: 100%;
-    overflow-x: auto;
+    top: auto;
+    bottom: 130px;
+    right: 10px;
+    transform: none;
+  }
+  .tab {
+    padding: 8px 10px;
+    font-size: 10px;
+  }
+  .hud.config-open .tabs {
+    display: none;
   }
 }
