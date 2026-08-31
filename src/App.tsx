@@ -1,7 +1,17 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import ConfigPanel from './ConfigPanel'
 import { EXPRESSIONS, ParticleFace, type Expression } from './viki/ParticleFace'
-import { clearConfig, DEFAULT_CONFIG, loadConfig, saveConfig, type HeadConfig } from './viki/config'
+import {
+  clearConfig,
+  loadConfig,
+  loadStyle,
+  saveConfig,
+  saveStyle,
+  STYLE_DEFAULTS,
+  STYLES,
+  type HeadConfig,
+  type HeadStyle,
+} from './viki/config'
 import { LipSync } from './viki/lipsync'
 import { connectRealtime, listMicrophones, type MicInfo, type RealtimeSession, type VoiceStatus } from './viki/realtime'
 
@@ -11,6 +21,12 @@ const API_KEY = import.meta.env.VITE_OPENAI_API_KEY as string | undefined
 const PREVIEW = new URLSearchParams(window.location.search).get('preview') as Expression | null
 /** Dev aid: `?facepass=1` shows the raw head textures (depth/light) the lattice samples. */
 const DEBUG_FACE = new URLSearchParams(window.location.search).has('facepass')
+/** Dev aid: `?style=dots` opens that tab. */
+const STYLE_PARAM = new URLSearchParams(window.location.search).get('style') as HeadStyle | null
+
+function initialStyle(): HeadStyle {
+  return STYLE_PARAM && STYLES.some((s) => s.id === STYLE_PARAM) ? STYLE_PARAM : loadStyle()
+}
 
 const MIC_STORAGE_KEY = 'viki.mic'
 
@@ -65,8 +81,9 @@ export default function App() {
   const [mics, setMics] = useState<MicInfo[]>([])
   const [micId, setMicId] = useState<string>(loadMicChoice)
 
-  // configurator
-  const [config, setConfig] = useState<HeadConfig>(loadConfig)
+  // head style tabs + per-style configurator
+  const [style, setStyle] = useState<HeadStyle>(initialStyle)
+  const [config, setConfig] = useState<HeadConfig>(() => loadConfig(initialStyle()))
   const [draft, setDraft] = useState<HeadConfig>(config)
   const [configOpen, setConfigOpen] = useState(false)
   const [testSpeech, setTestSpeech] = useState(false)
@@ -77,8 +94,11 @@ export default function App() {
     if (!canvasRef.current) return
     const face = new ParticleFace(canvasRef.current, { debugFace: DEBUG_FACE })
     faceRef.current = face
-    face.applyConfig(loadConfig())
-    ;(window as unknown as { __viki?: () => unknown }).__viki = () => face.debug()
+    const first = initialStyle()
+    face.setStyle(first)
+    face.applyConfig(loadConfig(first))
+    ;(window as unknown as { __viki?: () => unknown; __vikiFace?: unknown }).__viki = () => face.debug()
+    ;(window as unknown as { __vikiFace?: unknown }).__vikiFace = face
     if (PREVIEW) {
       face.setTarget(STATE_FORM.speaking)
       face.setExpression(PREVIEW in EXPRESSIONS ? PREVIEW : 'neutral')
@@ -117,6 +137,17 @@ export default function App() {
     faceRef.current?.applyConfig(draft)
   }, [draft])
 
+  // Switch tabs: load that head's saved config and make it the current one
+  const chooseStyle = useCallback((next: HeadStyle) => {
+    const cfg = loadConfig(next)
+    setStyle(next)
+    setConfig(cfg)
+    setDraft(cfg)
+    saveStyle(next)
+    faceRef.current?.setStyle(next)
+    faceRef.current?.applyConfig(cfg)
+  }, [])
+
   const openConfig = useCallback(() => {
     setDraft(config)
     setConfigOpen(true)
@@ -130,15 +161,16 @@ export default function App() {
 
   const saveDraft = useCallback(() => {
     setConfig(draft)
-    saveConfig(draft)
-  }, [draft])
+    saveConfig(style, draft)
+  }, [draft, style])
 
   const resetConfig = useCallback(() => {
-    clearConfig()
-    setConfig({ ...DEFAULT_CONFIG })
-    setDraft({ ...DEFAULT_CONFIG })
+    clearConfig(style)
+    const cfg = { ...STYLE_DEFAULTS[style] }
+    setConfig(cfg)
+    setDraft(cfg)
     faceRef.current?.resetView()
-  }, [])
+  }, [style])
 
   // Mic meter while connected (writes to the DOM directly: no React re-render per frame)
   useEffect(() => {
@@ -267,6 +299,20 @@ export default function App() {
             <span className="brand-name">V.I.K.I.</span>
             <span className="brand-sub">Virtual Interactive Kinetic Intelligence</span>
           </div>
+          <nav className="tabs" aria-label="Head style">
+            {STYLES.map((s, i) => (
+              <button
+                key={s.id}
+                type="button"
+                className={`tab${s.id === style ? ' active' : ''}`}
+                onClick={() => chooseStyle(s.id)}
+                title={s.hint}
+              >
+                <span className="tab-index">{String(i + 1).padStart(2, '0')}</span>
+                {s.label}
+              </button>
+            ))}
+          </nav>
           <div className="actions">
             <div className={`status status-${status}`}>
               <span className="dot" />
@@ -323,6 +369,7 @@ export default function App() {
 
         {configOpen && (
           <ConfigPanel
+            style={style}
             draft={draft}
             dirty={dirty}
             testSpeech={testSpeech}

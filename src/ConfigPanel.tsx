@@ -1,6 +1,7 @@
-import { COLOR_KEYS, SLIDER_GROUPS, type HeadConfig } from './viki/config'
+import { COLOR_LABELS, SHAPE_GROUPS, STYLE_GROUPS, STYLES, type HeadConfig, type HeadStyle } from './viki/config'
 
 interface Props {
+  style: HeadStyle
   draft: HeadConfig
   dirty: boolean
   testSpeech: boolean
@@ -11,13 +12,17 @@ interface Props {
   onClose: () => void
 }
 
-export default function ConfigPanel({ draft, dirty, testSpeech, onChange, onTestSpeech, onSave, onReset, onClose }: Props) {
+const COLOR_KEYS: (keyof HeadConfig)[] = ['colorA', 'colorB', 'colorC']
+
+export default function ConfigPanel({ style, draft, dirty, testSpeech, onChange, onTestSpeech, onSave, onReset, onClose }: Props) {
+  const meta = STYLES.find((s) => s.id === style)
+  const groups = [STYLE_GROUPS[style], ...SHAPE_GROUPS]
   return (
     <aside className="config" aria-label="Head configuration">
       <header className="config-head">
         <div>
-          <h2>Configure</h2>
-          <p>Shape her while she is active. Save keeps it, Reset returns to the standard look.</p>
+          <h2>{meta?.label ?? 'Configure'}</h2>
+          <p>{meta?.hint}. Changes preview live; Save keeps them for this head, Reset returns to its standard look.</p>
         </div>
         <button type="button" className="btn ghost small" onClick={onClose} aria-label="Close">
           ✕
@@ -28,16 +33,16 @@ export default function ConfigPanel({ draft, dirty, testSpeech, onChange, onTest
         <section>
           <h3>Colors</h3>
           <div className="colors">
-            {COLOR_KEYS.map(({ key, label }) => (
+            {COLOR_KEYS.map((key, i) => (
               <label key={key} className="color">
                 <input type="color" value={draft[key] as string} onChange={(e) => onChange({ [key]: e.target.value })} />
-                <span>{label}</span>
+                <span>{COLOR_LABELS[style][i]}</span>
               </label>
             ))}
           </div>
         </section>
 
-        {SLIDER_GROUPS.map((group) => (
+        {groups.map((group) => (
           <section key={group.title}>
             <h3>{group.title}</h3>
             {group.sliders.map((s) => {

@@ -460,3 +460,66 @@ body,
     width: 100%;
   }
 }
+
+/* ---------- head style tabs ---------- */
+
+.tabs {
+  display: flex;
+  gap: 4px;
+  pointer-events: auto;
+  border: 1px solid var(--ink-faint);
+  padding: 4px;
+  background: rgba(4, 12, 30, 0.55);
+  backdrop-filter: blur(8px);
+  align-self: flex-start;
+}
+
+.tab {
+  font: inherit;
+  font-size: 11px;
+  letter-spacing: 0.15em;
+  text-transform: uppercase;
+  color: var(--ink-dim);
+  background: transparent;
+  border: 1px solid transparent;
+  padding: 8px 12px;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  transition:
+    color 0.2s,
+    background 0.2s,
+    border-color 0.2s;
+}
+
+.tab:hover {
+  color: var(--ink);
+}
+
+.tab.active {
+  color: var(--hot);
+  background: rgba(40, 90, 180, 0.35);
+  border-color: rgba(103, 180, 255, 0.55);
+  box-shadow: 0 0 18px rgba(103, 180, 255, 0.2);
+}
+
+.tab-index {
+  font-size: 9px;
+  color: var(--ink-faint);
+}
+
+.tab.active .tab-index {
+  color: var(--ink-dim);
+}
+
+@media (max-width: 900px) {
+  .hud-top {
+    flex-wrap: wrap;
+  }
+  .tabs {
+    order: 3;
+    width: 100%;
+    overflow-x: auto;
+  }
+}

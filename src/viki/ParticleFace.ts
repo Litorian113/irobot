@@ -4,9 +4,12 @@ import { RenderPass } from 'three/addons/postprocessing/RenderPass.js'
 import { ShaderPass } from 'three/addons/postprocessing/ShaderPass.js'
 import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js'
 import { OutputPass } from 'three/addons/postprocessing/OutputPass.js'
+import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js'
 import { FacePass } from './FacePass'
-import { DEFAULT_CONFIG, type HeadConfig } from './config'
+import { STYLE_DEFAULTS, type HeadConfig, type HeadStyle } from './config'
+import { applyPlacement, applyShapeConfig, createHeadUniforms } from './headShader'
 import { fragmentShader, vertexShader } from './faceShader'
+import { createStyles, type StyleSet } from './styles'
 
 export type Expression =
   | 'neutral'
@@ -52,6 +55,15 @@ const MAX_PIXEL_RATIO = 1.5
 const IDLE_FPS = 24
 const ACTIVE_FPS = 60
 const TWO_PI = Math.PI * 2
+
+/** Bloom radius / threshold per style (strength comes from the config). */
+const BLOOM_SHAPE: Record<HeadStyle, { radius: number; threshold: number }> = {
+  lattice: { radius: 0.3, threshold: 0.75 },
+  contour: { radius: 0.4, threshold: 0.5 },
+  dots: { radius: 0.5, threshold: 0.3 },
+  plasma: { radius: 0.8, threshold: 0.3 },
+  dust: { radius: 0.3, threshold: 0.6 },
+}
 
 /**
  * Additive particles can stack far above 1.0 per pixel. This knee compresses everything above
@@ -120,9 +132,15 @@ export class ParticleFace {
   private scene = new THREE.Scene()
   private camera: THREE.PerspectiveCamera
   private composer: EffectComposer
+  private softClamp: ShaderPass
+  private dotPass: ShaderPass | null = null
+  private chromaPass: ShaderPass | null = null
   private bloom: UnrealBloomPass
   private material: THREE.ShaderMaterial
-  private facePass = new FacePass(256)
+  private headUniforms = createHeadUniforms()
+  private facePass = new FacePass(this.headUniforms, 256)
+  private styles: StyleSet | null = null
+  private lattice: THREE.Points
   private debugQuad: THREE.Mesh | null = null
   private debugCamera = new THREE.OrthographicCamera(-1, 1, 1, -1, 0, 1)
   private group = new THREE.Group()
@@ -136,8 +154,9 @@ export class ParticleFace {
   private fpsCount = 0
   private fpsSince = 0
   private canvas: HTMLCanvasElement
-  private cellScale = DEFAULT_CONFIG.cellSize
-  private autoReturn = DEFAULT_CONFIG.autoReturn
+  private style: HeadStyle = 'lattice'
+  private config: HeadConfig = { ...STYLE_DEFAULTS.lattice }
+  private headLoaded = false
 
   private current: FaceState = { face: 0.12, turb: 0.0, forward: 0, smile: 0.05, brow: 0, eyeOpen: 1 }
   private target: FaceState = { ...this.current }
@@ -182,25 +201,26 @@ export class ParticleFace {
         uTime: { value: 0 },
         uFace: { value: this.current.face },
         uTurb: { value: this.current.turb },
-        uGain: { value: DEFAULT_CONFIG.gain },
-        uFill: { value: DEFAULT_CONFIG.fill },
+        uGain: { value: 1 },
+        uFill: { value: 0.05 },
         uPointBase: { value: 4 },
         uCamDist: { value: CAM_DIST },
-        uColorDim: { value: new THREE.Color(DEFAULT_CONFIG.colorDim) },
-        uColorBright: { value: new THREE.Color(DEFAULT_CONFIG.colorBright) },
-        uColorHot: { value: new THREE.Color(DEFAULT_CONFIG.colorHot) },
+        uColorDim: { value: new THREE.Color() },
+        uColorBright: { value: new THREE.Color() },
+        uColorHot: { value: new THREE.Color() },
       },
     })
 
-    const points = new THREE.Points(this.buildGrid(), this.material)
-    points.frustumCulled = false
-    this.group.add(points)
+    this.lattice = new THREE.Points(this.buildGrid(), this.material)
+    this.lattice.frustumCulled = false
+    this.group.add(this.lattice)
     this.scene.add(this.group)
 
     this.composer = new EffectComposer(this.renderer)
     this.composer.addPass(new RenderPass(this.scene, this.camera))
-    this.composer.addPass(new ShaderPass(SoftClampShader))
-    this.bloom = new UnrealBloomPass(new THREE.Vector2(1, 1), DEFAULT_CONFIG.bloom, 0.3, 0.75)
+    this.softClamp = new ShaderPass(SoftClampShader)
+    this.composer.addPass(this.softClamp)
+    this.bloom = new UnrealBloomPass(new THREE.Vector2(1, 1), 0.5, 0.3, 0.75)
     this.composer.addPass(this.bloom)
     this.composer.addPass(new OutputPass())
 
@@ -213,10 +233,11 @@ export class ParticleFace {
       this.debugQuad = new THREE.Mesh(new THREE.PlaneGeometry(2, 2), mat)
     }
 
-    void this.facePass.load(`${import.meta.env.BASE_URL}models/LeePerrySmith.glb`).catch((e) => {
+    void this.loadHead(`${import.meta.env.BASE_URL}models/LeePerrySmith.glb`).catch((e) => {
       console.error('[viki] head model failed to load', e)
     })
 
+    this.applyConfig(this.config)
     this.resize()
     window.addEventListener('resize', this.resize)
     canvas.addEventListener('pointerdown', this.onPointerDown)
@@ -225,6 +246,31 @@ export class ParticleFace {
     window.addEventListener('pointercancel', this.onPointerUp)
     document.addEventListener('visibilitychange', this.onVisibility)
     this.tick()
+  }
+
+  private async loadHead(url: string) {
+    const gltf = await new GLTFLoader().loadAsync(url)
+    let geometry: THREE.BufferGeometry | null = null
+    gltf.scene.traverse((o) => {
+      if (!geometry && o instanceof THREE.Mesh) geometry = o.geometry
+    })
+    if (!geometry) throw new Error('No mesh found in head model')
+    if (this.disposed) return
+    this.facePass.setGeometry(geometry)
+    const styles = createStyles(this.headUniforms, geometry, CAM_DIST)
+    this.styles = styles
+    this.group.add(styles.contour, styles.dots, styles.plasma, styles.dust)
+    // post passes owned by styles, inserted between soft clamp and bloom
+    const passes = this.composer.passes
+    const bloomIndex = passes.indexOf(this.bloom)
+    this.dotPass = new ShaderPass(styles.dotMatrix)
+    this.chromaPass = new ShaderPass(styles.chroma)
+    passes.splice(bloomIndex, 0, this.dotPass)
+    passes.splice(passes.indexOf(this.bloom) + 1, 0, this.chromaPass)
+    this.headLoaded = true
+    this.resize()
+    this.applyConfig(this.config)
+    this.setStyle(this.style)
   }
 
   private buildGrid(): THREE.BufferGeometry {
@@ -259,7 +305,9 @@ export class ParticleFace {
     this.camera.updateProjectionMatrix()
     // device pixels per world unit at the camera's focal distance
     const pxPerUnit = (h * pr) / (2 * CAM_DIST * Math.tan((FOV * Math.PI) / 360))
-    this.material.uniforms.uPointBase.value = pxPerUnit * (2 / (GRID_X - 1)) * 1.3 * this.cellScale
+    this.material.uniforms.uPointBase.value = pxPerUnit * (2 / (GRID_X - 1)) * 1.3 * this.config.cellSize
+    this.styles?.setDustBase(pr * 1.4)
+    if (this.styles) this.styles.dotMatrix.uniforms.uResolution.value.set(w * pr, h * pr)
   }
 
   private onPointerDown = (e: PointerEvent) => {
@@ -317,21 +365,44 @@ export class ParticleFace {
     this.active = active
   }
 
-  /** Apply the configurator's settings (colors, shape, hair, eyes, mouth, lattice). */
+  /** Switch the head style (tab). */
+  setStyle(style: HeadStyle) {
+    this.style = style
+    const s = this.styles
+    this.lattice.visible = style === 'lattice'
+    if (s) {
+      s.contour.visible = style === 'contour'
+      s.dots.visible = style === 'dots'
+      s.plasma.visible = style === 'plasma'
+      s.dust.visible = style === 'dust'
+    }
+    this.softClamp.enabled = style === 'lattice' || style === 'dust' || style === 'plasma'
+    if (this.dotPass) this.dotPass.enabled = style === 'dots'
+    if (this.chromaPass) this.chromaPass.enabled = style === 'plasma'
+    const shape = BLOOM_SHAPE[style]
+    this.bloom.radius = shape.radius
+    this.bloom.threshold = shape.threshold
+  }
+
+  /** Apply the configurator's settings for the current style. */
   applyConfig(cfg: HeadConfig) {
+    this.config = cfg
+    applyShapeConfig(this.headUniforms, cfg)
+    applyPlacement(this.headUniforms, cfg, this.current.forward)
     const u = this.material.uniforms
-    ;(u.uColorDim.value as THREE.Color).set(cfg.colorDim)
-    ;(u.uColorBright.value as THREE.Color).set(cfg.colorBright)
-    ;(u.uColorHot.value as THREE.Color).set(cfg.colorHot)
+    ;(u.uColorDim.value as THREE.Color).set(cfg.colorA)
+    ;(u.uColorBright.value as THREE.Color).set(cfg.colorB)
+    ;(u.uColorHot.value as THREE.Color).set(cfg.colorC)
     u.uGain.value = cfg.gain
     u.uFill.value = cfg.fill
     this.bloom.strength = cfg.bloom
-    this.autoReturn = cfg.autoReturn
-    if (this.cellScale !== cfg.cellSize) {
-      this.cellScale = cfg.cellSize
-      this.resize()
-    }
-    this.facePass.applyConfig(cfg)
+    this.material.uniforms.uPointBase.value =
+      ((this.canvas.clientHeight || window.innerHeight) * this.renderer.getPixelRatio()) /
+      (2 * CAM_DIST * Math.tan((FOV * Math.PI) / 360)) *
+      (2 / (GRID_X - 1)) *
+      1.3 *
+      cfg.cellSize
+    this.styles?.applyConfig(cfg, this.style)
   }
 
   /** Turn the cube back to the front. */
@@ -375,20 +446,21 @@ export class ParticleFace {
     this.mouth.open += (targetOpen - this.mouth.open) * (targetOpen > this.mouth.open ? attack : release)
     this.mouth.wide += (targetWide - this.mouth.wide) * release
 
-    // head pass uniforms (expression + mouth)
-    const fu = this.facePass.uniforms
-    fu.uMouthOpen.value = this.mouth.open
-    fu.uMouthWide.value = this.mouth.wide
-    fu.uSmile.value = this.current.smile
-    fu.uBrow.value = this.current.brow + Math.sin(t * 0.7) * 0.04
-    fu.uEyeOpen.value = this.current.eyeOpen * blink
-    this.facePass.setForward(this.current.forward)
+    // shared head uniforms (expression + mouth + placement)
+    const hu = this.headUniforms
+    hu.uMouthOpen.value = this.mouth.open
+    hu.uMouthWide.value = this.mouth.wide
+    hu.uSmile.value = this.current.smile
+    hu.uBrow.value = this.current.brow + Math.sin(t * 0.7) * 0.04
+    hu.uEyeOpen.value = this.current.eyeOpen * blink
+    applyPlacement(hu, this.config, this.current.forward)
 
     // lattice uniforms
     const u = this.material.uniforms
     u.uTime.value = t
     u.uFace.value = this.current.face
     u.uTurb.value = this.current.turb
+    this.styles?.setTime(t)
 
     // drag rotation: radians per pixel while dragging, inertia afterwards; fully free
     const perPx = 0.006
@@ -407,8 +479,7 @@ export class ParticleFace {
       this.pitchVel *= friction
       this.yaw += this.yawVel * dt
       this.pitch += this.pitchVel * dt
-      if (this.autoReturn) {
-        // ease back to the nearest "facing you" orientation
+      if (this.config.autoReturn) {
         const home = 1 - Math.exp(-0.35 * dt)
         const yawHome = Math.round(this.yaw / TWO_PI) * TWO_PI
         const pitchHome = Math.round(this.pitch / TWO_PI) * TWO_PI
@@ -422,7 +493,7 @@ export class ParticleFace {
     this.group.scale.setScalar(1 + Math.sin(t * 0.9) * 0.006)
 
     const t0 = performance.now()
-    this.facePass.render(this.renderer)
+    if (this.style === 'lattice' || this.debugQuad) this.facePass.render(this.renderer)
     this.fpsCount++
     if (now - this.fpsSince > 1000) {
       this.renderedFps = this.fpsCount
@@ -445,16 +516,20 @@ export class ParticleFace {
     const uniforms: Record<string, unknown> = {}
     for (const k of Object.keys(u)) if (typeof u[k].value === 'number') uniforms[k] = u[k].value
     return {
+      style: this.style,
       current: { ...this.current },
       target: { ...this.target },
       mouth: { ...this.mouth },
-      headLoaded: this.facePass.ready,
+      headLoaded: this.headLoaded,
       active: this.active,
       pixelRatio: this.renderer.getPixelRatio(),
       yaw: Number(this.yaw.toFixed(3)),
       pitch: Number(this.pitch.toFixed(3)),
       renderedFps: this.renderedFps,
       cpuFrameMs: Number(this.frameMs.toFixed(2)),
+      dotRes: this.styles?.dotMatrix.uniforms.uResolution.value.toArray(),
+      dotPassEnabled: this.dotPass?.enabled,
+      passes: this.composer.passes.map((p) => `${p.constructor.name}:${p.enabled ? 1 : 0}`),
       uniforms,
     }
   }
@@ -468,10 +543,9 @@ export class ParticleFace {
     window.removeEventListener('pointerup', this.onPointerUp)
     window.removeEventListener('pointercancel', this.onPointerUp)
     document.removeEventListener('visibilitychange', this.onVisibility)
-    this.group.traverse((o) => {
-      if (o instanceof THREE.Points) o.geometry.dispose()
-    })
+    this.lattice.geometry.dispose()
     this.material.dispose()
+    this.styles?.dispose()
     this.facePass.dispose()
     this.composer.dispose()
     this.renderer.dispose()

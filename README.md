@@ -16,7 +16,11 @@ Click **Initiate link**, allow the microphone, and talk. When she wakes up the h
 towards the front and her eyes, brows and lips come out. Drag the cube to rotate it freely (it eases back to the front
 unless you turn that off).
 
-**Configure** opens the character panel: colors, head size and shape (jaw, chin, cheekbones, brow ridge, nose), hair,
+Five **head styles** live in the tabs at the top — Lattice (the V.I.K.I. cube), Contour (topographic lines), Dots (LED
+matrix), Plasma (blurred colour flame) and Dust (surface particles). All of them share the same deformed head, expressions
+and lip-sync; each tab keeps its own saved configuration.
+
+**Configure** opens the character panel for the current tab: colors, head size and shape (jaw, chin, cheekbones, brow ridge, nose), hair,
 eyes, mouth, lattice look and behaviour. Changes preview live on the active face; **Save** stores them in `localStorage`
 (closing without saving discards them), **Reset to standard** returns to the built-in defaults.
 
@@ -29,12 +33,14 @@ The face is a real scanned human head — the **Lee Perry-Smith** head from the 
 (`public/models/LeePerrySmith.glb`, © Infinite-Realities / Lee Perry-Smith, CC BY 3.0). It is rendered off-screen into a
 depth + light texture that the particle lattice samples; jaw, smile and brows are procedural deformations in its vertex shader.
 
-Dev aids: `?preview=happy` (any expression, no API calls; add `&mouth=0.7` to hold the mouth open), `?facepass=1` (shows the raw head texture), `window.__viki()`
+Dev aids: `?preview=happy` (any expression, no API calls; add `&mouth=0.7` to hold the mouth open), `?style=dots` (open a tab), `?facepass=1` (shows the raw head texture), `window.__viki()`
 (animated state in the console).
 
 ## Layout
 
-- `src/viki/FacePass.ts` — head mesh rendered from four sides → depth/luminance/mask textures, expression + shape deformation
+- `src/viki/headShader.ts` — shared GLSL: head deformation (expressions, proportions, hair) and the painted feature layer
+- `src/viki/FacePass.ts` — lattice helper: head rendered from four sides → depth/luminance/mask textures
+- `src/viki/styles.ts` — contour / dots / plasma / dust materials and their post passes
 - `src/viki/config.ts` — configurator settings, defaults, persistence
 - `src/ConfigPanel.tsx` — the configurator UI
 - `src/viki/faceShader.ts` — GLSL: particles sample the face texture; surface shell + faint volumetric fill
