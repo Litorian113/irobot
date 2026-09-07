@@ -14,6 +14,7 @@ import { createStyles, type StyleSet } from './styles'
 import { SurfacePortrait } from './SurfacePortrait'
 import { HeadRig } from './HeadRig'
 import { HeadLight } from './HeadLight'
+import { OpticalEnclosure } from './OpticalEnclosure'
 
 export type Expression =
   | 'neutral'
@@ -141,6 +142,7 @@ export class ParticleFace {
   private softClamp: ShaderPass
   private bloom: UnrealBloomPass
   private cube: DataCube
+  private enclosure = new OpticalEnclosure()
   private headUniforms = createHeadUniforms()
   private facePass = new FacePass(this.headUniforms, 256)
   private styles: StyleSet | null = null
@@ -194,7 +196,7 @@ export class ParticleFace {
 
     const v = this.facePass.views
     this.cube = new DataCube(v.front.target.texture)
-    this.group.add(this.cube.group)
+    this.group.add(this.cube.group, this.enclosure.mesh)
     this.scene.add(this.group)
 
     this.composer = new EffectComposer(this.renderer)
@@ -344,6 +346,7 @@ export class ParticleFace {
       s.dust.visible = style === 'dust'
       s.cage.visible = style === 'dust'
     }
+    this.enclosure.mesh.visible = style === 'lattice' && this.config.optical && !new URLSearchParams(window.location.search).has('inspect')
     const shape = BLOOM_SHAPE[style]
     this.bloom.radius = shape.radius
     this.bloom.threshold = shape.threshold
@@ -354,8 +357,11 @@ export class ParticleFace {
     this.config = cfg
     applyShapeConfig(this.headUniforms, cfg)
     applyPlacement(this.headUniforms, cfg, this.current.forward)
+    this.enclosure.applyConfig(cfg)
+    this.enclosure.mesh.visible = this.style === 'lattice' && cfg.optical && !new URLSearchParams(window.location.search).has('inspect')
     this.cube.applyConfig(cfg)
-    this.bloom.strength = cfg.bloom
+    this.renderer.setClearColor(cfg.optical ? 0x020405 : 0x02050c, 1)
+    this.bloom.strength = cfg.optical ? Math.min(0.25, cfg.bloom) : cfg.bloom
     this.portrait?.applyConfig(cfg)
     this.styles?.applyConfig(cfg)
   }
@@ -454,9 +460,9 @@ export class ParticleFace {
       }
     }
     this.group.rotation.order = 'YXZ'
-    this.group.rotation.y = FROZEN ? THREE.MathUtils.degToRad(reviewNumber('yaw', 0)) : Math.sin(t * 0.18) * 0.08 + this.yaw
-    this.group.rotation.x = FROZEN ? THREE.MathUtils.degToRad(reviewNumber('pitch', 0)) : Math.sin(t * 0.13) * 0.03 + this.pitch
-    this.group.scale.setScalar(FROZEN ? 1 : 1 + Math.sin(t * 0.9) * 0.006)
+    this.group.rotation.y = FROZEN ? THREE.MathUtils.degToRad(reviewNumber('yaw', 0)) : (this.config.optical ? 0 : Math.sin(t * 0.18) * 0.08) + this.yaw
+    this.group.rotation.x = FROZEN ? THREE.MathUtils.degToRad(reviewNumber('pitch', 0)) : (this.config.optical ? 0 : Math.sin(t * 0.13) * 0.03) + this.pitch
+    this.group.scale.setScalar(FROZEN || this.config.optical ? 1 : 1 + Math.sin(t * 0.9) * 0.006)
 
     const t0 = performance.now()
     this.headLight?.render(this.renderer)
@@ -473,7 +479,14 @@ export class ParticleFace {
       this.renderer.render(this.debugQuad, this.debugCamera)
       return
     }
-    this.composer.render()
+    if (this.enclosure.mesh.visible) {
+      this.enclosure.capture(this.renderer, this.scene, this.camera, t)
+      // Transmission already contains these objects. Draw only the optical pane
+      // in the display pass instead of rendering the head and cube a second time.
+      const behind = this.group.children.filter((object) => object !== this.enclosure.mesh && object.visible)
+      for (const object of behind) object.visible = false
+      try { this.composer.render() } finally { for (const object of behind) object.visible = true }
+    } else this.composer.render()
     this.frameMs += (performance.now() - t0 - this.frameMs) * 0.1
   }
 
@@ -508,6 +521,7 @@ export class ParticleFace {
     window.removeEventListener('pointerup', this.onPointerUp)
     window.removeEventListener('pointercancel', this.onPointerUp)
     document.removeEventListener('visibilitychange', this.onVisibility)
+    this.enclosure.dispose()
     this.cube.dispose()
     this.styles?.dispose()
     this.portrait?.dispose()

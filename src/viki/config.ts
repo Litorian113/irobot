@@ -30,6 +30,11 @@ export interface HeadConfig {
   lighting: 'soft' | 'cinema' | 'butterfly' | 'viki'
   lightElevation: number
   lightFill: number
+  optical: boolean
+  refraction: number
+  diffusion: number
+  glassRibs: number
+  filmGrain: number
   // head placement
   headScale: number
   headY: number
@@ -85,6 +90,11 @@ const SHAPE_DEFAULTS = {
 }
 
 const APPEARANCE_BASE = {
+  optical: false,
+  refraction: 0.65,
+  diffusion: 0.70,
+  glassRibs: 0.65,
+  filmGrain: 0.18,
   cage: 0.5,
   cubeDensity: 0.5,
   cubeDepth: 0.9,
@@ -103,6 +113,10 @@ export const STYLE_DEFAULTS: Record<HeadStyle, HeadConfig> = {
   lattice: {
     ...APPEARANCE_BASE,
     ...SHAPE_DEFAULTS,
+    optical: true,
+    lighting: 'viki',
+    lightElevation: 50,
+    lightFill: 0.008,
     // Soft silver-blue surface points, with a quiet data field around them.
     colorA: '#829ba8',
     colorB: '#b6d8e5',
@@ -145,6 +159,12 @@ export interface SliderGroup {
 
 /** Shape groups shown for every style. */
 export const SHAPE_GROUPS: SliderGroup[] = [
+  { title: 'Optical enclosure', sliders: [
+    { key: 'refraction', label: 'Refraction', min: 0, max: 1.5, step: 0.02 },
+    { key: 'diffusion', label: 'Diffusion', min: 0, max: 1.5, step: 0.02 },
+    { key: 'glassRibs', label: 'Fine ridges', min: 0, max: 1, step: 0.02 },
+    { key: 'filmGrain', label: 'Film grain', min: 0, max: 1, step: 0.02 },
+  ] },
   { title: 'Lighting adjustment', sliders: [
     { key: 'lightElevation', label: 'Key elevation', min: 25, max: 65, step: 1 },
     { key: 'lightFill', label: 'Shadow fill', min: 0, max: 0.4, step: 0.01 },

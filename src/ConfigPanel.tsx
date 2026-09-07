@@ -43,6 +43,11 @@ export default function ConfigPanel({ style, draft, dirty, testSpeech, onChange,
         </section>
 
         <section>
+          <h3>Optical surface</h3>
+          <label className="check">
+            <input type="checkbox" checked={draft.optical} onChange={(e) => onChange({ optical: e.target.checked })} />
+            <span>Analog optical enclosure</span>
+          </label>
           <h3>Lighting</h3>
           <div className="lighting-options" role="group" aria-label="Lighting preset">
             {([
@@ -64,7 +69,7 @@ export default function ConfigPanel({ style, draft, dirty, testSpeech, onChange,
               const value = draft[s.key] as number
               return (
                 <label key={s.key} className="slider">
-                  <span className="slider-label">{s.label}</span>
+                  <span className="slider-label">{style === 'lattice' && draft.optical && s.key === 'density' ? 'Tile density' : style === 'lattice' && draft.optical && s.key === 'cellSize' ? 'Tile fill' : s.label}</span>
                   <input
                     type="range"
                     min={s.min}

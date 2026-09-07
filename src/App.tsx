@@ -339,7 +339,7 @@ export default function App() {
   const busy = status === 'connecting'
 
   return (
-    <div className="hero">
+    <div className={`hero${style === 'lattice' && draft.optical ? ' film-look' : ''}${configOpen ? ' configuring' : ''}${status === 'idle' && !PREVIEW && !previewSpeech ? ' dormant' : ''}`}>
       <canvas ref={canvasRef} />
 
       <div className={`hud${configOpen ? ' config-open' : ''}`}>

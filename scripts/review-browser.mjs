@@ -128,7 +128,7 @@ try {
   await slider('Cube cells', 0.8)
   await slider('Cube depth', 1.2)
   await slider('Cube spacing', 0.15)
-  await slider('Point density', 0.4)
+  await slider('Tile density', 0.4)
   await slider('Articulation', 1.2)
   await slider('Voice delay (ms)', 140)
   await pause(150)

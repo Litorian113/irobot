@@ -44,6 +44,7 @@ uniform float uDensity;
 uniform float uPointSize;
 uniform float uVariation;
 uniform float uDiagnostic;
+uniform float uOptical;
 varying vec3 vLocal;
 varying vec3 vNormal;
 varying vec3 vWorld;
@@ -68,6 +69,18 @@ float pointGrid(vec2 uv) {
   float shimmer = 0.88 + 0.12 * sin(dot(cell, vec2(0.73, 1.37)) + uTime * 0.6);
   return disc * mix(1.0, shimmer, uVariation);
 }
+
+// Shallow square cells under the glass, with fine dark seams rather than LED dots.
+float tileSurface(vec2 uv) {
+  vec2 grid = uv * uDensity * 0.42;
+  vec2 seamDistance = min(fract(grid), 1.0 - fract(grid));
+  vec2 aa = max(fwidth(grid) * 0.4, vec2(0.005));
+  float gap = clamp(0.055 / uPointSize, 0.025, 0.12);
+  vec2 inside = smoothstep(vec2(gap) - aa, vec2(gap) + aa, seamDistance);
+  float tile = inside.x * inside.y;
+  float variation = 0.90 + 0.10 * hashH(vec3(floor(grid), 7.0));
+  return (0.33 + 0.17 * tile) * variation;
+}
 void main() {
   vec3 n = normalize(vNormal);
   float cavity, maskv;
@@ -91,7 +104,8 @@ void main() {
   float formation = uFormation * (1.0 - 0.3 * uTurbulence);
   vec3 color = mix(uColor, uHighlight, smoothstep(0.55, 0.9, light) * 0.3);
   // A whisper of continuous shading connects the points into a readable face.
-  float alpha = (0.08 + 0.84 * dots) * maskv * formation;
+  float surface = mix(0.08 + 0.84 * dots, tileSurface(vPattern.xy), uOptical);
+  float alpha = surface * maskv * formation;
   float facing = dot(normalize(vNormalWorld), normalize(cameraPosition - vWorld));
   alpha *= smoothstep(0.0, 0.45, facing);
   gl_FragColor = vec4(color * pow(light, 1.35) * uGain, alpha);
@@ -115,6 +129,7 @@ export class SurfacePortrait {
         uDensity: { value: 130 },
         uPointSize: { value: 1 },
         uVariation: { value: 0.2 },
+        uOptical: { value: 0 },
         uDiagnostic: { value: new URLSearchParams(window.location.search).has('inspect') ? 1 : 0 },
         uColor: { value: new THREE.Color() },
         uHighlight: { value: new THREE.Color() },
@@ -155,6 +170,7 @@ export class SurfacePortrait {
     const u = this.material.uniforms
     u.uColor.value.set(config.colorB)
     u.uHighlight.value.set(config.colorC)
+    u.uOptical.value = config.optical ? 1 : 0
     u.uGain.value = config.gain
     u.uVariation.value = config.flicker
     u.uDensity.value = 70 + 95 * config.density

@@ -58,6 +58,35 @@ Add `&wide=0.8&round=0.1` to compare lip shapes independently. Deterministic com
 `?preview=neutral&mouth=0&freeze=1`: time and pose settle immediately, natural swaying/blinking pause.
 Add `&blink=1` for closed lids (`0.5` for halfway), `&yaw=35&pitch=0` for rotation in degrees, or `&time=2` for a fixed shimmer time.
 
+## Analog optical enclosure
+
+Lattice now starts with **Analog optical enclosure** enabled. The clean, animated head is captured behind a
+slightly bowed pane. The pane's own material refracts that image through irregular vertical ribs, a weaker
+horizontal weave and a narrow anisotropic diffusion lobe. There is no full-screen Gaussian blur pass. Fine
+surface points become softly separated square tiles before transmission; the original geometry and speech poses stay intact.
+
+The transmitted image uses a restrained blue-gray monochrome palette, softened highlights, faint material haze,
+subtle highlight spill and mild grain. Cube edges disappear; softly lit patches of its cell volume remain behind the glass and fade irregularly into black. Automatic head sway
+and breathing scale stop in this mode; dragging still rotates the scene.
+
+**Configure → Optical surface** switches the enclosure off for a direct comparison with the data portrait.
+**Optical enclosure** sliders tune Refraction, Diffusion, Fine ridges and Film grain.
+The refraction stays small to avoid wavy face contours. **Tile density** and **Tile fill** tune the subtle cell
+spacing and narrow seams; **Cube brightness** adjusts how much of the background display shows through. Save stores these per style;
+closing without saving restores the saved values. Dust retains its existing rendering.
+
+During optical previews/conversations, interface regions fade away. Hover near the top/right/bottom controls or
+focus them with the keyboard to reveal them; hovering over the bottom controls also reveals transcripts. Initial
+connection/preview controls, touch controls and errors remain visible. Configure keeps its normal visible panel.
+
+Rendering uses a local HDR scene texture and one curved transmission mesh. The display pass omits the source
+objects already captured into that texture, avoiding a second head/cube draw. Disabling the enclosure skips the
+capture entirely. The extra material sampling still adds GPU work; use the clear comparison mode on slower devices.
+
+Optional `scripts/review-optical-browser.mjs` uses the same browser environment variables described below. It checks
+rendering, clean/optical switching, unchanged rig weights, idle/reformation/dissolve, saved settings, desktop chrome,
+touch controls and resizing without API calls.
+
 ## Dissolve and lighting
 
 The inactive head writes neither visible color nor depth, so it leaves no silhouette blocking the cube.
@@ -143,6 +172,7 @@ with a simulated connection and the same browser setup.
 - `src/viki/HeadRig.ts` — canonical multi-part geometry and shared relative morph weights
 - `src/viki/headShader.ts` — shared GLSL: morphs, proportions, hair, lighting and semantic eye/mouth shading
 - `src/viki/SurfacePortrait.ts` — surface data pattern, depth occlusion and silhouette fade
+- `src/viki/OpticalEnclosure.ts` — curved transmission pane, rib refraction, directional diffusion and local scene capture
 - `src/viki/HeadLight.ts` — animated light-space depth map for the cinematic lighting presets
 - `src/viki/FacePass.ts` — depth/luminance/mask texture for the cube; four views in debug mode
 - `src/viki/DataCube.ts` — staggered rectangular cell volume, face occlusion and cube controls

@@ -10,6 +10,7 @@ uniform float uDepth;
 uniform float uGap;
 uniform float uPointSize;
 uniform float uFlicker;
+uniform float uOptical;
 attribute float aSeed;
 varying float vBrightness;
 void main() {
@@ -20,11 +21,15 @@ void main() {
   float twinkle = 0.72 + 0.28 * sin(aSeed * 97.0 + uTime * (0.4 + aSeed * 0.25));
   float outer = smoothstep(0.65, 1.0, max(abs(position.x), abs(position.y)));
   // Keep the cube legible outside the portrait; only a few quiet cells remain in front of it.
-  float visibility = 1.0 - 0.94 * face.b * frontal * uFormation;
+  float visibility = 1.0 - mix(0.94, 0.87, uOptical) * face.b * frontal * uFormation;
   vBrightness = uBrightness * (0.035 + 0.15 * aSeed * aSeed + 0.05 * outer) * visibility;
   vBrightness += uBrightness * nearFace * face.g * 0.12 * uFormation;
   vBrightness *= mix(1.0, twinkle, uFlicker);
   vBrightness *= 0.45 + 0.35 * (position.z * 0.5 + 0.5);
+  // Reveal fragments of the display volume through the pane, fading whole regions into black.
+  float field = 0.5 + 0.5 * sin(position.x * 4.1 + position.z * 2.3) * cos(position.y * 3.8 - position.z * 0.7);
+  float falloff = 1.0 - smoothstep(0.76, 1.08, max(abs(position.x), abs(position.y)));
+  vBrightness *= mix(1.0, smoothstep(0.24, 0.72, field) * falloff, uOptical);
   vec4 mv = modelViewMatrix * vec4(p, 1.0);
   gl_Position = projectionMatrix * mv;
   gl_PointSize = uPointSize * (4.2 / -mv.z);
@@ -58,6 +63,7 @@ export class DataCube {
         uFront: { value: front }, uTime: { value: 0 }, uFormation: { value: 1 },
         uBrightness: { value: 0.6 }, uDepth: { value: 0.9 }, uGap: { value: 0.08 },
         uPointSize: { value: 7 }, uFlicker: { value: 0.3 }, uColor: { value: new THREE.Color() },
+        uOptical: { value: 0 },
       },
       transparent: true, depthWrite: false, depthTest: true, blending: THREE.AdditiveBlending,
     })
@@ -92,14 +98,15 @@ export class DataCube {
     const n = Math.round(24 + config.cubeDensity * 28)
     if (n !== this.gridSize) this.rebuild(n)
     const u = this.material.uniforms
-    u.uBrightness.value = config.cage
+    u.uBrightness.value = config.cage * (config.optical ? 0.75 : 1)
+    u.uOptical.value = config.optical ? 1 : 0
     u.uDepth.value = config.cubeDepth
     u.uGap.value = config.cubeGap
     u.uFlicker.value = config.flicker
     u.uColor.value.set(config.colorA)
     this.edges.scale.set(1 + config.cubeGap, 1 + config.cubeGap, config.cubeDepth)
     this.edgeMaterial.color.set(config.colorA)
-    this.edgeMaterial.opacity = config.cage * 0.10
+    this.edgeMaterial.opacity = config.optical ? 0 : config.cage * 0.10
   }
 
   resize(pixelRatio: number, height: number) {

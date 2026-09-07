@@ -608,3 +608,35 @@ body,
   background: #183450;
   border-color: #829ba8;
 }
+
+
+/* The optical scene stays clear; controls return on deliberate hover/focus. */
+.film-look .corner { display: none; }
+.film-look:not(.configuring) .hud-top,
+.film-look:not(.configuring) .tabs,
+.film-look:not(.configuring) .hud-bottom,
+.film-look:not(.configuring) .captions {
+  opacity: 0;
+  transition: opacity 240ms ease;
+}
+.film-look:not(.configuring) .hud-top:hover,
+.film-look:not(.configuring) .hud-top:focus-within,
+.film-look:not(.configuring) .tabs:hover,
+.film-look:not(.configuring) .tabs:focus-within,
+.film-look:not(.configuring) .hud-bottom:hover,
+.film-look:not(.configuring) .hud-bottom:focus-within,
+.film-look:not(.configuring) .hud-bottom:has(.error) { opacity: 1; }
+.film-look .hud:has(.hud-bottom:hover) .captions { opacity: 1; }
+@media (hover: none), (prefers-reduced-motion: reduce) {
+  .film-look:not(.configuring) .hud-top,
+  .film-look:not(.configuring) .tabs,
+  .film-look:not(.configuring) .hud-bottom { opacity: 1; }
+}
+
+.film-look {
+  --ink: #a7b6bc;
+  --hot: #d4dfe2;
+  --ink-dim: rgba(167, 182, 188, 0.55);
+  --ink-faint: rgba(167, 182, 188, 0.22);
+}
+.film-look.dormant .hud-bottom { opacity: 1; }

@@ -86,3 +86,23 @@ Das projizierte Raster wurde vollständig entfernt; „Cinema“ behält die Hau
 Zusätzlich „VIKI shadows“: nahezu schwarze Augenhöhlen, abgedunkelte äußere Wangen und weicher Übergang
 ins Dunkle oberhalb der Stirn. Die zusätzliche Abdunklung folgt den Kopfmerkmalen in allen Renderpässen,
 ohne Geometrie oder Augenmodell zu verändern.
+
+
+### Analoge optische Hülle – Experiment
+
+Lattice erhält eine leicht gewölbte Materialfläche vor dem Kopf. Lichtbrechung an unregelmäßigen vertikalen
+Rippen, horizontale Interferenz und gerichtete Transmissionstreuung lösen die saubere Punktoptik auf.
+Monochromes Blaugrau, dezenter Lichthof, Materialdunst und sehr feines Korn; Würfelkanten verschwinden.
+Der Kopf bleibt geometrisch unverändert, die automatische Bewegung ruht. Die Auflösung im Ruhezustand bleibt.
+
+Schalter „Analog optical enclosure“ und vier Materialregler im Konfigurationspanel; abschaltbar für direkten
+Vergleich. Bedienung während der aktiven Ansicht bei Hover/Fokus, auf Touchgeräten sichtbar.
+Lokale Browserprüfung in `scripts/review-optical-browser.mjs`; keine API-Aufrufe.
+
+
+### Feinabgleich: ruhigeres Glas und weiches Kachelvolumen
+
+Die großflächige Glasverzerrung wurde stark zurückgenommen; die feinere Streuung erhält die Gesichtskonturen.
+Ein dezentes Kachelraster mit schmalen, weichen Fugen liegt unter dem Glas. Teile des Datenwürfels werden
+wieder sichtbar, andere Bereiche verschwinden über eine räumliche Helligkeitsmaske im Dunkeln.
+Keine Änderung an Kopfgeometrie, Lichtpresets oder Sprachsteuerung.
