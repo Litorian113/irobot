@@ -9,6 +9,7 @@ ${HEAD_MORPH_GLSL}
 varying vec3 vLocal;
 varying vec3 vNormal;
 varying vec3 vWorld;
+varying vec3 vHeadPosition;
 varying vec3 vNormalWorld;
 varying vec3 vPattern;
 varying vec3 vPatternNormal;
@@ -23,6 +24,7 @@ void main() {
   vPattern = toLocal((uHeadMatrix * vec4(position, 1.0)).xyz);
   vPatternNormal = normal;
   vWorld = (modelMatrix * vec4(q, 1.0)).xyz;
+  vHeadPosition = q;
   vNormalWorld = normalize(mat3(modelMatrix) * n);
   vHair = hair;
   gl_Position = projectionMatrix * modelViewMatrix * vec4(q, 1.0);
@@ -37,7 +39,6 @@ uniform vec3 uColor;
 uniform vec3 uHighlight;
 uniform float uGain;
 uniform float uTime;
-uniform float uFormation;
 uniform float uTurbulence;
 uniform float uDensity;
 uniform float uPointSize;
@@ -46,6 +47,7 @@ uniform float uDiagnostic;
 varying vec3 vLocal;
 varying vec3 vNormal;
 varying vec3 vWorld;
+varying vec3 vHeadPosition;
 varying vec3 vNormalWorld;
 varying vec3 vPattern;
 varying vec3 vPatternNormal;
@@ -69,10 +71,10 @@ float pointGrid(vec2 uv) {
 void main() {
   vec3 n = normalize(vNormal);
   float cavity, maskv;
-  float light = paintLum(vLocal, n, vHair, vFeature, cavity, maskv);
+  float light = paintLum(vLocal, n, vHeadPosition, vHair, vFeature, cavity, maskv);
   // The neck dissolves before the cut edge of the scan's shoulders.
   maskv *= smoothstep(-0.24, -0.02, vLocal.y);
-  if (maskv < 0.005) discard;
+  if (maskv < 0.005 || headCoverage(vLocal) < 0.5) discard;
   if (uDiagnostic > 0.5) {
     gl_FragColor = vec4(vec3(light), 1.0);
     return;
@@ -86,7 +88,7 @@ void main() {
   float eyes = 1.0 - smoothstep(0.7, 1.5, length(vec2((abs(vLocal.x) - uEyeX) / 0.11, (vLocal.y - uEyeY) / 0.085)));
   float lips = 1.0 - smoothstep(0.7, 1.5, length(vec2(vLocal.x / 0.20, (vLocal.y - uMouthY) / 0.12)));
   dots = mix(dots, pointGrid(vLocal.xy), max(eyes, lips) * smoothstep(0.10, 0.30, vLocal.z));
-  float formation = (0.40 + 0.60 * uFormation) * (1.0 - 0.3 * uTurbulence);
+  float formation = uFormation * (1.0 - 0.3 * uTurbulence);
   vec3 color = mix(uColor, uHighlight, smoothstep(0.55, 0.9, light) * 0.3);
   // A whisper of continuous shading connects the points into a readable face.
   float alpha = (0.08 + 0.84 * dots) * maskv * formation;
@@ -109,7 +111,6 @@ export class SurfacePortrait {
       uniforms: {
         ...head,
         uTime: { value: 0 },
-        uFormation: { value: 1 },
         uTurbulence: { value: 0 },
         uDensity: { value: 130 },
         uPointSize: { value: 1 },
@@ -129,9 +130,10 @@ export class SurfacePortrait {
     this.depthMaterial = new THREE.ShaderMaterial({
       vertexShader: vertex,
       fragmentShader: /* glsl */ `
+        ${HEAD_UNIFORMS_GLSL}
         varying vec3 vLocal;
         void main() {
-          if (vLocal.y < -0.24) discard;
+          if (vLocal.y < -0.24 || headCoverage(vLocal) < 0.5) discard;
           gl_FragColor = vec4(0.0);
         }`,
       uniforms: head,

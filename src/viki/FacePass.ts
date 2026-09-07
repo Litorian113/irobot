@@ -38,8 +38,9 @@ varying vec3 vPos;
 varying vec3 vLocal;
 varying float vHair;
 void main() {
+  if (headCoverage(vLocal) < 0.5) discard;
   float cav, maskv;
-  float lum = paintLum(vLocal, normalize(vNormal), vHair, vFeature, cav, maskv);
+  float lum = paintLum(vLocal, normalize(vNormal), vPos, vHair, vFeature, cav, maskv);
   float depth = vPos.z - 0.2 * cav;
   gl_FragColor = vec4(depth, lum * maskv, maskv, vPos.x);
 }

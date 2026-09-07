@@ -14,11 +14,12 @@ npm run dev
 
 Click **Preview animation** to inspect the talking face without a microphone or API call.
 Click **Initiate link**, allow the microphone, and talk to connect the real voice.
-The portrait stays visible while idle and becomes clearer when connected. Drag to rotate the head and data field
+While idle, the face dissolves completely into the data cube. It reforms when the voice connection is ready;
+ending the connection disperses it again. Preview animation and Configure also reveal the head without connecting. Drag to rotate the head and data field
 (it eases back to the front unless you turn that off).
 
-Five **head styles** live in the tabs — Lattice (the surface data portrait and cube), Contour (topographic lines), Dots (LED
-matrix), Plasma (blurred colour flame) and Dust (surface particles). All of them share the same deformed head, expressions
+Two **head styles** live in the tabs — Lattice (the surface data portrait and cube) and Dust (surface particles).
+Both share the same deformed head, expressions
 and lip-sync; each tab keeps its own saved configuration.
 
 **Configure** opens the character panel for the current tab: colors, head size and shape (jaw, chin, cheekbones, brow ridge, nose), hair,
@@ -56,6 +57,31 @@ The preview includes phrase pauses. Blinking closes and opens smoothly, and the 
 Add `&wide=0.8&round=0.1` to compare lip shapes independently. Deterministic comparisons use
 `?preview=neutral&mouth=0&freeze=1`: time and pose settle immediately, natural swaying/blinking pause.
 Add `&blink=1` for closed lids (`0.5` for halfway), `&yaw=35&pitch=0` for rotation in degrees, or `&time=2` for a fixed shimmer time.
+
+## Dissolve and lighting
+
+The inactive head writes neither visible color nor depth, so it leaves no silhouette blocking the cube.
+During activation/deactivation, matched surface and depth coverage dissolve the portrait while particles travel
+between the animated skin and positions throughout the cube. Dust uses the same formation state. The head stays
+fully formed while listening, thinking and speaking; only ending/failing the connection returns it to the cube.
+The accepted head geometry, eyes and viseme rig are unchanged.
+
+**Configure → Lighting** offers three saved presets:
+
+- **Soft portrait**: the previous broad, gently filled lighting (no cast-shadow pass).
+- **Cinema grid**: a high, nearly frontal key, minimal fill, cast shadows and a subtle projected grid.
+- **Butterfly**: a centered elevated key with a little more fill and no grid by default.
+
+**Lighting adjustment** controls key elevation (25–65°), shadow fill and projected-grid strength. The latter
+applies to Cinema/Butterfly; Soft portrait disables it. Changing presets loads their lighting values only.
+**Save** keeps the choice per style; closing without saving restores the saved lighting.
+Cinema grid is the default for configurations without a saved lighting choice.
+
+`HeadLight.ts` renders a 1024² light-space depth map of the same morphed head. Nose, eyelids and lips cast real
+shadows, with filtered edges and a small depth bias. Lighting is shared by the portrait, Dust and cube helper pass
+and stays attached to the head when it rotates. The projected grid is an artistic approximation of the reference;
+it is not a reconstruction of the movie's actual lighting setup. The extra shadow pass is skipped for Soft
+portrait and fully dormant states.
 
 ## Audio-driven lip sync
 
@@ -102,7 +128,7 @@ Optional browser review: provide `puppeteer-core` (for example in a separate too
 then run `scripts/review-browser.mjs` with `PUPPETEER_MODULE` set to its module path, `CHROME_PATH` to a Chrome executable,
 and `VIKI_URL` to the local server URL (default `http://127.0.0.1:5173`). `VIKI_REVIEW_DIR` selects screenshot output
 (default `/tmp/viki-review`). The check uses API-free previews and a synthetic audio stream, and covers poses,
-shared depth animation, all five styles, configuration, saved settings and mobile controls. A real voice conversation
+shared depth animation, both styles, configuration, saved settings and mobile controls. A real voice conversation
 still needs a separate microphone/listening check.
 
 `scripts/review-speech-browser.mjs` uses the same browser environment variables. It checks fixed visemes, the real
@@ -117,6 +143,7 @@ with a simulated connection and the same browser setup.
 - `src/viki/HeadRig.ts` — canonical multi-part geometry and shared relative morph weights
 - `src/viki/headShader.ts` — shared GLSL: morphs, proportions, hair, lighting and semantic eye/mouth shading
 - `src/viki/SurfacePortrait.ts` — surface data pattern, depth occlusion and silhouette fade
+- `src/viki/HeadLight.ts` — animated light-space depth map for Cinema/Butterfly cast shadows
 - `src/viki/FacePass.ts` — depth/luminance/mask texture for the cube; four views in debug mode
 - `src/viki/DataCube.ts` — staggered rectangular cell volume, face occlusion and cube controls
 - `src/viki/sampleSurface.ts` — surface sampling that preserves the morphs for Dust

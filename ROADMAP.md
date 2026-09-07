@@ -64,3 +64,17 @@ prüfen. Kopf und Augen dafür nicht erneut umformen.
 - `src/viki/realtime.ts`, `src/App.tsx`: Antwortstream und Ereignisse.
 - `src/viki/config.ts`: Speech-Regler; `src/viki/ParticleFace.ts`: Übergabe an die gemeinsame Gesichtspose.
 - `src/viki/SurfacePortrait.ts`, `headShader.ts`, `DataCube.ts`, `FacePass.ts`: akzeptierte Darstellung.
+
+
+## Filmlook und Auflösung – umgesetzt
+
+- Der Kopf verschwindet im inaktiven Zustand vollständig im Datenwürfel, einschließlich seiner Tiefensilhouette.
+  Oberflächenpartikel verteilen sich während des Übergangs im Volumen; Aktivierung setzt den Kopf wieder zusammen.
+- Zuhören, Denken und Sprechen halten das Gesicht vollständig sichtbar. Vorschau und Konfiguration funktionieren
+  weiterhin ohne API-Verbindung. Der aktuelle Projektstand enthält die Stile Lattice und Dust.
+- Lichtauswahl im rechten Konfigurationspanel: Soft portrait, Cinema grid und Butterfly. Gespeicherte Auswahl
+  pro Stil, Regler für Höhe der Hauptlichtquelle, Schattenaufhellung und projiziertes Raster.
+- Ein zusätzlicher Tiefenpass des animierten Kopfes erzeugt Schlagschatten von Nase, Lidern und Lippen.
+  Keine Änderungen an GLB, Kopfproportionen oder Visemgewichten. Soft portrait erhält die frühere Lichtvariante.
+- Browserprüfung erweitert: Ruhepose hat weder Farbe noch Tiefensilhouette, Vorschau löst sich nach Stop wieder
+  auf, Lichtpresets schalten um und werden gespeichert. Visuelle Vergleiche frontal und während der Auflösung.

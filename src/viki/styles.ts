@@ -19,6 +19,7 @@ ${HEAD_MORPH_GLSL}
 ${HEAD_PAINT_GLSL}
 uniform float uTime;
 uniform float uScatter;
+uniform float uTransition;
 uniform float uDotSize;
 uniform float uPointBase;
 uniform float uCamDist;
@@ -26,13 +27,14 @@ attribute vec4 aSeed;
 varying float vLum;
 varying float vCav;
 varying float vSparkle;
+varying float vOpacity;
 void main() {
   vec3 q, l, nw;
   float hair;
   ${HEAD_MORPH_INPUT_GLSL}
   deformHead(transformed, objectNormal, q, l, nw, hair);
   float cav, maskv;
-  float lum = paintLum(l, nw, hair, aFeature, cav, maskv);
+  float lum = paintLum(l, nw, q, hair, aFeature, cav, maskv);
   vLum = lum;
   vCav = cav;
   vSparkle = step(0.965, aSeed.w);
@@ -40,11 +42,15 @@ void main() {
   // particles drift off the surface, most of all at the silhouette and when she is dormant
   vec3 nView = normalize(normalMatrix * nw);
   float edge = pow(1.0 - abs(nView.z), 3.0);
-  float dormant = 1.0 - uActive;
+  float dormant = 1.0 - smoothstep(0.0, 1.0, uFormation);
   float amount = uScatter * (0.06 + 1.2 * edge) + dormant * 0.9;
   float wobble = sin(uTime * 1.5 + aSeed.y * 40.0) * 0.5 + 0.5;
   q += nw * (aSeed.x - 0.35) * amount * (0.4 + 0.6 * wobble) * 0.5;
-  q += (vec3(aSeed.y, aSeed.z, aSeed.x) - 0.5) * dormant * 0.3;
+  vec3 resting = (vec3(aSeed.y, aSeed.z, aSeed.x) * 2.0 - 1.0) * 0.97;
+  resting += 0.025 * sin(uTime * 0.4 + aSeed.xyz * 40.0);
+  q = mix(q, resting, dormant);
+  vLum = mix(0.12, lum, 1.0 - dormant);
+  vOpacity = uTransition > 0.5 ? sin(clamp(uFormation, 0.0, 1.0) * 3.14159) * 0.48 : mix(0.08, 1.0, uFormation);
 
   vec4 mv = modelViewMatrix * vec4(q, 1.0);
   gl_Position = projectionMatrix * mv;
@@ -62,13 +68,14 @@ uniform float uGain;
 varying float vLum;
 varying float vCav;
 varying float vSparkle;
+varying float vOpacity;
 void main() {
   vec2 c = gl_PointCoord - 0.5;
   if (dot(c, c) > 0.25) discard;
   vec3 col = mix(uColorA, uColorB, clamp(vLum * 1.1, 0.0, 1.0));
   col = mix(col, uColorC, vSparkle * 0.9);
   col *= 1.0 - 0.85 * vCav;
-  gl_FragColor = vec4(col * uGain, 1.0);
+  gl_FragColor = vec4(col * uGain * mix(0.15, 1.0, clamp(vLum * 1.3, 0.0, 1.0)), vOpacity);
 }
 `
 
@@ -135,6 +142,7 @@ const DUST_MAX = 70000
 export interface StyleSet {
   dust: THREE.Points
   cage: THREE.Points
+  setTransition: (on: boolean) => void
   setTime: (t: number) => void
   applyConfig: (cfg: HeadConfig) => void
   setDustBase: (pointBase: number) => void
@@ -145,6 +153,8 @@ export function createStyles(uniforms: HeadUniforms, geometry: THREE.BufferGeome
   // dust: points sampled on the scan surface, deformed like the mesh
   const dustGeo = sampleAnimatedSurface(geometry, DUST_MAX)
   const dustMat = new THREE.ShaderMaterial({
+    transparent: true,
+    depthWrite: false,
     vertexShader: dustVertex,
     fragmentShader: dustFragment,
     uniforms: {
@@ -155,6 +165,7 @@ export function createStyles(uniforms: HeadUniforms, geometry: THREE.BufferGeome
       uGain: { value: 1 },
       uTime: { value: 0 },
       uScatter: { value: 0.5 },
+      uTransition: { value: 0 },
       uDotSize: { value: 1 },
       uPointBase: { value: 2 },
       uCamDist: { value: camDist },
@@ -170,6 +181,12 @@ export function createStyles(uniforms: HeadUniforms, geometry: THREE.BufferGeome
   return {
     dust,
     cage,
+    setTransition: (on) => {
+      dustMat.uniforms.uTransition.value = on ? 1 : 0
+      // Active Dust retains nearest-particle occlusion; the transient lattice
+      // scatter must not write depth over the dissolving portrait.
+      dustMat.depthWrite = !on
+    },
     setTime: (t) => {
       dustMat.uniforms.uTime.value = t
       cageMat.uniforms.uTime.value = t

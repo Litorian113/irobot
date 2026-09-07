@@ -16,6 +16,14 @@ uniform mat4 uHeadMatrix;
 uniform vec3 uHeadOffset;
 uniform vec3 uHeadScale;
 uniform float uActive;
+uniform float uFormation;
+uniform float uLighting;
+uniform vec3 uKeyDirection;
+uniform float uLightFill;
+uniform float uLightGobo;
+uniform sampler2D uKeyShadow;
+uniform mat4 uKeyMatrix;
+uniform float uShadowReady;
 uniform float uRigged;
 uniform float uMouthOpen;
 uniform float uMouthWide;
@@ -45,6 +53,12 @@ float hashH(vec3 p) {
   p = fract(p * 0.3183099 + 0.1);
   p *= 17.0;
   return fract(p.x * p.y * p.z * (p.x + p.y + p.z));
+}
+float headCoverage(vec3 l) {
+  if (uFormation < 0.001) return 0.0;
+  if (uFormation > 0.999) return 1.0;
+  float cell = hashH(floor(l * 120.0));
+  return smoothstep(cell * 0.85, cell * 0.85 + 0.15, uFormation);
 }
 /** head frame -> head-local (reference-scale) coordinates, where all feature anchors live */
 vec3 toLocal(vec3 headFrame) { return (headFrame - uHeadOffset) * (${REF_SCALE.toFixed(3)} / uHeadScale); }
@@ -144,13 +158,36 @@ export const HEAD_PAINT_GLSL = /* glsl */ `
  * head frame (light is attached to the head). Returns luminance 0..~1.3 and
  * writes the open-mouth cavity (0..1) and the neck fade mask (0..1).
  */
-float paintLum(vec3 l, vec3 n, float hair, float feature, out float cav, out float maskv) {
+float keyVisibility(vec3 q, vec3 n) {
+  if (uShadowReady < 0.5) return 1.0;
+  vec4 shadow = uKeyMatrix * vec4(q, 1.0);
+  vec3 uv = shadow.xyz / shadow.w * 0.5 + 0.5;
+  if (min(uv.x, uv.y) < 0.0 || max(uv.x, uv.y) > 1.0) return 1.0;
+  float bias = 0.0012 + 0.0015 * (1.0 - max(dot(n, uKeyDirection), 0.0));
+  float visible = 0.0;
+  for (int x = -1; x <= 1; x++) for (int y = -1; y <= 1; y++) {
+    float depth = texture2D(uKeyShadow, uv.xy + vec2(float(x), float(y)) / 1024.0).r;
+    visible += step(uv.z - bias, depth);
+  }
+  return visible / 9.0;
+}
+float paintLum(vec3 l, vec3 n, vec3 q, float hair, float feature, out float cav, out float maskv) {
   // Broad portrait lighting: retain the scan's anatomy without black eye sockets.
-  vec3 key = normalize(vec3(-0.35, 0.45, 1.0));
+  vec3 key = uKeyDirection;
   vec3 fill = normalize(vec3(0.65, 0.15, 0.9));
-  float lum = 0.20 + 0.43 * max(dot(n, key), 0.0)
-                   + 0.20 * max(dot(n, fill), 0.0);
+  float lum = uLightFill + 0.43 * max(dot(n, key), 0.0)
+                   + uLightFill * max(dot(n, fill), 0.0);
   lum += 0.06 * pow(1.0 - abs(n.z), 2.0);
+
+  if (uLighting > 0.5) {
+    float diffuse = max(dot(n, uKeyDirection), 0.0);
+    vec4 projected = uKeyMatrix * vec4(q, 1.0);
+    vec2 grid = projected.xy / projected.w * vec2(55.0, 36.0);
+    float bars = smoothstep(0.08, 0.20, abs(sin(grid.x))) * smoothstep(0.05, 0.15, abs(sin(grid.y)));
+    float gobo = mix(1.0, 0.25 + 0.75 * bars, uLightGobo);
+    lum = uLightFill + 0.92 * diffuse * keyVisibility(q, n) * gobo;
+    lum += 0.025 * pow(1.0 - abs(n.z), 3.0);
+  }
 
   float ax = abs(l.x);
   float faceZone = smoothstep(0.05, 0.35, l.z);
@@ -165,7 +202,7 @@ float paintLum(vec3 l, vec3 n, float hair, float feature, out float cav, out flo
     if (feature > 0.5) {
       // Iris shading is restricted to the actual eyeballs, behind the moving lids.
       float iris = 1.0 - smoothstep(0.029 * uEyeSize, 0.038 * uEyeSize, length(vec2(ax - uEyeX, l.y - uEyeY)));
-      return mix(0.49 + 0.10 * uEyeGlow, 0.23, iris);
+      return mix(0.49 + 0.10 * uEyeGlow, 0.23, iris) * (uLighting < 0.5 ? 1.0 : clamp(lum * 1.35, 0.12, 1.0));
     }
     float browBand = g2(ax - uEyeX, l.y - uBrowY, 0.075, 0.018) * faceZone;
     lum *= 1.0 - 0.12 * browBand;
@@ -256,6 +293,14 @@ export function createHeadUniforms() {
     uHeadOffset: { value: new THREE.Vector3() },
     uHeadScale: { value: new THREE.Vector3(REF_SCALE, REF_SCALE, REF_SCALE) },
     uActive: { value: 0 },
+    uFormation: { value: 0 },
+    uLighting: { value: 1 },
+    uKeyDirection: { value: new THREE.Vector3(0, 0.707, 0.707) },
+    uLightFill: { value: c.lightFill },
+    uLightGobo: { value: c.lightGobo },
+    uKeyShadow: { value: null as THREE.Texture | null },
+    uKeyMatrix: { value: new THREE.Matrix4() },
+    uShadowReady: { value: 0 },
     uRigged: { value: 0 },
     uMouthOpen: { value: 0 },
     uMouthWide: { value: 0 },
@@ -282,6 +327,12 @@ export function createHeadUniforms() {
 
 /** Push the shape part of a config into the shared uniforms. */
 export function applyShapeConfig(u: HeadUniforms, cfg: HeadConfig) {
+  u.uLighting.value = cfg.lighting === 'soft' ? 0 : 1
+  u.uLightFill.value = cfg.lightFill
+  u.uLightGobo.value = cfg.lightGobo
+  const elevation = THREE.MathUtils.degToRad(cfg.lightElevation)
+  u.uKeyDirection.value.set(cfg.lighting === 'cinema' ? -0.10 : 0, Math.sin(elevation), Math.cos(elevation)).normalize()
+  if (cfg.lighting === 'soft') u.uKeyDirection.value.set(-0.35, 0.45 * Math.tan(elevation) / Math.tan(Math.PI / 6), 1).normalize()
   u.uMouthY.value = cfg.mouthY
   u.uEyeX.value = cfg.eyeX
   u.uEyeY.value = cfg.eyeY

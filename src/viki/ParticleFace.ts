@@ -13,6 +13,7 @@ import { DataCube } from './DataCube'
 import { createStyles, type StyleSet } from './styles'
 import { SurfacePortrait } from './SurfacePortrait'
 import { HeadRig } from './HeadRig'
+import { HeadLight } from './HeadLight'
 
 export type Expression =
   | 'neutral'
@@ -161,8 +162,9 @@ export class ParticleFace {
   private style: HeadStyle = 'lattice'
   private config: HeadConfig = { ...STYLE_DEFAULTS.lattice }
   private headLoaded = false
+  private headLight: HeadLight | null = null
 
-  private current: FaceState = { face: 0.12, turb: 0.0, forward: 0, ...EXPRESSIONS.neutral }
+  private current: FaceState = { face: 0, turb: 0.0, forward: 1, ...EXPRESSIONS.neutral }
   private target: FaceState = { ...this.current }
 
   private mouth = { open: 0, wide: 0, round: 0 }
@@ -248,6 +250,7 @@ export class ParticleFace {
     const geometry = rig.geometry
     this.headUniforms.uRigged.value = rig.rigged ? 1 : 0
     this.facePass.setGeometry(geometry, rig.influences)
+    this.headLight = new HeadLight(this.headUniforms, geometry, rig.influences)
     this.portrait = new SurfacePortrait(this.headUniforms, geometry)
     this.group.add(this.portrait.group)
     const styles = createStyles(this.headUniforms, geometry, CAM_DIST)
@@ -337,6 +340,7 @@ export class ParticleFace {
     this.cube.group.visible = style === 'lattice' && !new URLSearchParams(window.location.search).has('inspect')
     if (this.portrait) this.portrait.group.visible = style === 'lattice'
     if (s) {
+      s.setTransition(style === 'lattice')
       s.dust.visible = style === 'dust'
       s.cage.visible = style === 'dust'
     }
@@ -369,7 +373,8 @@ export class ParticleFace {
     this.raf = requestAnimationFrame(this.tick)
 
     const now = performance.now()
-    const minInterval = 1000 / (this.active || this.mouthSource ? ACTIVE_FPS : IDLE_FPS) - 2
+    const transitioning = Math.abs(this.current.face - this.target.face) > 0.002
+    const minInterval = 1000 / (this.active || this.mouthSource || transitioning ? ACTIVE_FPS : IDLE_FPS) - 2
     if (now - this.lastFrame < minInterval) return
     this.lastFrame = now
 
@@ -409,6 +414,7 @@ export class ParticleFace {
 
     // shared head uniforms (expression + mouth + placement)
     const hu = this.headUniforms
+    hu.uFormation.value = this.current.face < 0.001 ? 0 : this.current.face > 0.999 ? 1 : this.current.face
     hu.uMouthOpen.value = this.mouth.open
     hu.uMouthWide.value = this.mouth.wide
     hu.uSmile.value = this.current.smile
@@ -417,9 +423,10 @@ export class ParticleFace {
     this.rig?.update(this.mouth.open, this.mouth.wide, this.mouth.round, this.current.smile, this.current.brow, this.current.eyeOpen * blink, this.visemes, this.config.speechStrength)
     applyPlacement(hu, this.config, this.current.forward)
 
-    this.cube.update(t, this.current.face)
+    if (this.styles) this.styles.dust.visible = this.style === 'dust' || (hu.uFormation.value > 0 && hu.uFormation.value < 1)
+    this.cube.update(t, hu.uFormation.value)
     this.styles?.setTime(t)
-    this.portrait?.update(t, this.current.face, this.current.turb)
+    this.portrait?.update(t, hu.uFormation.value, this.current.turb)
 
     // drag rotation: radians per pixel while dragging, inertia afterwards; fully free
     const perPx = 0.006
@@ -452,6 +459,7 @@ export class ParticleFace {
     this.group.scale.setScalar(FROZEN ? 1 : 1 + Math.sin(t * 0.9) * 0.006)
 
     const t0 = performance.now()
+    this.headLight?.render(this.renderer)
     if (this.style === 'lattice' || this.debugQuad) this.facePass.render(this.renderer, Boolean(this.debugQuad))
     this.fpsCount++
     if (now - this.fpsSince > 1000) {
@@ -504,6 +512,7 @@ export class ParticleFace {
     this.styles?.dispose()
     this.portrait?.dispose()
     this.rig?.dispose()
+    this.headLight?.dispose()
     this.facePass.dispose()
     this.composer.dispose()
     this.renderer.dispose()

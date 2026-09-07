@@ -41,6 +41,13 @@ try {
   }, { label, value })
 
   await page.setViewport({ width: 1280, height: 900, deviceScaleFactor: 1 })
+  await visit('style=lattice&freeze=1')
+  assert.equal(await page.evaluate(() => window.__vikiFace.headUniforms.uFormation.value), 0)
+  const dormant = await page.screenshot()
+  await page.evaluate(() => { window.__vikiFace.portrait.group.visible = false })
+  await pause(150)
+  assert.deepEqual(await page.screenshot(), dormant, 'Dormant head writes neither color nor an invisible depth silhouette')
+  await shot('dormant-cube')
   for (const [name, pose] of [
     ['front', 'mouth=0'], ['speaking', 'mouth=.7&wide=.3&round=.4'],
     ['blink', 'mouth=0&blink=1'], ['half-blink', 'mouth=0&blink=.5&yaw=25'],
@@ -66,6 +73,7 @@ try {
   await click('Stop preview')
   await page.waitForFunction(() => window.__viki().mouth.open < 0.01 && window.__viki().mouth.round < 0.01)
   assert.equal(await page.evaluate(() => window.__viki().active), false)
+  await page.waitForFunction(() => window.__vikiFace.headUniforms.uFormation.value === 0)
 
   // Real audio analyser, driven by a local synthetic voiced signal without a microphone.
   const audio = await page.evaluate(async () => {
@@ -108,6 +116,13 @@ try {
     await shot(`style-${style}`)
   }
   await click('Configure')
+  for (const label of ['Soft portrait', 'Cinema grid', 'Butterfly']) {
+    await click(label)
+    await pause(200)
+    await shot(`lighting-${label.replaceAll(' ', '-').toLowerCase()}`)
+  }
+  assert.equal(await page.evaluate(() => window.__vikiFace.headUniforms.uKeyDirection.value.x), 0)
+  assert.equal(await page.evaluate(() => window.__vikiFace.headUniforms.uShadowReady.value), 1)
   await page.evaluate(() => localStorage.setItem('viki.config.v4.lattice', '{"gain":1.37}'))
   const cellCount = await page.evaluate(() => window.__vikiFace.cube.cells.geometry.attributes.position.count)
   await slider('Cube cells', 0.8)
@@ -121,6 +136,7 @@ try {
   assert.equal(await page.evaluate(() => window.__vikiFace.cube.material.uniforms.uDepth.value), 1.2)
   assert.equal(await page.evaluate(() => window.__vikiFace.cube.material.uniforms.uGap.value), 0.15)
   await click('Save')
+  assert.equal(await page.evaluate(() => JSON.parse(localStorage.getItem('viki.config.v5.lattice')).lighting), 'butterfly')
   assert.equal(await page.evaluate(() => JSON.parse(localStorage.getItem('viki.config.v5.lattice')).density), 0.4)
   assert.equal(await page.evaluate(() => JSON.parse(localStorage.getItem('viki.config.v5.lattice')).speechStrength), 1.2)
   assert.equal(await page.evaluate(() => JSON.parse(localStorage.getItem('viki.config.v5.lattice')).speechDelay), 140)

@@ -42,6 +42,20 @@ export default function ConfigPanel({ style, draft, dirty, testSpeech, onChange,
           </div>
         </section>
 
+        <section>
+          <h3>Lighting</h3>
+          <div className="lighting-options" role="group" aria-label="Lighting preset">
+            {([
+              ['soft', 'Soft portrait', 30, 0.20, 0],
+              ['cinema', 'Cinema grid', 45, 0.035, 0.22],
+              ['butterfly', 'Butterfly', 35, 0.10, 0],
+            ] as const).map(([lighting, label, lightElevation, lightFill, lightGobo]) => (
+              <button key={lighting} type="button" className="btn ghost small" aria-pressed={draft.lighting === lighting}
+                onClick={() => onChange({ lighting, lightElevation, lightFill, lightGobo })}>{label}</button>
+            ))}
+          </div>
+        </section>
+
         {groups.map((group) => (
           <section key={group.title}>
             <h3>{group.title}</h3>
@@ -56,6 +70,7 @@ export default function ConfigPanel({ style, draft, dirty, testSpeech, onChange,
                     max={s.max}
                     step={s.step}
                     value={value}
+                    disabled={s.key === 'lightGobo' && draft.lighting === 'soft'}
                     onChange={(e) => onChange({ [s.key]: Number(e.target.value) })}
                   />
                   <span className="slider-value">{value.toFixed(s.step < 0.01 ? 3 : 2)}</span>

@@ -597,3 +597,14 @@ body,
     letter-spacing: 0.12em;
   }
 }
+
+.lighting-options {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+.lighting-options button[aria-pressed='true'] {
+  color: #edf3f3;
+  background: #183450;
+  border-color: #829ba8;
+}

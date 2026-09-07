@@ -51,12 +51,12 @@ const STATUS_LABEL: Record<VoiceStatus, string> = {
 
 /** How formed / turbulent the lattice is per state. */
 const STATE_FORM: Record<VoiceStatus, { face: number; turb: number; forward: number }> = {
-  idle: { face: 0.65, turb: 0.02, forward: 0.85 },
-  connecting: { face: 0.35, turb: 1.0, forward: 0.3 },
+  idle: { face: 0, turb: 0.02, forward: 1 },
+  connecting: { face: 0, turb: 0.3, forward: 1 },
   listening: { face: 1.0, turb: 0.04, forward: 1 },
-  thinking: { face: 0.85, turb: 0.3, forward: 0.85 },
+  thinking: { face: 1, turb: 0.08, forward: 1 },
   speaking: { face: 1.0, turb: 0.0, forward: 1 },
-  error: { face: 0.2, turb: 0.8, forward: 0 },
+  error: { face: 0, turb: 0.1, forward: 1 },
 }
 
 /** Fake speech pattern for previews / the configurator's test mode. */
