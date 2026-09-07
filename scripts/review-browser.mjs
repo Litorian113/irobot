@@ -150,6 +150,8 @@ try {
   await page.click('[aria-label="Close"]')
   await visit('style=lattice&model=legacy&preview=neutral&mouth=0&freeze=1')
   assert.equal(await page.evaluate(() => window.__viki().rigged), false)
+  await visit('style=lattice&model=legacy&preview=neutral&viseme=aa&freeze=1')
+  assert.ok(await page.evaluate(() => window.__viki().mouth.open > 0.1), 'Legacy scan retains procedural motion with viseme audio')
   assert.deepEqual(errors, [], 'No runtime or GLSL errors')
   assert.deepEqual(external, [], 'No external requests during preview')
   console.log(`PASS: poses, shared depth animation, audio/silence, preview, all styles, cube controls, persistence, mobile and legacy. Screenshots: ${output}`)
