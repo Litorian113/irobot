@@ -101,7 +101,7 @@ try {
   assert.equal(audio.silent.round, 0)
   console.log('Audio analyser:', audio)
 
-  for (const style of ['contour', 'dots', 'plasma', 'dust', 'lattice']) {
+  for (const style of ['dust', 'lattice']) {
     await page.evaluate((id) => [...document.querySelectorAll('.tab')].find((b) => b.textContent.toLowerCase().includes(id)).click(), style)
     await page.waitForFunction((id) => window.__viki().style === id, {}, style)
     await pause(500)

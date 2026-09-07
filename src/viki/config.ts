@@ -1,13 +1,10 @@
 /** The head's reference scale: feature anchors are defined for the head at this size, centred on its placement. */
 export const REF_SCALE = 0.29
 
-export type HeadStyle = 'lattice' | 'contour' | 'dots' | 'plasma' | 'dust'
+export type HeadStyle = 'lattice' | 'dust'
 
 export const STYLES: { id: HeadStyle; label: string; hint: string }[] = [
   { id: 'lattice', label: 'Lattice', hint: 'A human presence inside a layered cube of light' },
-  { id: 'contour', label: 'Contour', hint: 'Topographic lines over a black head' },
-  { id: 'dots', label: 'Dots', hint: 'LED matrix, warm patches over cool light' },
-  { id: 'plasma', label: 'Plasma', hint: 'A blurred silhouette crowned by a colour flame' },
   { id: 'dust', label: 'Dust', hint: 'Fine particles that scatter at the edges' },
 ]
 
@@ -21,11 +18,9 @@ export interface HeadConfig {
   cellSize: number // lattice cell size
   bloom: number // bloom strength
   fill: number // lattice interior fill
-  density: number // contour line frequency / dot pitch / dust amount
-  lineWidth: number // contour
-  flicker: number // dots twinkle / plasma turbulence
+  density: number // lattice point density / dust amount
+  flicker: number // lattice shimmer
   scatter: number // dust edge scatter
-  chroma: number // plasma chromatic aberration
   dotSize: number // dust particle size
   cage: number // brightness of the surrounding cube/cage
   cubeDensity: number
@@ -93,10 +88,8 @@ const APPEARANCE_BASE = {
   bloom: 0.5,
   fill: 0.05,
   density: 0.5,
-  lineWidth: 0.08,
   flicker: 0.5,
   scatter: 0.5,
-  chroma: 0.5,
   dotSize: 1,
 }
 
@@ -114,41 +107,6 @@ export const STYLE_DEFAULTS: Record<HeadStyle, HeadConfig> = {
     cellSize: 1.0,
     cage: 0.65,
     flicker: 0.2,
-  },
-  contour: {
-    ...APPEARANCE_BASE,
-    ...SHAPE_DEFAULTS,
-    colorA: '#f4f6ff',
-    colorB: '#05070c',
-    colorC: '#cfe4ff',
-    density: 0.5,
-    lineWidth: 0.06,
-    bloom: 0.3,
-    gain: 1,
-  },
-  dots: {
-    ...APPEARANCE_BASE,
-    ...SHAPE_DEFAULTS,
-    colorA: '#2f6cff',
-    colorB: '#ff8a1f',
-    colorC: '#ffe9c4',
-    density: 0.5,
-    flicker: 0.5,
-    bloom: 0.6,
-    gain: 0.85,
-  },
-  plasma: {
-    ...APPEARANCE_BASE,
-    ...SHAPE_DEFAULTS,
-    colorA: '#2a4dff',
-    colorB: '#ff3fa8',
-    colorC: '#ffb347',
-    flicker: 0.5,
-    chroma: 0.5,
-    bloom: 0.9,
-    gain: 1,
-    hair: 0.6,
-    hairline: 0.7,
   },
   dust: {
     ...APPEARANCE_BASE,
@@ -240,36 +198,6 @@ export const STYLE_GROUPS: Record<HeadStyle, SliderGroup> = {
       { key: 'cubeGap', label: 'Cube spacing', min: 0, max: 0.25, step: 0.01 },
     ],
   },
-  contour: {
-    title: 'Contour',
-    sliders: [
-      { key: 'density', label: 'Line density', min: 0.1, max: 1, step: 0.01 },
-      { key: 'lineWidth', label: 'Line width', min: 0.02, max: 0.25, step: 0.005 },
-      { key: 'gain', label: 'Brightness', min: 0.4, max: 2, step: 0.02 },
-      { key: 'bloom', label: 'Glow', min: 0, max: 1.5, step: 0.02 },
-      { key: 'cage', label: 'Cage', min: 0, max: 1, step: 0.01 },
-    ],
-  },
-  dots: {
-    title: 'Dots',
-    sliders: [
-      { key: 'density', label: 'Dot density', min: 0.1, max: 1, step: 0.01 },
-      { key: 'flicker', label: 'Flicker', min: 0, max: 1, step: 0.01 },
-      { key: 'gain', label: 'Brightness', min: 0.4, max: 2, step: 0.02 },
-      { key: 'bloom', label: 'Glow', min: 0, max: 1.5, step: 0.02 },
-      { key: 'cage', label: 'Cage', min: 0, max: 1, step: 0.01 },
-    ],
-  },
-  plasma: {
-    title: 'Plasma',
-    sliders: [
-      { key: 'flicker', label: 'Turbulence', min: 0, max: 1, step: 0.01 },
-      { key: 'chroma', label: 'Colour split', min: 0, max: 1, step: 0.01 },
-      { key: 'gain', label: 'Brightness', min: 0.4, max: 2, step: 0.02 },
-      { key: 'bloom', label: 'Blur / glow', min: 0, max: 2, step: 0.02 },
-      { key: 'cage', label: 'Cage', min: 0, max: 1, step: 0.01 },
-    ],
-  },
   dust: {
     title: 'Dust',
     sliders: [
@@ -285,9 +213,6 @@ export const STYLE_GROUPS: Record<HeadStyle, SliderGroup> = {
 
 export const COLOR_LABELS: Record<HeadStyle, [string, string, string]> = {
   lattice: ['Cube', 'Face', 'Highlights'],
-  contour: ['Lines', 'Body', 'Rim'],
-  dots: ['Cool', 'Warm', 'Sparkle'],
-  plasma: ['Base', 'Flame', 'Hot'],
   dust: ['Shadow', 'Light', 'Sparkle'],
 }
 

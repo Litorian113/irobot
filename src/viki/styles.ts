@@ -1,211 +1,14 @@
 import * as THREE from 'three'
 import { sampleAnimatedSurface } from './sampleSurface'
 import type { HeadConfig } from './config'
-import { HEAD_DEFORM_GLSL, HEAD_MORPH_GLSL, HEAD_MORPH_INPUT_GLSL, HEAD_PAINT_GLSL, HEAD_UNIFORMS_GLSL, NOISE_GLSL, type HeadUniforms } from './headShader'
+import { HEAD_DEFORM_GLSL, HEAD_MORPH_GLSL, HEAD_MORPH_INPUT_GLSL, HEAD_PAINT_GLSL, HEAD_UNIFORMS_GLSL, type HeadUniforms } from './headShader'
 
 /**
- * The non-lattice head styles. Each one draws the deformed head directly
- * (mesh or surface particles) with its own material; the post passes that
- * belong to a style live in ParticleFace.
+ * The dust head style: particles sampled on the rigged scan surface. They carry
+ * the head's morph targets (visemes, expressions), so the same lip system that
+ * drives the lattice portrait moves the dust. A thin haze of drifting particles
+ * forms the surrounding cube.
  */
-
-const commonVertex = /* glsl */ `
-${HEAD_UNIFORMS_GLSL}
-${HEAD_DEFORM_GLSL}
-${HEAD_MORPH_GLSL}
-varying vec3 vLocal;
-varying vec3 vNormal;   // head frame
-varying vec3 vNormalW;  // world
-varying vec3 vWorld;
-varying float vHair;
-void main() {
-  vec3 q, l, nw;
-  float hair;
-  ${HEAD_MORPH_INPUT_GLSL}
-  deformHead(transformed, objectNormal, q, l, nw, hair);
-  vLocal = l;
-  vNormal = nw;
-  vNormalW = normalize(mat3(modelMatrix) * nw);
-  vHair = hair;
-  vec4 w = modelMatrix * vec4(q, 1.0);
-  vWorld = w.xyz;
-  gl_Position = projectionMatrix * viewMatrix * w;
-}
-`
-
-const styleUniformsGlsl = /* glsl */ `
-varying float vFeature;
-uniform vec3 uColorA;
-uniform vec3 uColorB;
-uniform vec3 uColorC;
-uniform float uGain;
-uniform float uTime;
-uniform float uP0;
-uniform float uP1;
-uniform float uP2;
-varying vec3 vLocal;
-varying vec3 vNormal;
-varying vec3 vNormalW;
-varying vec3 vWorld;
-varying float vHair;
-`
-
-// ---------------------------------------------------------------- contour
-
-const contourFragment = /* glsl */ `
-${HEAD_UNIFORMS_GLSL}
-${HEAD_PAINT_GLSL}
-${styleUniformsGlsl}
-void main() {
-  vec3 n = normalize(vNormal);
-  float cav, maskv;
-  float lum = paintLum(vLocal, n, vHair, vFeature, cav, maskv);
-  if (maskv < 0.02) discard;
-
-  // topographic lines of head depth (uP0 = frequency, uP1 = line width)
-  float h = vLocal.z * uP0;
-  float f = fract(h);
-  float d = fwidth(h);
-  float w = uP1;
-  float line = smoothstep(0.5 - w - d, 0.5 - w, f) - smoothstep(0.5 + w, 0.5 + w + d, f);
-  line = clamp(line, 0.0, 1.0) * (1.0 - smoothstep(1.5, 4.0, d));
-
-  vec3 nWorld = normalize(vNormalW);
-  vec3 view = normalize(cameraPosition - vWorld);
-  float rim = pow(1.0 - max(dot(nWorld, view), 0.0), 4.0);
-
-  // only the lines: the body stays a silhouette that occludes the cage
-  vec3 col = uColorB * 0.25;
-  col += uColorA * line * (0.25 + 0.9 * lum);
-  col += uColorC * rim * 0.22;
-  col *= 1.0 - 0.9 * cav;
-  col *= mix(0.45, 1.0, uActive);  // dimmer while dormant
-  gl_FragColor = vec4(col * uGain * maskv, 1.0);
-}
-`
-
-// ---------------------------------------------------------------- dots (LED matrix, coloured by a post pass)
-
-const dotsFragment = /* glsl */ `
-${HEAD_UNIFORMS_GLSL}
-${HEAD_PAINT_GLSL}
-${styleUniformsGlsl}
-void main() {
-  vec3 n = normalize(vNormal);
-  float cav, maskv;
-  float lum = paintLum(vLocal, n, vHair, vFeature, cav, maskv);
-  if (maskv < 0.02) discard;
-  gl_FragColor = vec4(vec3(lum * (1.0 - 0.9 * cav) * uGain * maskv * mix(0.45, 1.0, uActive)), 1.0);
-}
-`
-
-/** Post pass: turns the luminance image into an LED dot matrix. */
-export const DotMatrixShader = {
-  uniforms: {
-    tDiffuse: { value: null as THREE.Texture | null },
-    uResolution: { value: new THREE.Vector2(1, 1) },
-    uPitch: { value: 10 },
-    uTime: { value: 0 },
-    uFlicker: { value: 0.5 },
-    uColorA: { value: new THREE.Color() },
-    uColorB: { value: new THREE.Color() },
-    uColorC: { value: new THREE.Color() },
-  },
-  vertexShader: /* glsl */ `
-    varying vec2 vUv;
-    void main() { vUv = uv; gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }`,
-  fragmentShader: /* glsl */ `
-    uniform sampler2D tDiffuse;
-    uniform vec2 uResolution;
-    uniform float uPitch;
-    uniform float uTime;
-    uniform float uFlicker;
-    uniform vec3 uColorA;
-    uniform vec3 uColorB;
-    uniform vec3 uColorC;
-    varying vec2 vUv;
-    float hash2(vec2 p) { return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453); }
-    float noise2(vec2 x) {
-      vec2 i = floor(x); vec2 f = fract(x); f = f * f * (3.0 - 2.0 * f);
-      return mix(mix(hash2(i), hash2(i + vec2(1, 0)), f.x), mix(hash2(i + vec2(0, 1)), hash2(i + vec2(1, 1)), f.x), f.y);
-    }
-    void main() {
-      vec2 px = vUv * uResolution;
-      vec2 cell = floor(px / uPitch);
-      vec2 center = (cell + 0.5) * uPitch;
-      vec3 s = texture2D(tDiffuse, center / uResolution).rgb;
-      float b = max(max(s.r, s.g), s.b);
-      float r = length(px - center) / uPitch;
-      float radius = 0.10 + 0.32 * smoothstep(0.0, 1.0, b);
-      float disc = 1.0 - smoothstep(radius - 0.07, radius + 0.07, r);
-      // warm patches drifting slowly over the cool base, plus per-dot twinkle
-      float pat = noise2(cell * 0.11 + vec2(uTime * 0.06 * (0.3 + uFlicker), uTime * 0.02));
-      float warm = smoothstep(0.52, 0.62, pat);
-      float tw = 0.75 + 0.5 * hash2(cell + floor(uTime * (0.5 + 4.0 * uFlicker)));
-      vec3 col = mix(uColorA, uColorB, warm);
-      col = mix(col, uColorC, smoothstep(0.85, 1.1, b * tw));
-      gl_FragColor = vec4(col * disc * (0.05 + 1.05 * b) * tw, 1.0);
-    }`,
-}
-
-// ---------------------------------------------------------------- plasma
-
-const plasmaFragment = /* glsl */ `
-${HEAD_UNIFORMS_GLSL}
-${HEAD_PAINT_GLSL}
-${NOISE_GLSL}
-${styleUniformsGlsl}
-void main() {
-  vec3 n = normalize(vNormal);
-  float cav, maskv;
-  float lum = paintLum(vLocal, n, vHair, vFeature, cav, maskv);
-  if (maskv < 0.02) discard;
-
-  vec3 nWorld = normalize(vNormalW);
-  vec3 view = normalize(cameraPosition - vWorld);
-  float rim = pow(1.0 - max(dot(nWorld, view), 0.0), 2.0);
-
-  // a rising, domain-warped flame of colour on the crown (uP0 = turbulence)
-  float t = uTime * (0.4 + 1.4 * uP0);
-  vec3 pp = vLocal * vec3(2.4, 1.7, 2.4);
-  float warp = noise3(pp * 1.4 + vec3(0.0, -t * 0.35, 0.0));
-  float nz = noise3(pp + vec3(warp * 0.9, -t * 0.7, warp * 0.4)) * 0.65
-           + noise3(pp * 2.6 + vec3(0.0, -t * 1.1, 7.0)) * 0.35;
-  float crown = smoothstep(0.6, 1.0, vLocal.y + 0.45 * (nz - 0.5) + 0.35 * vHair);
-  float flame = crown * (0.3 + 1.0 * nz);
-  vec3 pal = mix(uColorA, uColorB, smoothstep(0.15, 0.55, flame));
-  pal = mix(pal, uColorC, smoothstep(0.5, 0.85, flame));
-  pal = mix(pal, vec3(1.0), smoothstep(1.05, 1.45, flame));
-
-  vec3 col = uColorA * 0.06;
-  col += uColorA * rim * 0.7;
-  col += pal * flame * 1.35;
-  col += uColorA * lum * 0.22 * uActive;   // the face glows through when she is awake
-  col *= 1.0 - 0.8 * cav;
-  col *= mix(0.5, 1.0, uActive);  // dimmer while dormant
-  gl_FragColor = vec4(col * uGain * maskv, 1.0);
-}
-`
-
-/** Post pass: chromatic aberration (radial RGB split). */
-export const ChromaShader = {
-  uniforms: {
-    tDiffuse: { value: null as THREE.Texture | null },
-    uAmount: { value: 0.01 },
-  },
-  vertexShader: DotMatrixShader.vertexShader,
-  fragmentShader: /* glsl */ `
-    uniform sampler2D tDiffuse;
-    uniform float uAmount;
-    varying vec2 vUv;
-    void main() {
-      vec2 d = (vUv - 0.5) * uAmount;
-      float r = texture2D(tDiffuse, vUv + d).r;
-      float g = texture2D(tDiffuse, vUv).g;
-      float b = texture2D(tDiffuse, vUv - d).b;
-      gl_FragColor = vec4(r, g, b, 1.0);
-    }`,
-}
 
 // ---------------------------------------------------------------- dust (surface particles)
 
@@ -269,89 +72,6 @@ void main() {
 }
 `
 
-// ---------------------------------------------------------------- cages
-// Every style gets a faint surrounding cube drawn in its own language:
-// contour = soft wrapping lines, dots = a dot grid on the faces,
-// plasma = softly glowing edges with a drifting shimmer, dust = thin haze.
-
-const cageVertex = /* glsl */ `
-varying vec3 vP;
-void main() {
-  vP = position;
-  gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
-}
-`
-
-const cageFragment = /* glsl */ `
-uniform vec3 uColorA;
-uniform vec3 uColorB;
-uniform float uIntensity;
-uniform float uTime;
-uniform float uMode; // 0 lines, 1 dots, 2 plasma
-varying vec3 vP;
-float hashC(vec3 p) {
-  p = fract(p * 0.3183099 + 0.1);
-  p *= 17.0;
-  return fract(p.x * p.y * p.z * (p.x + p.y + p.z));
-}
-float noiseC(vec3 x) {
-  vec3 i = floor(x); vec3 f = fract(x); f = f * f * (3.0 - 2.0 * f);
-  return mix(
-    mix(mix(hashC(i), hashC(i + vec3(1, 0, 0)), f.x), mix(hashC(i + vec3(0, 1, 0)), hashC(i + vec3(1, 1, 0)), f.x), f.y),
-    mix(mix(hashC(i + vec3(0, 0, 1)), hashC(i + vec3(1, 0, 1)), f.x), mix(hashC(i + vec3(0, 1, 1)), hashC(i + vec3(1, 1, 1)), f.x), f.y),
-    f.z);
-}
-void main() {
-  vec3 a = abs(vP);
-  vec2 uv = (a.x > a.y && a.x > a.z) ? vP.yz : (a.y > a.z ? vP.xz : vP.xy);
-  float bright = 0.0;
-  if (uMode < 0.5) {
-    // soft wavy lines wrapping the cube; square rings on top and bottom
-    float coord = (a.y > a.x && a.y > a.z) ? max(a.x, a.z) : vP.y * 0.5 + 0.5;
-    coord += 0.09 * noiseC(vP * 1.3 + vec3(0.0, uTime * 0.05, 0.0));
-    float h = coord * 10.0;
-    float f = fract(h);
-    float d = fwidth(h);
-    bright = exp(-pow((f - 0.5) / 0.11, 2.0));
-    bright *= (1.0 - smoothstep(0.8, 2.5, d)) * 0.4;
-  } else if (uMode < 1.5) {
-    // a quiet dot grid on the faces
-    vec2 g = fract(uv * 13.0) - 0.5;
-    bright = smoothstep(0.30, 0.10, length(g)) * (0.4 + 0.3 * hashC(floor(vec3(uv * 13.0, uMode))));
-  } else {
-    // thin glowing edges + a faint aurora drifting across the faces
-    float border = pow(max(abs(uv.x), abs(uv.y)), 14.0);
-    bright = border * 1.3 + 0.055 * noiseC(vP * 1.2 + vec3(0.0, uTime * 0.06, 0.0));
-  }
-  vec3 col = mix(uColorA, uColorB, 0.35 * (1.0 + sin(vP.y * 2.0)));
-  gl_FragColor = vec4(col * bright * uIntensity, 1.0);
-}
-`
-
-function makeCage(mode: number): THREE.Mesh {
-  const mat = new THREE.ShaderMaterial({
-    vertexShader: cageVertex,
-    fragmentShader: cageFragment,
-    uniforms: {
-      uColorA: { value: new THREE.Color() },
-      uColorB: { value: new THREE.Color() },
-      uIntensity: { value: 0.06 },
-      uTime: { value: 0 },
-      uMode: { value: mode },
-    },
-    transparent: true,
-    depthWrite: false,
-    depthTest: false,
-    blending: THREE.AdditiveBlending,
-    side: THREE.DoubleSide,
-  })
-  const mesh = new THREE.Mesh(new THREE.BoxGeometry(2, 2, 2), mat)
-  mesh.frustumCulled = false
-  mesh.visible = false
-  mesh.renderOrder = -1
-  return mesh
-}
-
 const cageDustVertex = /* glsl */ `
 uniform float uTime;
 uniform float uPointBase;
@@ -413,45 +133,15 @@ function makeDustCage(): THREE.Points {
 const DUST_MAX = 70000
 
 export interface StyleSet {
-  contour: THREE.Mesh
-  dots: THREE.Mesh
-  plasma: THREE.Mesh
   dust: THREE.Points
-  cages: { contour: THREE.Mesh; dots: THREE.Mesh; plasma: THREE.Mesh; dust: THREE.Points }
-  dotMatrix: THREE.ShaderMaterial
-  chroma: THREE.ShaderMaterial
+  cage: THREE.Points
   setTime: (t: number) => void
-  applyConfig: (cfg: HeadConfig, styleId: string) => void
+  applyConfig: (cfg: HeadConfig) => void
   setDustBase: (pointBase: number) => void
   dispose: () => void
 }
 
 export function createStyles(uniforms: HeadUniforms, geometry: THREE.BufferGeometry, camDist: number): StyleSet {
-  const makeStyleUniforms = () => ({
-    ...uniforms,
-    uColorA: { value: new THREE.Color() },
-    uColorB: { value: new THREE.Color() },
-    uColorC: { value: new THREE.Color() },
-    uGain: { value: 1 },
-    uTime: { value: 0 },
-    uP0: { value: 0 },
-    uP1: { value: 0 },
-    uP2: { value: 0 },
-  })
-
-  const contourMat = new THREE.ShaderMaterial({ vertexShader: commonVertex, fragmentShader: contourFragment, uniforms: makeStyleUniforms() })
-  const dotsMat = new THREE.ShaderMaterial({ vertexShader: commonVertex, fragmentShader: dotsFragment, uniforms: makeStyleUniforms() })
-  const plasmaMat = new THREE.ShaderMaterial({ vertexShader: commonVertex, fragmentShader: plasmaFragment, uniforms: makeStyleUniforms() })
-  const mk = (m: THREE.Material) => {
-    const mesh = new THREE.Mesh(geometry, m)
-    mesh.frustumCulled = false
-    mesh.visible = false
-    return mesh
-  }
-  const contour = mk(contourMat)
-  const dots = mk(dotsMat)
-  const plasma = mk(plasmaMat)
-
   // dust: points sampled on the scan surface, deformed like the mesh
   const dustGeo = sampleAnimatedSurface(geometry, DUST_MAX)
   const dustMat = new THREE.ShaderMaterial({
@@ -474,86 +164,37 @@ export function createStyles(uniforms: HeadUniforms, geometry: THREE.BufferGeome
   dust.frustumCulled = false
   dust.visible = false
 
-  const cages = { contour: makeCage(0), dots: makeCage(1), plasma: makeCage(2), dust: makeDustCage() }
-  const cageMat = (o: THREE.Object3D) => (o as THREE.Mesh).material as THREE.ShaderMaterial
-
-  const dotMatrix = new THREE.ShaderMaterial({ ...DotMatrixShader, uniforms: THREE.UniformsUtils.clone(DotMatrixShader.uniforms) })
-  const chroma = new THREE.ShaderMaterial({ ...ChromaShader, uniforms: THREE.UniformsUtils.clone(ChromaShader.uniforms) })
-
-  const setColors = (u: Record<string, { value: unknown }>, cfg: HeadConfig) => {
-    ;(u.uColorA.value as THREE.Color).set(cfg.colorA)
-    ;(u.uColorB.value as THREE.Color).set(cfg.colorB)
-    ;(u.uColorC.value as THREE.Color).set(cfg.colorC)
-    if (u.uGain) u.uGain.value = cfg.gain
-  }
+  const cage = makeDustCage()
+  const cageMat = cage.material as THREE.ShaderMaterial
 
   return {
-    contour,
-    dots,
-    plasma,
     dust,
-    cages,
-    dotMatrix,
-    chroma,
+    cage,
     setTime: (t) => {
-      contourMat.uniforms.uTime.value = t
-      dotsMat.uniforms.uTime.value = t
-      plasmaMat.uniforms.uTime.value = t
       dustMat.uniforms.uTime.value = t
-      dotMatrix.uniforms.uTime.value = t
-      for (const c of Object.values(cages)) cageMat(c).uniforms.uTime.value = t
+      cageMat.uniforms.uTime.value = t
     },
-    applyConfig: (cfg, styleId) => {
-      const cage = cages[styleId as keyof typeof cages] as THREE.Object3D | undefined
-      if (cage) {
-        const u = cageMat(cage).uniforms
-        ;(u.uColorA.value as THREE.Color).set(cfg.colorA)
-        ;(u.uColorB.value as THREE.Color).set(styleId === 'contour' ? cfg.colorA : cfg.colorB)
-        u.uIntensity.value = (styleId === 'dust' ? 0.55 : 0.12) * cfg.cage
-      }
-      switch (styleId) {
-        case 'contour':
-          setColors(contourMat.uniforms, cfg)
-          contourMat.uniforms.uP0.value = 8 + 52 * cfg.density
-          contourMat.uniforms.uP1.value = cfg.lineWidth
-          break
-        case 'dots':
-          setColors(dotsMat.uniforms, cfg)
-          setColors(dotMatrix.uniforms, cfg)
-          dotMatrix.uniforms.uPitch.value = 18 - 12 * cfg.density
-          dotMatrix.uniforms.uFlicker.value = cfg.flicker
-          break
-        case 'plasma':
-          setColors(plasmaMat.uniforms, cfg)
-          plasmaMat.uniforms.uP0.value = cfg.flicker
-          chroma.uniforms.uAmount.value = 0.03 * cfg.chroma
-          break
-        case 'dust':
-          setColors(dustMat.uniforms, cfg)
-          dustMat.uniforms.uScatter.value = cfg.scatter
-          dustMat.uniforms.uDotSize.value = cfg.dotSize
-          dustGeo.setDrawRange(0, Math.floor(DUST_MAX * cfg.density))
-          break
-        default:
-          break
-      }
+    applyConfig: (cfg) => {
+      ;(dustMat.uniforms.uColorA.value as THREE.Color).set(cfg.colorA)
+      ;(dustMat.uniforms.uColorB.value as THREE.Color).set(cfg.colorB)
+      ;(dustMat.uniforms.uColorC.value as THREE.Color).set(cfg.colorC)
+      dustMat.uniforms.uGain.value = cfg.gain
+      dustMat.uniforms.uScatter.value = cfg.scatter
+      dustMat.uniforms.uDotSize.value = cfg.dotSize
+      dustGeo.setDrawRange(0, Math.floor(DUST_MAX * cfg.density))
+      ;(cageMat.uniforms.uColorA.value as THREE.Color).set(cfg.colorA)
+      ;(cageMat.uniforms.uColorB.value as THREE.Color).set(cfg.colorB)
+      cageMat.uniforms.uIntensity.value = 0.55 * cfg.cage
     },
     setDustBase: (pointBase) => {
       dustMat.uniforms.uPointBase.value = pointBase
-      cageMat(cages.dust).uniforms.uPointBase.value = pointBase
+      cageMat.uniforms.uPointBase.value = pointBase
     },
     dispose: () => {
-      for (const c of Object.values(cages)) {
-        cageMat(c).dispose()
-        ;(c as THREE.Mesh).geometry.dispose()
-      }
-      contourMat.dispose()
-      dotsMat.dispose()
-      plasmaMat.dispose()
+      cageMat.dispose()
+      cage.geometry.dispose()
       dustMat.dispose()
       dustGeo.dispose()
-      dotMatrix.dispose()
-      chroma.dispose()
     },
   }
 }

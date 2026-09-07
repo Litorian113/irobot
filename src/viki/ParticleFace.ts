@@ -67,9 +67,6 @@ function reviewNumber(key: string, fallback: number) {
 /** Bloom radius / threshold per style (strength comes from the config). */
 const BLOOM_SHAPE: Record<HeadStyle, { radius: number; threshold: number }> = {
   lattice: { radius: 0.3, threshold: 0.75 },
-  contour: { radius: 0.4, threshold: 0.5 },
-  dots: { radius: 0.5, threshold: 0.3 },
-  plasma: { radius: 0.8, threshold: 0.3 },
   dust: { radius: 0.3, threshold: 0.6 },
 }
 
@@ -141,8 +138,6 @@ export class ParticleFace {
   private camera: THREE.PerspectiveCamera
   private composer: EffectComposer
   private softClamp: ShaderPass
-  private dotPass: ShaderPass | null = null
-  private chromaPass: ShaderPass | null = null
   private bloom: UnrealBloomPass
   private cube: DataCube
   private headUniforms = createHeadUniforms()
@@ -257,15 +252,7 @@ export class ParticleFace {
     this.group.add(this.portrait.group)
     const styles = createStyles(this.headUniforms, geometry, CAM_DIST)
     this.styles = styles
-    this.group.add(styles.contour, styles.dots, styles.plasma, styles.dust)
-    this.group.add(styles.cages.contour, styles.cages.dots, styles.cages.plasma, styles.cages.dust)
-    // post passes owned by styles, inserted between soft clamp and bloom
-    const passes = this.composer.passes
-    const bloomIndex = passes.indexOf(this.bloom)
-    this.dotPass = new ShaderPass(styles.dotMatrix)
-    this.chromaPass = new ShaderPass(styles.chroma)
-    passes.splice(bloomIndex, 0, this.dotPass)
-    passes.splice(passes.indexOf(this.bloom) + 1, 0, this.chromaPass)
+    this.group.add(styles.dust, styles.cage)
     rig.bind(this.group)
     this.headLoaded = true
     this.resize()
@@ -286,7 +273,6 @@ export class ParticleFace {
     this.camera.updateProjectionMatrix()
     this.cube.resize(pr, h)
     this.styles?.setDustBase(pr * 1.4)
-    if (this.styles) this.styles.dotMatrix.uniforms.uResolution.value.set(w * pr, h * pr)
   }
 
   private onPointerDown = (e: PointerEvent) => {
@@ -351,18 +337,9 @@ export class ParticleFace {
     this.cube.group.visible = style === 'lattice' && !new URLSearchParams(window.location.search).has('inspect')
     if (this.portrait) this.portrait.group.visible = style === 'lattice'
     if (s) {
-      s.contour.visible = style === 'contour'
-      s.dots.visible = style === 'dots'
-      s.plasma.visible = style === 'plasma'
       s.dust.visible = style === 'dust'
-      s.cages.contour.visible = style === 'contour'
-      s.cages.dots.visible = style === 'dots'
-      s.cages.plasma.visible = style === 'plasma'
-      s.cages.dust.visible = style === 'dust'
+      s.cage.visible = style === 'dust'
     }
-    this.softClamp.enabled = style === 'lattice' || style === 'dust' || style === 'plasma'
-    if (this.dotPass) this.dotPass.enabled = style === 'dots'
-    if (this.chromaPass) this.chromaPass.enabled = style === 'plasma'
     const shape = BLOOM_SHAPE[style]
     this.bloom.radius = shape.radius
     this.bloom.threshold = shape.threshold
@@ -376,7 +353,7 @@ export class ParticleFace {
     this.cube.applyConfig(cfg)
     this.bloom.strength = cfg.bloom
     this.portrait?.applyConfig(cfg)
-    this.styles?.applyConfig(cfg, this.style)
+    this.styles?.applyConfig(cfg)
   }
 
   /** Turn the cube back to the front. */
@@ -509,8 +486,6 @@ export class ParticleFace {
       pitch: Number(this.pitch.toFixed(3)),
       renderedFps: this.renderedFps,
       cpuFrameMs: Number(this.frameMs.toFixed(2)),
-      dotRes: this.styles?.dotMatrix.uniforms.uResolution.value.toArray(),
-      dotPassEnabled: this.dotPass?.enabled,
       passes: this.composer.passes.map((p) => `${p.constructor.name}:${p.enabled ? 1 : 0}`),
       cubeVisible: this.cube.group.visible,
     }
