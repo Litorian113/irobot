@@ -2,10 +2,9 @@ import * as THREE from 'three'
 import { DEFAULT_CONFIG, REF_SCALE, type HeadConfig } from './config'
 
 /**
- * Shared GLSL for every head style: the scanned head is deformed in its own
- * frame (expressions + configurable proportions + hair) and a "painted"
- * feature layer (eyes, brows, lips, cheek highlight) is computed from the
- * head-local position. Styles only differ in how they draw the result.
+ * Shared GLSL for every head style. Relative position/normal morphs animate the
+ * new head; procedural expressions remain available for the legacy scan.
+ * Proportions, hair and lighting use the same head frame in every pass.
  *
  * Head frame: uHeadMatrix places the raw scan inside the cube (scale + offset).
  * The mesh itself has an identity transform, so `modelMatrix` is just the
@@ -17,6 +16,7 @@ uniform mat4 uHeadMatrix;
 uniform vec3 uHeadOffset;
 uniform vec3 uHeadScale;
 uniform float uActive;
+uniform float uRigged;
 uniform float uMouthOpen;
 uniform float uMouthWide;
 uniform float uSmile;
@@ -50,6 +50,20 @@ float hashH(vec3 p) {
 vec3 toLocal(vec3 headFrame) { return (headFrame - uHeadOffset) * (${REF_SCALE.toFixed(3)} / uHeadScale); }
 `
 
+export const HEAD_MORPH_GLSL = /* glsl */ `
+#include <morphtarget_pars_vertex>
+attribute float aFeature;
+varying float vFeature;
+`
+
+export const HEAD_MORPH_INPUT_GLSL = /* glsl */ `
+  vec3 transformed = position;
+  vec3 objectNormal = normal;
+  #include <morphnormal_vertex>
+  #include <morphtarget_vertex>
+  vFeature = aFeature;
+`
+
 export const HEAD_DEFORM_GLSL = /* glsl */ `
 /**
  * Deform a raw scan vertex. Outputs the head-frame position q (before the cube
@@ -58,33 +72,49 @@ export const HEAD_DEFORM_GLSL = /* glsl */ `
  */
 void deformHead(vec3 position, vec3 normal, out vec3 q, out vec3 l, out vec3 nw, out float hairOut) {
   q = (uHeadMatrix * vec4(position, 1.0)).xyz;
-  nw = normalize(mat3(uHeadMatrix) * normal);
+  nw = normalize(normal / uHeadScale);
   l = toLocal(q);
   float front = smoothstep(-0.25, 0.25, l.z);
   float ax = abs(l.x);
 
+  if (uRigged < 0.5) {
+  // Bring the tall scan's crown into balance with the face.
+  q.y -= max(l.y - 0.68, 0.0) * 0.18 * uHeadScale.y / ${REF_SCALE.toFixed(3)};
+
   // jaw drops: everything below the mouth line sinks, smoothly blended
-  float jaw = smoothstep(uMouthY + 0.10, uMouthY - 0.30, l.y) * front;
-  q.y -= uMouthOpen * 0.14 * jaw;
-  q.z -= uMouthOpen * 0.04 * jaw;
+  float jaw = (1.0 - smoothstep(uMouthY - 0.30, uMouthY + 0.10, l.y)) * front;
+  q.y -= uMouthOpen * 0.095 * jaw;
+  q.z -= uMouthOpen * 0.018 * jaw;
+
+  // Stretch / round the lips locally with the analysed vowel energy.
+  float mouthZone = g2(l.x, l.y - uMouthY, uMouthWidth, 0.10) * front;
+  q.x += l.x * (uMouthWide - 0.4) * uMouthOpen * 0.24 * mouthZone;
 
   // smile / frown: mouth corners up-out or down
   float corner = g2(ax - 0.20, l.y - uMouthY, 0.10, 0.09) * front;
   q.y += uSmile * 0.05 * corner;
   q.x += sign(l.x) * max(uSmile, 0.0) * 0.025 * corner;
 
+  // Compress the sculpted eyelids towards their seam during a blink.
+  float eye = g2(ax - uEyeX, l.y - uEyeY, 0.075 * uEyeSize, 0.048) * front;
+  q.y -= (l.y - uEyeY) * (1.0 - clamp(uEyeOpen, 0.0, 1.0)) * 0.75 * eye;
+
   // brows raise / furrow
   float brow = g2(ax - 0.22, l.y - uBrowY, 0.16, 0.06) * front;
   q.y += uBrow * 0.045 * brow;
   q.z += max(-uBrow, 0.0) * 0.02 * brow;
 
+  }
+
   // configurable proportions: jaw & neck width, brow ridge, nose, cheekbones, chin
-  float below = smoothstep(uMouthY + 0.15, uMouthY - 0.45, l.y);
-  q.x = uHeadOffset.x + (q.x - uHeadOffset.x) * (0.96 - uJawWidth * below);
+  float below = 1.0 - smoothstep(uMouthY - 0.45, uMouthY + 0.15, l.y);
+  q.x = uHeadOffset.x + (q.x - uHeadOffset.x) * (mix(0.96, 1.0, uRigged) - uJawWidth * below);
   float ridge = g2(ax - 0.20, l.y - (uBrowY - 0.03), 0.25, 0.05) * front;
   q.z -= uBrowRidge * ridge;
   float nose = g2(l.x, l.y - (uBrowY - 0.30), 0.07, 0.11) * front;
   q.z += uNoseSize * nose;
+  // Narrow the bridge and alae as nose size is reduced, not only its depth.
+  q.x += l.x * min(uNoseSize, 0.0) * 3.0 * nose;
   float cheek = g2(ax - 0.30, l.y - (uBrowY - 0.30), 0.10, 0.08) * front;
   q.z += uCheek * cheek;
   float chin = g2(l.x, l.y - (uMouthY - 0.22), 0.14, 0.08) * front;
@@ -94,11 +124,15 @@ void deformHead(vec3 position, vec3 normal, out vec3 q, out vec3 l, out vec3 nw,
   float lensV = pow(max(1.0 - pow(clamp(l.x / uMouthWidth, -1.0, 1.0), 2.0), 0.0), 0.7);
   float lipBump = exp(-pow((l.y - uMouthY) / 0.035, 2.0)) * lensV * front;
   q.z += uLipFull * 0.12 * lipBump;
+  if (uRigged > 0.5) {
+    float lipRegion = g2(l.x, l.y - uMouthY, 0.19, 0.10) * front;
+    q.x += l.x * (uMouthWidth / 0.15 - 1.0) * lipRegion * uHeadScale.x / ${REF_SCALE.toFixed(3)};
+  }
 
   // hair: volume on the skull above a hairline that dips at the temples, plus the back of the head
   float hl = uHairline - 0.5 * ax * ax;
   float hair = smoothstep(hl, hl + 0.10, l.y) * (1.0 - smoothstep(0.35, 0.6, l.z));
-  hair = max(hair, smoothstep(0.15, -0.15, l.z) * smoothstep(-0.35, -0.05, l.y));
+  hair = max(hair, (1.0 - smoothstep(-0.15, 0.15, l.z)) * smoothstep(-0.35, -0.05, l.y));
   q += nw * uHair * 0.07 * hair;
   hairOut = hair * uHair;
 }
@@ -106,65 +140,75 @@ void deformHead(vec3 position, vec3 normal, out vec3 q, out vec3 l, out vec3 nw,
 
 export const HEAD_PAINT_GLSL = /* glsl */ `
 /**
- * Lighting + painted features for a surface point. n is the normal in the
+ * Lighting + semantic part shading for a surface point. n is the normal in the
  * head frame (light is attached to the head). Returns luminance 0..~1.3 and
  * writes the open-mouth cavity (0..1) and the neck fade mask (0..1).
  */
-float paintLum(vec3 l, vec3 n, float hair, out float cav, out float maskv) {
-  // Rembrandt light: a single key high above, falling down the face;
-  // deep sockets, nose and cheek shadows, only a whisper of fill.
-  vec3 key = normalize(vec3(0.42, 0.88, 0.45));
-  vec3 fill = normalize(vec3(-0.55, 0.05, 0.8));
-  float wrap = 0.5 + 0.5 * dot(n, key);
-  float lum = 0.045 + 1.0 * pow(wrap, 3.6) + 0.07 * max(dot(n, fill), 0.0);
-  lum += 0.05 * pow(1.0 - abs(n.z), 3.0);
+float paintLum(vec3 l, vec3 n, float hair, float feature, out float cav, out float maskv) {
+  // Broad portrait lighting: retain the scan's anatomy without black eye sockets.
+  vec3 key = normalize(vec3(-0.35, 0.45, 1.0));
+  vec3 fill = normalize(vec3(0.65, 0.15, 0.9));
+  float lum = 0.20 + 0.43 * max(dot(n, key), 0.0)
+                   + 0.20 * max(dot(n, fill), 0.0);
+  lum += 0.06 * pow(1.0 - abs(n.z), 2.0);
 
   float ax = abs(l.x);
   float faceZone = smoothstep(0.05, 0.35, l.z);
   float boost = mix(0.55, 1.0, uActive);
 
+  if (uRigged > 0.5) {
+    cav = 0.0;
+    maskv = smoothstep(-0.40, -0.16, l.y);
+    maskv *= 1.0 - 0.5 * smoothstep(0.36, 0.56, ax);
+    maskv *= 1.0 - 0.65 * smoothstep(0.85, 1.14, l.y);
+    if (feature > 1.5) return 0.028;
+    if (feature > 0.5) {
+      // Iris shading is restricted to the actual eyeballs, behind the moving lids.
+      float iris = 1.0 - smoothstep(0.029 * uEyeSize, 0.038 * uEyeSize, length(vec2(ax - uEyeX, l.y - uEyeY)));
+      return mix(0.49 + 0.10 * uEyeGlow, 0.23, iris);
+    }
+    float browBand = g2(ax - uEyeX, l.y - uBrowY, 0.075, 0.018) * faceZone;
+    lum *= 1.0 - 0.12 * browBand;
+    return min(lum, 0.85);
+  }
+
   // mouth: a wide lens. The upper lip stays put, the lower lip drops with the jaw.
-  float mw = uMouthWidth + 0.04 * uMouthWide;
+  float mw = uMouthWidth * (1.0 + 0.22 * uMouthWide);
   float u = clamp(l.x / mw, -1.0, 1.0);
   float lens = pow(max(1.0 - u * u, 0.0), 0.7);
-  float openH = (0.006 + 0.075 * uMouthOpen) * lens;
+  float openH = (0.003 + 0.045 * uMouthOpen) * lens;
   float top = uMouthY + 0.008 * lens;
   float bottom = uMouthY - openH;
   float inside = smoothstep(bottom - 0.012, bottom + 0.004, l.y) * (1.0 - smoothstep(top - 0.004, top + 0.012, l.y));
   inside *= 1.0 - smoothstep(0.85, 1.0, abs(l.x / mw));
   cav = inside * smoothstep(0.02, 0.12, uMouthOpen) * faceZone;
-  lum *= 1.0 - 0.9 * cav;
+  lum = mix(lum, 0.10, cav);
   float lipLine = exp(-pow((l.y - uMouthY) / 0.006, 2.0)) * lens * (1.0 - cav) * faceZone;
-  float lowerLip = exp(-pow((l.y - (uMouthY - 0.026)) / 0.016, 2.0)) * lens * (1.0 - cav) * faceZone;
-  float upperLip = exp(-pow((l.y - (uMouthY + 0.018)) / 0.012, 2.0)) * lens * (1.0 - cav) * faceZone;
+  float lowerLip = exp(-pow((l.y - (bottom - 0.015)) / 0.012, 2.0)) * lens * (1.0 - cav) * faceZone;
+  float upperLip = exp(-pow((l.y - (top + 0.010)) / 0.009, 2.0)) * lens * (1.0 - cav) * faceZone;
   lum *= 1.0 - 0.55 * lipLine * boost;
-  lum += uLipFull * boost * (0.35 * lowerLip + 0.12 * upperLip);
+  lum += (0.10 + uLipFull) * boost * (0.25 * lowerLip + 0.12 * upperLip);
 
-  // eyes: soft almond, a large dark iris with a catchlight; lids close on a blink.
-  // Kept dim overall so they read as eyes, not white bars, at cell resolution.
+  // Quiet eyes within the sculpted lids: a small iris and a muted opening,
+  // using the same light range as the face, without white bars or catchlights.
+  float ex = (ax - uEyeX) / (0.085 * uEyeSize);
+  float eyeLens = max(0.0, 1.0 - ex * ex);
+  float lidY = uEyeY + 0.009 * eyeLens;
   vec2 ep = vec2(ax - uEyeX, l.y - uEyeY);
-  vec2 er = vec2(0.068, 0.028) * uEyeSize;
-  vec2 en = ep / er;
-  float almond = (1.0 - smoothstep(0.6, 1.0, dot(en, en))) * faceZone;
-  float irisR = length(ep / (er.y * 1.35));
-  float iris = 1.0 - smoothstep(0.5, 0.68, irisR);
-  float pupil = 1.0 - smoothstep(0.2, 0.32, irisR);
-  float catchlight = 1.0 - smoothstep(0.08, 0.2, length((ep - vec2(-0.006, 0.007)) / (er.y * 1.35)));
-  float open = smoothstep(0.15, 0.8, uEyeOpen);
-  float eyeLum = 0.78 * (1.0 - 0.85 * iris - 0.2 * pupil) + 0.95 * catchlight * iris;
-  float eyeMix = almond * open * clamp(uEyeGlow, 0.0, 1.0) * boost;
-  lum = mix(lum, eyeLum, eyeMix);
-  lum += 0.1 * uEyeGlow * almond * open * boost;
-  lum *= 1.0 - 0.45 * almond * (1.0 - open);
-  vec2 en2 = (ep - vec2(0.0, er.y * 0.55)) / (er * vec2(1.25, 1.35));
-  float lidShadow = max(0.0, (1.0 - smoothstep(0.7, 1.15, dot(en2, en2))) - almond) * faceZone;
-  lum *= 1.0 - 0.4 * lidShadow * boost;
+  float eyeHeight = 0.019 * uEyeSize * clamp(uEyeOpen, 0.08, 1.3);
+  float aperture = (1.0 - smoothstep(0.45, 1.0,
+    pow(ep.x / (0.067 * uEyeSize), 2.0) + pow(ep.y / eyeHeight, 2.0))) * faceZone;
+  float iris = 1.0 - smoothstep(0.012, 0.020, length(ep));
+  lum = mix(lum, mix(0.44, 0.20, iris), aperture * 0.75 * boost);
+  float lid = exp(-pow((l.y - lidY) / 0.009, 2.0)) * eyeLens * faceZone;
+  lum *= 1.0 - lid * (0.16 + 0.20 * (1.0 - clamp(uEyeOpen, 0.0, 1.0)));
+  lum += 0.025 * uEyeGlow * g2(ax - uEyeX, l.y - (uEyeY - 0.035), 0.075, 0.024) * faceZone;
 
-  // brows: dark arched strokes above the eyes
-  float bx = ax - uEyeX * 1.05;
-  float yb = uBrowY + 0.02 - 0.9 * bx * bx;
-  float browBand = exp(-pow((l.y - yb) / 0.012, 2.0)) * (1.0 - smoothstep(0.10, 0.16, abs(bx))) * faceZone;
-  lum *= 1.0 - 0.55 * browBand * boost;
+  // Brows are a soft change in tone, never a dark painted arch.
+  float bx = ax - uEyeX;
+  float yb = uBrowY + 0.012 - 0.65 * bx * bx;
+  float browBand = g2(bx, l.y - yb, 0.075, 0.018) * faceZone;
+  lum *= 1.0 - 0.12 * browBand;
 
   // cheekbone highlight
   float cheekHi = g2(ax - 0.33, l.y - (uEyeY - 0.12), 0.09, 0.05) * faceZone;
@@ -174,9 +218,14 @@ float paintLum(vec3 l, vec3 n, float hair, out float cav, out float maskv) {
   lum *= 1.0 - 0.3 * hair;
   lum += hair * 0.35 * hashH(floor(l * vec3(90.0, 14.0, 90.0)));
 
+  // A gentle local shadow tames inward-facing nostril facets. Keep the
+  // bridge, septum and nose wings intact instead of painting a black band.
+  float nostril = g2(ax - 0.065, l.y - 0.295, 0.022, 0.014) * faceZone;
+  lum = mix(lum, min(lum, 0.22), nostril * 0.75);
+
   // soft highlight roll-off: nothing clips to a flat white blob
   float over = max(lum - 0.8, 0.0);
-  lum = 0.8 + over / (1.0 + 1.7 * over);
+  lum = min(lum, 0.8) + over / (1.0 + 1.7 * over);
 
   // fade the neck out below the chin: no shoulders
   maskv = smoothstep(-0.62, -0.28, l.y);
@@ -207,6 +256,7 @@ export function createHeadUniforms() {
     uHeadOffset: { value: new THREE.Vector3() },
     uHeadScale: { value: new THREE.Vector3(REF_SCALE, REF_SCALE, REF_SCALE) },
     uActive: { value: 0 },
+    uRigged: { value: 0 },
     uMouthOpen: { value: 0 },
     uMouthWide: { value: 0 },
     uSmile: { value: 0 },

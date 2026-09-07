@@ -49,7 +49,7 @@ const STATUS_LABEL: Record<VoiceStatus, string> = {
 
 /** How formed / turbulent the lattice is per state. */
 const STATE_FORM: Record<VoiceStatus, { face: number; turb: number; forward: number }> = {
-  idle: { face: 0.15, turb: 0.35, forward: 0 },
+  idle: { face: 0.65, turb: 0.02, forward: 0.85 },
   connecting: { face: 0.35, turb: 1.0, forward: 0.3 },
   listening: { face: 1.0, turb: 0.04, forward: 1 },
   thinking: { face: 0.85, turb: 0.3, forward: 0.85 },
@@ -60,8 +60,9 @@ const STATE_FORM: Record<VoiceStatus, { face: number; turb: number; forward: num
 /** Fake speech pattern for previews / the configurator's test mode. */
 function fakeTalk(t0: number) {
   const t = (performance.now() - t0) / 1000
-  const talk = Math.max(0, Math.sin(t * 9) * 0.6 + Math.sin(t * 5.3) * 0.5)
-  return { open: talk, wide: 0.5 + 0.5 * Math.sin(t * 2.1) }
+  const phrase = t % 5.6 < 4.3 ? 1 : 0
+  const talk = Math.max(0, 0.18 + Math.sin(t * 8.4) * 0.35 + Math.sin(t * 13.1) * 0.2)
+  return { open: talk * phrase, wide: 0.5 + 0.35 * Math.sin(t * 2.1) }
 }
 
 export default function App() {
@@ -87,6 +88,7 @@ export default function App() {
   const [draft, setDraft] = useState<HeadConfig>(config)
   const [configOpen, setConfigOpen] = useState(false)
   const [testSpeech, setTestSpeech] = useState(false)
+  const [previewSpeech, setPreviewSpeech] = useState(false)
   const dirty = JSON.stringify(draft) !== JSON.stringify(config)
 
   // Renderer lifecycle
@@ -103,8 +105,16 @@ export default function App() {
       face.setTarget(STATE_FORM.speaking)
       face.setExpression(PREVIEW in EXPRESSIONS ? PREVIEW : 'neutral')
       const t0 = performance.now()
-      const fixedMouth = Number(new URLSearchParams(window.location.search).get('mouth'))
-      face.setMouthSource(() => (fixedMouth > 0 ? { open: fixedMouth, wide: 0.4 } : fakeTalk(t0)))
+      const mouthParam = new URLSearchParams(window.location.search).get('mouth')
+      const fixedMouth = mouthParam === null ? NaN : Number(mouthParam)
+      const params = new URLSearchParams(window.location.search)
+      const fixed = (key: string, fallback: number) => {
+        const value = params.get(key)
+        return value !== null && Number.isFinite(Number(value)) ? Math.max(0, Math.min(1, Number(value))) : fallback
+      }
+      face.setMouthSource(() => (Number.isFinite(fixedMouth)
+        ? { open: fixed('mouth', 0), wide: fixed('wide', 0.4), round: fixed('round', fixed('mouth', 0) * (1 - fixed('wide', 0.4))) }
+        : fakeTalk(t0)))
     }
     return () => {
       face.dispose()
@@ -117,7 +127,7 @@ export default function App() {
   useEffect(() => {
     const face = faceRef.current
     if (!face || PREVIEW) return
-    face.setActive(status !== 'idle' && status !== 'error')
+    face.setActive(configOpen || previewSpeech || (status !== 'idle' && status !== 'error'))
     if (configOpen) {
       face.setTarget({ face: 1, turb: 0, forward: 1 })
       face.setExpression('neutral')
@@ -127,10 +137,17 @@ export default function App() {
       )
       return
     }
+    if (previewSpeech) {
+      face.setTarget(STATE_FORM.speaking)
+      face.setExpression('neutral')
+      const t0 = performance.now()
+      face.setMouthSource(() => fakeTalk(t0))
+      return
+    }
     face.setTarget(STATE_FORM[status])
     if (status === 'thinking') face.setExpression('thinking')
     face.setMouthSource(status === 'speaking' && lipRef.current ? () => lipRef.current!.sample() : null)
-  }, [status, configOpen, testSpeech])
+  }, [status, configOpen, testSpeech, previewSpeech])
 
   // Live preview of the draft
   useEffect(() => {
@@ -238,6 +255,7 @@ export default function App() {
   }, [])
 
   const connect = useCallback(async () => {
+    setPreviewSpeech(false)
     if (!API_KEY) {
       setError('VITE_OPENAI_API_KEY is not set in .env')
       setStatus('error')
@@ -302,7 +320,7 @@ export default function App() {
           <div className="actions">
             <div className={`status status-${status}`}>
               <span className="dot" />
-              {STATUS_LABEL[status]}
+              {PREVIEW || previewSpeech ? 'ANIMATION PREVIEW' : STATUS_LABEL[status]}
             </div>
             {!configOpen && (
               <button type="button" className="btn ghost small" onClick={openConfig}>
@@ -335,6 +353,11 @@ export default function App() {
         <footer className="hud-bottom">
           {error && <p className="error">{error}</p>}
           <div className="controls">
+            {!connected && !busy && !PREVIEW && (
+              <button type="button" className="btn ghost" aria-pressed={previewSpeech} onClick={() => setPreviewSpeech((v) => !v)}>
+                {previewSpeech ? 'Stop preview' : 'Preview animation'}
+              </button>
+            )}
             {connected ? (
               <>
                 <div className="meter" aria-hidden="true">

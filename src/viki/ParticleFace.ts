@@ -8,8 +8,10 @@ import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js'
 import { FacePass } from './FacePass'
 import { STYLE_DEFAULTS, type HeadConfig, type HeadStyle } from './config'
 import { applyPlacement, applyShapeConfig, createHeadUniforms } from './headShader'
-import { fragmentShader, vertexShader } from './faceShader'
+import { DataCube } from './DataCube'
 import { createStyles, type StyleSet } from './styles'
+import { SurfacePortrait } from './SurfacePortrait'
+import { HeadRig } from './HeadRig'
 
 export type Expression =
   | 'neutral'
@@ -22,7 +24,7 @@ export type Expression =
   | 'stern'
 
 export const EXPRESSIONS: Record<Expression, { smile: number; brow: number; eyeOpen: number }> = {
-  neutral: { smile: 0.05, brow: 0.0, eyeOpen: 1.0 },
+  neutral: { smile: 0.25, brow: 0.08, eyeOpen: 1.0 },
   happy: { smile: 0.85, brow: 0.25, eyeOpen: 0.85 },
   curious: { smile: 0.2, brow: 0.65, eyeOpen: 1.1 },
   thinking: { smile: -0.05, brow: -0.35, eyeOpen: 0.8 },
@@ -44,17 +46,21 @@ export interface FaceState {
 export interface MouthSample {
   open: number
   wide: number
+  round?: number
 }
 
-const GRID_X = 72
-const GRID_Y = 88
-const GRID_Z = 28
 const CAM_DIST = 4.2
 const FOV = 40
 const MAX_PIXEL_RATIO = 1.5
 const IDLE_FPS = 20
 const ACTIVE_FPS = 60
 const TWO_PI = Math.PI * 2
+const REVIEW = new URLSearchParams(window.location.search)
+const FROZEN = REVIEW.has('freeze')
+function reviewNumber(key: string, fallback: number) {
+  const value = REVIEW.get(key)
+  return value !== null && Number.isFinite(Number(value)) ? Number(value) : fallback
+}
 
 /** Bloom radius / threshold per style (strength comes from the config). */
 const BLOOM_SHAPE: Record<HeadStyle, { radius: number; threshold: number }> = {
@@ -136,11 +142,12 @@ export class ParticleFace {
   private dotPass: ShaderPass | null = null
   private chromaPass: ShaderPass | null = null
   private bloom: UnrealBloomPass
-  private material: THREE.ShaderMaterial
+  private cube: DataCube
   private headUniforms = createHeadUniforms()
   private facePass = new FacePass(this.headUniforms, 256)
   private styles: StyleSet | null = null
-  private lattice: THREE.Points
+  private portrait: SurfacePortrait | null = null
+  private rig: HeadRig | null = null
   private debugQuad: THREE.Mesh | null = null
   private debugCamera = new THREE.OrthographicCamera(-1, 1, 1, -1, 0, 1)
   private group = new THREE.Group()
@@ -158,10 +165,10 @@ export class ParticleFace {
   private config: HeadConfig = { ...STYLE_DEFAULTS.lattice }
   private headLoaded = false
 
-  private current: FaceState = { face: 0.12, turb: 0.0, forward: 0, smile: 0.05, brow: 0, eyeOpen: 1 }
+  private current: FaceState = { face: 0.12, turb: 0.0, forward: 0, ...EXPRESSIONS.neutral }
   private target: FaceState = { ...this.current }
 
-  private mouth: MouthSample = { open: 0, wide: 0 }
+  private mouth = { open: 0, wide: 0, round: 0 }
   private mouthSource: (() => MouthSample | null) | null = null
 
   // drag-to-rotate: yaw/pitch with inertia, optionally easing back to the front when released
@@ -173,7 +180,6 @@ export class ParticleFace {
 
   private nextBlink = 2
   private blinkUntil = -1
-  private frameIndex = 0
 
   constructor(canvas: HTMLCanvasElement, opts: { debugFace?: boolean } = {}) {
     this.canvas = canvas
@@ -187,36 +193,8 @@ export class ParticleFace {
     this.camera.position.set(0, 0, CAM_DIST)
 
     const v = this.facePass.views
-    this.material = new THREE.ShaderMaterial({
-      vertexShader,
-      fragmentShader,
-      transparent: true,
-      depthWrite: false,
-      depthTest: false,
-      blending: THREE.AdditiveBlending,
-      uniforms: {
-        uFront: { value: v.front.target.texture },
-        uBack: { value: v.back.target.texture },
-        uRight: { value: v.right.target.texture },
-        uLeft: { value: v.left.target.texture },
-        uTime: { value: 0 },
-        uFace: { value: this.current.face },
-        uTurb: { value: this.current.turb },
-        uGain: { value: 1 },
-        uFill: { value: 0.05 },
-        uCage: { value: 0.5 },
-        uFlicker: { value: 0.6 },
-        uPointBase: { value: 4 },
-        uCamDist: { value: CAM_DIST },
-        uColorDim: { value: new THREE.Color() },
-        uColorBright: { value: new THREE.Color() },
-        uColorHot: { value: new THREE.Color() },
-      },
-    })
-
-    this.lattice = new THREE.Points(this.buildGrid(), this.material)
-    this.lattice.frustumCulled = false
-    this.group.add(this.lattice)
+    this.cube = new DataCube(v.front.target.texture)
+    this.group.add(this.cube.group)
     this.scene.add(this.group)
 
     this.composer = new EffectComposer(this.renderer)
@@ -236,7 +214,7 @@ export class ParticleFace {
       this.debugQuad = new THREE.Mesh(new THREE.PlaneGeometry(2, 2), mat)
     }
 
-    void this.loadHead(`${import.meta.env.BASE_URL}models/LeePerrySmith.glb`).catch((e) => {
+    void this.loadHead(`${import.meta.env.BASE_URL}models/${new URLSearchParams(window.location.search).get('model') === 'legacy' ? 'LeePerrySmith' : 'VikiHead'}.glb`).catch((e) => {
       console.error('[viki] head model failed to load', e)
     })
 
@@ -253,13 +231,27 @@ export class ParticleFace {
 
   private async loadHead(url: string) {
     const gltf = await new GLTFLoader().loadAsync(url)
-    let geometry: THREE.BufferGeometry | null = null
-    gltf.scene.traverse((o) => {
-      if (!geometry && o instanceof THREE.Mesh) geometry = o.geometry
-    })
-    if (!geometry) throw new Error('No mesh found in head model')
-    if (this.disposed) return
-    this.facePass.setGeometry(geometry)
+    let rig: HeadRig
+    try {
+      if (this.disposed) return
+      rig = new HeadRig(gltf.scene)
+    } finally {
+      // Only the canonical geometry is retained by the renderer.
+      gltf.scene.traverse((object) => {
+        if (!(object instanceof THREE.Mesh)) return
+        object.geometry.dispose()
+        for (const material of Array.isArray(object.material) ? object.material : [object.material]) {
+          for (const value of Object.values(material)) if (value instanceof THREE.Texture) value.dispose()
+          material.dispose()
+        }
+      })
+    }
+    this.rig = rig
+    const geometry = rig.geometry
+    this.headUniforms.uRigged.value = rig.rigged ? 1 : 0
+    this.facePass.setGeometry(geometry, rig.influences)
+    this.portrait = new SurfacePortrait(this.headUniforms, geometry)
+    this.group.add(this.portrait.group)
     const styles = createStyles(this.headUniforms, geometry, CAM_DIST)
     this.styles = styles
     this.group.add(styles.contour, styles.dots, styles.plasma, styles.dust)
@@ -271,32 +263,11 @@ export class ParticleFace {
     this.chromaPass = new ShaderPass(styles.chroma)
     passes.splice(bloomIndex, 0, this.dotPass)
     passes.splice(passes.indexOf(this.bloom) + 1, 0, this.chromaPass)
+    rig.bind(this.group)
     this.headLoaded = true
     this.resize()
     this.applyConfig(this.config)
     this.setStyle(this.style)
-  }
-
-  private buildGrid(): THREE.BufferGeometry {
-    const count = GRID_X * GRID_Y * GRID_Z
-    const pos = new Float32Array(count * 3)
-    const seed = new Float32Array(count)
-    let i = 0
-    for (let z = 0; z < GRID_Z; z++) {
-      for (let y = 0; y < GRID_Y; y++) {
-        for (let x = 0; x < GRID_X; x++) {
-          pos[i * 3] = (x / (GRID_X - 1)) * 2 - 1
-          pos[i * 3 + 1] = (y / (GRID_Y - 1)) * 2 - 1
-          pos[i * 3 + 2] = (z / (GRID_Z - 1)) * 2 - 1
-          seed[i] = Math.random()
-          i++
-        }
-      }
-    }
-    const geo = new THREE.BufferGeometry()
-    geo.setAttribute('position', new THREE.BufferAttribute(pos, 3))
-    geo.setAttribute('aSeed', new THREE.BufferAttribute(seed, 1))
-    return geo
   }
 
   private resize = () => {
@@ -306,10 +277,11 @@ export class ParticleFace {
     this.renderer.setSize(w, h, false)
     this.composer.setSize(w, h)
     this.camera.aspect = w / h
+    // Keep the cube's front corners and the portrait in frame on narrow screens.
+    const halfFov = THREE.MathUtils.degToRad(FOV * 0.5)
+    this.camera.position.z = Math.max(CAM_DIST, 1.0 + 2.3 / (2 * Math.tan(halfFov) * this.camera.aspect))
     this.camera.updateProjectionMatrix()
-    // device pixels per world unit at the camera's focal distance
-    const pxPerUnit = (h * pr) / (2 * CAM_DIST * Math.tan((FOV * Math.PI) / 360))
-    this.material.uniforms.uPointBase.value = pxPerUnit * (2 / (GRID_X - 1)) * 1.3 * this.config.cellSize
+    this.cube.resize(pr, h)
     this.styles?.setDustBase(pr * 1.4)
     if (this.styles) this.styles.dotMatrix.uniforms.uResolution.value.set(w * pr, h * pr)
   }
@@ -373,7 +345,8 @@ export class ParticleFace {
   setStyle(style: HeadStyle) {
     this.style = style
     const s = this.styles
-    this.lattice.visible = style === 'lattice'
+    this.cube.group.visible = style === 'lattice' && !new URLSearchParams(window.location.search).has('inspect')
+    if (this.portrait) this.portrait.group.visible = style === 'lattice'
     if (s) {
       s.contour.visible = style === 'contour'
       s.dots.visible = style === 'dots'
@@ -397,21 +370,9 @@ export class ParticleFace {
     this.config = cfg
     applyShapeConfig(this.headUniforms, cfg)
     applyPlacement(this.headUniforms, cfg, this.current.forward)
-    const u = this.material.uniforms
-    ;(u.uColorDim.value as THREE.Color).set(cfg.colorA)
-    ;(u.uColorBright.value as THREE.Color).set(cfg.colorB)
-    ;(u.uColorHot.value as THREE.Color).set(cfg.colorC)
-    u.uGain.value = cfg.gain
-    u.uFill.value = cfg.fill
-    u.uCage.value = cfg.cage
-    u.uFlicker.value = cfg.flicker
+    this.cube.applyConfig(cfg)
     this.bloom.strength = cfg.bloom
-    this.material.uniforms.uPointBase.value =
-      ((this.canvas.clientHeight || window.innerHeight) * this.renderer.getPixelRatio()) /
-      (2 * CAM_DIST * Math.tan((FOV * Math.PI) / 360)) *
-      (2 / (GRID_X - 1)) *
-      1.3 *
-      cfg.cellSize
+    this.portrait?.applyConfig(cfg)
     this.styles?.applyConfig(cfg, this.style)
   }
 
@@ -428,33 +389,36 @@ export class ParticleFace {
     this.raf = requestAnimationFrame(this.tick)
 
     const now = performance.now()
-    const minInterval = 1000 / (this.active ? ACTIVE_FPS : IDLE_FPS) - 2
+    const minInterval = 1000 / (this.active || this.mouthSource ? ACTIVE_FPS : IDLE_FPS) - 2
     if (now - this.lastFrame < minInterval) return
     this.lastFrame = now
 
     const dt = Math.min(this.clock.getDelta(), 0.1)
-    const t = this.clock.elapsedTime
+    const t = FROZEN ? reviewNumber('time', 0) : this.clock.elapsedTime
 
     for (const key of Object.keys(RATES) as (keyof FaceState)[]) {
       const k = 1 - Math.exp(-RATES[key] * dt)
-      this.current[key] += (this.target[key] - this.current[key]) * k
+      this.current[key] += (this.target[key] - this.current[key]) * (FROZEN ? 1 : k)
     }
 
     // blink
-    if (t > this.nextBlink) {
-      this.blinkUntil = t + 0.13
+    if (!FROZEN && t > this.nextBlink) {
+      this.blinkUntil = t + 0.22
       this.nextBlink = t + 2.5 + Math.random() * 4
     }
-    const blink = t < this.blinkUntil ? 0.05 : 1
+    const blinkPhase = THREE.MathUtils.clamp(1 - (this.blinkUntil - t) / 0.22, 0, 1)
+    const blink = FROZEN ? 1 - THREE.MathUtils.clamp(reviewNumber('blink', 0), 0, 1) : 1 - Math.pow(Math.sin(blinkPhase * Math.PI), 2)
 
     // mouth
     const sample = this.mouthSource?.() ?? null
     const targetOpen = sample ? sample.open : 0
     const targetWide = sample ? sample.wide : 0
-    const attack = 1 - Math.exp(-28 * dt)
-    const release = 1 - Math.exp(-12 * dt)
+    const targetRound = sample ? (sample.round ?? sample.open * (1 - sample.wide)) : 0
+    const attack = FROZEN ? 1 : 1 - Math.exp(-28 * dt)
+    const release = FROZEN ? 1 : 1 - Math.exp(-12 * dt)
     this.mouth.open += (targetOpen - this.mouth.open) * (targetOpen > this.mouth.open ? attack : release)
     this.mouth.wide += (targetWide - this.mouth.wide) * release
+    this.mouth.round += (targetRound - this.mouth.round) * release
 
     // shared head uniforms (expression + mouth + placement)
     const hu = this.headUniforms
@@ -463,14 +427,12 @@ export class ParticleFace {
     hu.uSmile.value = this.current.smile
     hu.uBrow.value = this.current.brow + Math.sin(t * 0.7) * 0.04
     hu.uEyeOpen.value = this.current.eyeOpen * blink
+    this.rig?.update(this.mouth.open, this.mouth.wide, this.mouth.round, this.current.smile, this.current.brow, this.current.eyeOpen * blink)
     applyPlacement(hu, this.config, this.current.forward)
 
-    // lattice uniforms
-    const u = this.material.uniforms
-    u.uTime.value = t
-    u.uFace.value = this.current.face
-    u.uTurb.value = this.current.turb
+    this.cube.update(t, this.current.face)
     this.styles?.setTime(t)
+    this.portrait?.update(t, this.current.face, this.current.turb)
 
     // drag rotation: radians per pixel while dragging, inertia afterwards; fully free
     const perPx = 0.006
@@ -498,18 +460,12 @@ export class ParticleFace {
       }
     }
     this.group.rotation.order = 'YXZ'
-    this.group.rotation.y = Math.sin(t * 0.18) * 0.08 + this.yaw
-    this.group.rotation.x = Math.sin(t * 0.13) * 0.03 + this.pitch
-    this.group.scale.setScalar(1 + Math.sin(t * 0.9) * 0.006)
+    this.group.rotation.y = FROZEN ? THREE.MathUtils.degToRad(reviewNumber('yaw', 0)) : Math.sin(t * 0.18) * 0.08 + this.yaw
+    this.group.rotation.x = FROZEN ? THREE.MathUtils.degToRad(reviewNumber('pitch', 0)) : Math.sin(t * 0.13) * 0.03 + this.pitch
+    this.group.scale.setScalar(FROZEN ? 1 : 1 + Math.sin(t * 0.9) * 0.006)
 
     const t0 = performance.now()
-    this.frameIndex++
-    if (this.style === 'lattice' || this.debugQuad) {
-      // the side/back head textures only matter while the cube is turned
-      const rotated =
-        this.drag.active || Math.abs(this.group.rotation.y) > 0.09 || Math.abs(this.group.rotation.x) > 0.09
-      this.facePass.render(this.renderer, rotated || this.frameIndex % 10 === 0 || Boolean(this.debugQuad))
-    }
+    if (this.style === 'lattice' || this.debugQuad) this.facePass.render(this.renderer, Boolean(this.debugQuad))
     this.fpsCount++
     if (now - this.fpsSince > 1000) {
       this.renderedFps = this.fpsCount
@@ -528,15 +484,14 @@ export class ParticleFace {
 
   /** Snapshot of the animated state (dev aid). */
   debug() {
-    const u = this.material.uniforms
-    const uniforms: Record<string, unknown> = {}
-    for (const k of Object.keys(u)) if (typeof u[k].value === 'number') uniforms[k] = u[k].value
     return {
       style: this.style,
       current: { ...this.current },
       target: { ...this.target },
       mouth: { ...this.mouth },
       headLoaded: this.headLoaded,
+      rigged: this.rig?.rigged,
+      morphs: this.rig?.influences.slice(),
       active: this.active,
       pixelRatio: this.renderer.getPixelRatio(),
       yaw: Number(this.yaw.toFixed(3)),
@@ -546,7 +501,7 @@ export class ParticleFace {
       dotRes: this.styles?.dotMatrix.uniforms.uResolution.value.toArray(),
       dotPassEnabled: this.dotPass?.enabled,
       passes: this.composer.passes.map((p) => `${p.constructor.name}:${p.enabled ? 1 : 0}`),
-      uniforms,
+      cubeVisible: this.cube.group.visible,
     }
   }
 
@@ -559,9 +514,10 @@ export class ParticleFace {
     window.removeEventListener('pointerup', this.onPointerUp)
     window.removeEventListener('pointercancel', this.onPointerUp)
     document.removeEventListener('visibilitychange', this.onVisibility)
-    this.lattice.geometry.dispose()
-    this.material.dispose()
+    this.cube.dispose()
     this.styles?.dispose()
+    this.portrait?.dispose()
+    this.rig?.dispose()
     this.facePass.dispose()
     this.composer.dispose()
     this.renderer.dispose()

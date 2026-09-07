@@ -4,6 +4,8 @@ import type { MouthSample } from './ParticleFace'
  * Turns an audio stream into mouth parameters using band energies:
  *  - open  ~ low/mid energy (voiced speech)
  *  - wide  ~ ratio of high-frequency energy (sibilants / "ee" vowels)
+ *  - round ~ low-frequency emphasis while the mouth is open
+ * These are expressive audio cues, not phoneme recognition.
  */
 export class LipSync {
   private analyser: AnalyserNode
@@ -38,7 +40,8 @@ export class LipSync {
     // soft curve: quiet consonants barely move the mouth, loud vowels open it fully
     const open = Math.min(1, Math.max(0, (voiced - 0.05) * 1.6) ** 0.8)
     const wide = Math.min(1, (high / (voiced + 0.05)) * 0.8)
-    return { open, wide: open > 0.05 ? wide : 0 }
+    const round = open * (1 - wide) * Math.min(1, low / (mid + 0.08))
+    return { open, wide: open > 0.05 ? wide : 0, round }
   }
 
   /** RMS-ish level 0..1, handy for a mic meter. */

@@ -1,5 +1,5 @@
 import * as THREE from 'three'
-import { HEAD_DEFORM_GLSL, HEAD_PAINT_GLSL, HEAD_UNIFORMS_GLSL, type HeadUniforms } from './headShader'
+import { HEAD_DEFORM_GLSL, HEAD_MORPH_GLSL, HEAD_MORPH_INPUT_GLSL, HEAD_PAINT_GLSL, HEAD_UNIFORMS_GLSL, type HeadUniforms } from './headShader'
 
 /**
  * Lattice style helper: renders the deformed head from four sides into small
@@ -11,6 +11,7 @@ import { HEAD_DEFORM_GLSL, HEAD_PAINT_GLSL, HEAD_UNIFORMS_GLSL, type HeadUniform
 const headVertex = /* glsl */ `
 ${HEAD_UNIFORMS_GLSL}
 ${HEAD_DEFORM_GLSL}
+${HEAD_MORPH_GLSL}
 varying vec3 vNormal;
 varying vec3 vPos;
 varying vec3 vLocal;
@@ -18,7 +19,8 @@ varying float vHair;
 void main() {
   vec3 q, l, nw;
   float hair;
-  deformHead(position, normal, q, l, nw, hair);
+  ${HEAD_MORPH_INPUT_GLSL}
+  deformHead(transformed, objectNormal, q, l, nw, hair);
   vPos = q;
   vLocal = l;
   vNormal = nw;
@@ -30,13 +32,14 @@ void main() {
 const headFragment = /* glsl */ `
 ${HEAD_UNIFORMS_GLSL}
 ${HEAD_PAINT_GLSL}
+varying float vFeature;
 varying vec3 vNormal;
 varying vec3 vPos;
 varying vec3 vLocal;
 varying float vHair;
 void main() {
   float cav, maskv;
-  float lum = paintLum(vLocal, normalize(vNormal), vHair, cav, maskv);
+  float lum = paintLum(vLocal, normalize(vNormal), vHair, vFeature, cav, maskv);
   float depth = vPos.z - 0.2 * cav;
   gl_FragColor = vec4(depth, lum * maskv, maskv, vPos.x);
 }
@@ -82,9 +85,10 @@ export class FacePass {
     }
   }
 
-  setGeometry(geometry: THREE.BufferGeometry) {
+  setGeometry(geometry: THREE.BufferGeometry, influences?: number[]) {
     if (this.head) this.scene.remove(this.head)
     const head = new THREE.Mesh(geometry, this.material)
+    if (influences) head.morphTargetInfluences = influences
     head.frustumCulled = false
     this.head = head
     this.scene.add(head)

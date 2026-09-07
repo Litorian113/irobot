@@ -4,7 +4,7 @@ export const REF_SCALE = 0.29
 export type HeadStyle = 'lattice' | 'contour' | 'dots' | 'plasma' | 'dust'
 
 export const STYLES: { id: HeadStyle; label: string; hint: string }[] = [
-  { id: 'lattice', label: 'Lattice', hint: 'V.I.K.I. — a face inside a cube of light cells' },
+  { id: 'lattice', label: 'Lattice', hint: 'A human presence inside a layered cube of light' },
   { id: 'contour', label: 'Contour', hint: 'Topographic lines over a black head' },
   { id: 'dots', label: 'Dots', hint: 'LED matrix, warm patches over cool light' },
   { id: 'plasma', label: 'Plasma', hint: 'A blurred silhouette crowned by a colour flame' },
@@ -28,6 +28,9 @@ export interface HeadConfig {
   chroma: number // plasma chromatic aberration
   dotSize: number // dust particle size
   cage: number // brightness of the surrounding cube/cage
+  cubeDensity: number
+  cubeDepth: number
+  cubeGap: number
   autoReturn: boolean // ease back to the front after a drag
   // head placement
   headScale: number
@@ -56,28 +59,31 @@ export interface HeadConfig {
 /** Shared shape defaults (the same face in every style). */
 const SHAPE_DEFAULTS = {
   autoReturn: true,
-  headScale: 0.46,
-  headY: -0.55,
-  oval: 0.06,
-  jawWidth: 0.16,
-  chin: 0.14,
-  cheek: 0.035,
-  browRidge: 0.05,
-  noseSize: -0.045,
+  headScale: 0.44,
+  headY: -0.43,
+  oval: 0.0,
+  jawWidth: 0.0,
+  chin: 0.0,
+  cheek: 0.0,
+  browRidge: 0.0,
+  noseSize: 0.0,
   hair: 0,
   hairline: 0.88,
-  eyeSize: 1.25,
-  eyeGlow: 1.0,
-  eyeX: 0.216,
+  eyeSize: 1.0,
+  eyeGlow: 0.3,
+  eyeX: 0.176,
   eyeY: 0.49,
   browY: 0.59,
   mouthY: 0.11,
   mouthWidth: 0.15,
-  lipFull: 0.22,
+  lipFull: 0.0,
 }
 
 const APPEARANCE_BASE = {
   cage: 0.5,
+  cubeDensity: 0.5,
+  cubeDepth: 0.9,
+  cubeGap: 0.06,
   gain: 1,
   cellSize: 1,
   bloom: 0.5,
@@ -94,14 +100,16 @@ export const STYLE_DEFAULTS: Record<HeadStyle, HeadConfig> = {
   lattice: {
     ...APPEARANCE_BASE,
     ...SHAPE_DEFAULTS,
-    // the film look: silver cells on near-black, dark hollow eyes
-    colorA: '#31363d',
-    colorB: '#c8d1d9',
-    colorC: '#ffffff',
-    gain: 0.95,
-    bloom: 0.45,
-    flicker: 0.6,
-    eyeGlow: 0.25,
+    // Soft silver-blue surface points, with a quiet data field around them.
+    colorA: '#829ba8',
+    colorB: '#b6d8e5',
+    colorC: '#edf3f3',
+    gain: 1.15,
+    bloom: 0.18,
+    density: 0.85,
+    cellSize: 1.0,
+    cage: 0.65,
+    flicker: 0.2,
   },
   contour: {
     ...APPEARANCE_BASE,
@@ -192,17 +200,13 @@ export const SHAPE_GROUPS: SliderGroup[] = [
   {
     title: 'Eyes & brows',
     sliders: [
-      { key: 'eyeSize', label: 'Eye size', min: 0.5, max: 1.8, step: 0.02 },
-      { key: 'eyeGlow', label: 'Eye glow', min: 0, max: 1.2, step: 0.02 },
-      { key: 'eyeX', label: 'Eye spacing', min: 0.15, max: 0.3, step: 0.002 },
-      { key: 'eyeY', label: 'Eye height', min: 0.38, max: 0.62, step: 0.002 },
-      { key: 'browY', label: 'Brow height', min: 0.48, max: 0.72, step: 0.002 },
+      { key: 'eyeSize', label: 'Iris size', min: 0.7, max: 1.3, step: 0.02 },
+      { key: 'eyeGlow', label: 'Eye brightness', min: 0, max: 1.2, step: 0.02 },
     ],
   },
   {
     title: 'Mouth',
     sliders: [
-      { key: 'mouthY', label: 'Height', min: -0.02, max: 0.25, step: 0.002 },
       { key: 'mouthWidth', label: 'Width', min: 0.08, max: 0.24, step: 0.002 },
       { key: 'lipFull', label: 'Lips', min: 0, max: 0.35, step: 0.01 },
     ],
@@ -215,11 +219,14 @@ export const STYLE_GROUPS: Record<HeadStyle, SliderGroup> = {
     title: 'Lattice',
     sliders: [
       { key: 'gain', label: 'Face brightness', min: 0.4, max: 2, step: 0.02 },
-      { key: 'cellSize', label: 'Cell size', min: 0.5, max: 1.8, step: 0.02 },
+      { key: 'cellSize', label: 'Point size', min: 0.5, max: 1.8, step: 0.02 },
+      { key: 'density', label: 'Point density', min: 0.1, max: 1, step: 0.01 },
       { key: 'bloom', label: 'Bloom', min: 0, max: 1.5, step: 0.02 },
-      { key: 'fill', label: 'Interior fill', min: 0, max: 0.2, step: 0.005 },
-      { key: 'flicker', label: 'Cell variation', min: 0, max: 1, step: 0.01 },
-      { key: 'cage', label: 'Cage brightness', min: 0, max: 1, step: 0.01 },
+      { key: 'flicker', label: 'Shimmer', min: 0, max: 1, step: 0.01 },
+      { key: 'cage', label: 'Cube brightness', min: 0, max: 1, step: 0.01 },
+      { key: 'cubeDensity', label: 'Cube cells', min: 0, max: 1, step: 0.02 },
+      { key: 'cubeDepth', label: 'Cube depth', min: 0.6, max: 1.3, step: 0.02 },
+      { key: 'cubeGap', label: 'Cube spacing', min: 0, max: 0.25, step: 0.01 },
     ],
   },
   contour: {
@@ -266,14 +273,15 @@ export const STYLE_GROUPS: Record<HeadStyle, SliderGroup> = {
 }
 
 export const COLOR_LABELS: Record<HeadStyle, [string, string, string]> = {
-  lattice: ['Lattice', 'Face', 'Highlights'],
+  lattice: ['Cube', 'Face', 'Highlights'],
   contour: ['Lines', 'Body', 'Rim'],
   dots: ['Cool', 'Warm', 'Sparkle'],
   plasma: ['Base', 'Flame', 'Hot'],
   dust: ['Shadow', 'Light', 'Sparkle'],
 }
 
-const STORAGE_PREFIX = 'viki.config.v3.'
+// A new portrait preset. Previous v3/v4 settings remain stored, untouched.
+const STORAGE_PREFIX = 'viki.config.v5.'
 const STYLE_KEY = 'viki.style'
 
 export function loadConfig(style: HeadStyle): HeadConfig {

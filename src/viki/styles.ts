@@ -1,7 +1,7 @@
 import * as THREE from 'three'
-import { MeshSurfaceSampler } from 'three/addons/math/MeshSurfaceSampler.js'
+import { sampleAnimatedSurface } from './sampleSurface'
 import type { HeadConfig } from './config'
-import { HEAD_DEFORM_GLSL, HEAD_PAINT_GLSL, HEAD_UNIFORMS_GLSL, NOISE_GLSL, type HeadUniforms } from './headShader'
+import { HEAD_DEFORM_GLSL, HEAD_MORPH_GLSL, HEAD_MORPH_INPUT_GLSL, HEAD_PAINT_GLSL, HEAD_UNIFORMS_GLSL, NOISE_GLSL, type HeadUniforms } from './headShader'
 
 /**
  * The non-lattice head styles. Each one draws the deformed head directly
@@ -12,6 +12,7 @@ import { HEAD_DEFORM_GLSL, HEAD_PAINT_GLSL, HEAD_UNIFORMS_GLSL, NOISE_GLSL, type
 const commonVertex = /* glsl */ `
 ${HEAD_UNIFORMS_GLSL}
 ${HEAD_DEFORM_GLSL}
+${HEAD_MORPH_GLSL}
 varying vec3 vLocal;
 varying vec3 vNormal;   // head frame
 varying vec3 vNormalW;  // world
@@ -20,7 +21,8 @@ varying float vHair;
 void main() {
   vec3 q, l, nw;
   float hair;
-  deformHead(position, normal, q, l, nw, hair);
+  ${HEAD_MORPH_INPUT_GLSL}
+  deformHead(transformed, objectNormal, q, l, nw, hair);
   vLocal = l;
   vNormal = nw;
   vNormalW = normalize(mat3(modelMatrix) * nw);
@@ -32,6 +34,7 @@ void main() {
 `
 
 const styleUniformsGlsl = /* glsl */ `
+varying float vFeature;
 uniform vec3 uColorA;
 uniform vec3 uColorB;
 uniform vec3 uColorC;
@@ -56,7 +59,7 @@ ${styleUniformsGlsl}
 void main() {
   vec3 n = normalize(vNormal);
   float cav, maskv;
-  float lum = paintLum(vLocal, n, vHair, cav, maskv);
+  float lum = paintLum(vLocal, n, vHair, vFeature, cav, maskv);
   if (maskv < 0.02) discard;
 
   // topographic lines of head depth (uP0 = frequency, uP1 = line width)
@@ -90,7 +93,7 @@ ${styleUniformsGlsl}
 void main() {
   vec3 n = normalize(vNormal);
   float cav, maskv;
-  float lum = paintLum(vLocal, n, vHair, cav, maskv);
+  float lum = paintLum(vLocal, n, vHair, vFeature, cav, maskv);
   if (maskv < 0.02) discard;
   gl_FragColor = vec4(vec3(lum * (1.0 - 0.9 * cav) * uGain * maskv * mix(0.45, 1.0, uActive)), 1.0);
 }
@@ -155,7 +158,7 @@ ${styleUniformsGlsl}
 void main() {
   vec3 n = normalize(vNormal);
   float cav, maskv;
-  float lum = paintLum(vLocal, n, vHair, cav, maskv);
+  float lum = paintLum(vLocal, n, vHair, vFeature, cav, maskv);
   if (maskv < 0.02) discard;
 
   vec3 nWorld = normalize(vNormalW);
@@ -209,6 +212,7 @@ export const ChromaShader = {
 const dustVertex = /* glsl */ `
 ${HEAD_UNIFORMS_GLSL}
 ${HEAD_DEFORM_GLSL}
+${HEAD_MORPH_GLSL}
 ${HEAD_PAINT_GLSL}
 uniform float uTime;
 uniform float uScatter;
@@ -222,9 +226,10 @@ varying float vSparkle;
 void main() {
   vec3 q, l, nw;
   float hair;
-  deformHead(position, normal, q, l, nw, hair);
+  ${HEAD_MORPH_INPUT_GLSL}
+  deformHead(transformed, objectNormal, q, l, nw, hair);
   float cav, maskv;
-  float lum = paintLum(l, nw, hair, cav, maskv);
+  float lum = paintLum(l, nw, hair, aFeature, cav, maskv);
   vLum = lum;
   vCav = cav;
   vSparkle = step(0.965, aSeed.w);
@@ -405,7 +410,7 @@ function makeDustCage(): THREE.Points {
   return pts
 }
 
-const DUST_MAX = 220000
+const DUST_MAX = 70000
 
 export interface StyleSet {
   contour: THREE.Mesh
@@ -448,22 +453,7 @@ export function createStyles(uniforms: HeadUniforms, geometry: THREE.BufferGeome
   const plasma = mk(plasmaMat)
 
   // dust: points sampled on the scan surface, deformed like the mesh
-  const sampler = new MeshSurfaceSampler(new THREE.Mesh(geometry)).build()
-  const pos = new Float32Array(DUST_MAX * 3)
-  const nor = new Float32Array(DUST_MAX * 3)
-  const seed = new Float32Array(DUST_MAX * 4)
-  const p = new THREE.Vector3()
-  const n = new THREE.Vector3()
-  for (let i = 0; i < DUST_MAX; i++) {
-    sampler.sample(p, n)
-    pos.set([p.x, p.y, p.z], i * 3)
-    nor.set([n.x, n.y, n.z], i * 3)
-    seed.set([Math.random(), Math.random(), Math.random(), Math.random()], i * 4)
-  }
-  const dustGeo = new THREE.BufferGeometry()
-  dustGeo.setAttribute('position', new THREE.BufferAttribute(pos, 3))
-  dustGeo.setAttribute('normal', new THREE.BufferAttribute(nor, 3))
-  dustGeo.setAttribute('aSeed', new THREE.BufferAttribute(seed, 4))
+  const dustGeo = sampleAnimatedSurface(geometry, DUST_MAX)
   const dustMat = new THREE.ShaderMaterial({
     vertexShader: dustVertex,
     fragmentShader: dustFragment,

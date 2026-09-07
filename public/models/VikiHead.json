@@ -1,0 +1,21 @@
+{
+  "referenceScale": 0.29,
+  "eyeX": 0.17598287739950516,
+  "eyeY": 0.49,
+  "eyeZ": 0.4360532405859141,
+  "mouthY": 0.11,
+  "sourceRevision": "a8bc2d54ff0ac92e78ff71431b1023eda42bf482",
+  "morphs": [
+    "jawOpen",
+    "mouthWide",
+    "mouthRound",
+    "smile",
+    "frown",
+    "blinkLeft",
+    "blinkRight",
+    "browUp",
+    "browDown"
+  ],
+  "sourceVertices": 4438,
+  "vertices": 17699
+}
