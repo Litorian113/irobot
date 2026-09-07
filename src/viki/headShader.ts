@@ -20,7 +20,6 @@ uniform float uFormation;
 uniform float uLighting;
 uniform vec3 uKeyDirection;
 uniform float uLightFill;
-uniform float uLightGobo;
 uniform sampler2D uKeyShadow;
 uniform mat4 uKeyMatrix;
 uniform float uShadowReady;
@@ -181,12 +180,20 @@ float paintLum(vec3 l, vec3 n, vec3 q, float hair, float feature, out float cav,
 
   if (uLighting > 0.5) {
     float diffuse = max(dot(n, uKeyDirection), 0.0);
-    vec4 projected = uKeyMatrix * vec4(q, 1.0);
-    vec2 grid = projected.xy / projected.w * vec2(55.0, 36.0);
-    float bars = smoothstep(0.08, 0.20, abs(sin(grid.x))) * smoothstep(0.05, 0.15, abs(sin(grid.y)));
-    float gobo = mix(1.0, 0.25 + 0.75 * bars, uLightGobo);
-    lum = uLightFill + 0.92 * diffuse * keyVisibility(q, n) * gobo;
+    lum = uLightFill + 0.92 * diffuse * keyVisibility(q, n);
     lum += 0.025 * pow(1.0 - abs(n.z), 3.0);
+  }
+
+  float cinematicMask = 1.0;
+  if (uLighting > 1.5) {
+    // Art-directed light falloff follows anatomical landmarks, not screen space.
+    // Broad feathering keeps the forehead/central cheeks lit without hard patches.
+    float socket = 1.0 - smoothstep(0.72, 1.28, length(vec2((abs(l.x) - uEyeX) / 0.108, (l.y - (uEyeY + 0.018)) / 0.071)));
+    float side = 1.0 - smoothstep(0.22, 0.37, abs(l.x));
+    float crown = 1.0 - smoothstep(uBrowY + 0.17, uBrowY + 0.32, l.y);
+    float frontLight = smoothstep(0.10, 0.33, l.z);
+    cinematicMask = (1.0 - socket) * side * crown * frontLight;
+    lum *= cinematicMask;
   }
 
   float ax = abs(l.x);
@@ -198,8 +205,9 @@ float paintLum(vec3 l, vec3 n, vec3 q, float hair, float feature, out float cav,
     maskv = smoothstep(-0.40, -0.16, l.y);
     maskv *= 1.0 - 0.5 * smoothstep(0.36, 0.56, ax);
     maskv *= 1.0 - 0.65 * smoothstep(0.85, 1.14, l.y);
-    if (feature > 1.5) return 0.028;
+    if (feature > 1.5) return uLighting > 1.5 ? 0.005 : 0.028;
     if (feature > 0.5) {
+      if (uLighting > 1.5) return 0.003 * cinematicMask;
       // Iris shading is restricted to the actual eyeballs, behind the moving lids.
       float iris = 1.0 - smoothstep(0.029 * uEyeSize, 0.038 * uEyeSize, length(vec2(ax - uEyeX, l.y - uEyeY)));
       return mix(0.49 + 0.10 * uEyeGlow, 0.23, iris) * (uLighting < 0.5 ? 1.0 : clamp(lum * 1.35, 0.12, 1.0));
@@ -297,7 +305,6 @@ export function createHeadUniforms() {
     uLighting: { value: 1 },
     uKeyDirection: { value: new THREE.Vector3(0, 0.707, 0.707) },
     uLightFill: { value: c.lightFill },
-    uLightGobo: { value: c.lightGobo },
     uKeyShadow: { value: null as THREE.Texture | null },
     uKeyMatrix: { value: new THREE.Matrix4() },
     uShadowReady: { value: 0 },
@@ -327,9 +334,8 @@ export function createHeadUniforms() {
 
 /** Push the shape part of a config into the shared uniforms. */
 export function applyShapeConfig(u: HeadUniforms, cfg: HeadConfig) {
-  u.uLighting.value = cfg.lighting === 'soft' ? 0 : 1
+  u.uLighting.value = cfg.lighting === 'soft' ? 0 : cfg.lighting === 'viki' ? 2 : 1
   u.uLightFill.value = cfg.lightFill
-  u.uLightGobo.value = cfg.lightGobo
   const elevation = THREE.MathUtils.degToRad(cfg.lightElevation)
   u.uKeyDirection.value.set(cfg.lighting === 'cinema' ? -0.10 : 0, Math.sin(elevation), Math.cos(elevation)).normalize()
   if (cfg.lighting === 'soft') u.uKeyDirection.value.set(-0.35, 0.45 * Math.tan(elevation) / Math.tan(Math.PI / 6), 1).normalize()

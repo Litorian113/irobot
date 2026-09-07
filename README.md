@@ -66,21 +66,21 @@ between the animated skin and positions throughout the cube. Dust uses the same 
 fully formed while listening, thinking and speaking; only ending/failing the connection returns it to the cube.
 The accepted head geometry, eyes and viseme rig are unchanged.
 
-**Configure → Lighting** offers three saved presets:
+**Configure → Lighting** offers four saved presets:
 
 - **Soft portrait**: the previous broad, gently filled lighting (no cast-shadow pass).
-- **Cinema grid**: a high, nearly frontal key, minimal fill, cast shadows and a subtle projected grid.
-- **Butterfly**: a centered elevated key with a little more fill and no grid by default.
+- **Cinema**: a high, nearly frontal key, minimal fill and cast shadows, without a projected grid.
+- **Butterfly**: a centered elevated key with a little more fill.
+- **VIKI shadows**: deep black eye sockets, dark outer cheeks and a crown fade above the forehead, leaving the central face lit.
 
-**Lighting adjustment** controls key elevation (25–65°), shadow fill and projected-grid strength. The latter
-applies to Cinema/Butterfly; Soft portrait disables it. Changing presets loads their lighting values only.
+**Lighting adjustment** controls key elevation (25–65°) and shadow fill. The projected grid and its control have been removed, including for older saved settings. Changing presets loads their lighting values only.
 **Save** keeps the choice per style; closing without saving restores the saved lighting.
-Cinema grid is the default for configurations without a saved lighting choice.
+Cinema is the default for configurations without a saved lighting choice.
 
 `HeadLight.ts` renders a 1024² light-space depth map of the same morphed head. Nose, eyelids and lips cast real
 shadows, with filtered edges and a small depth bias. Lighting is shared by the portrait, Dust and cube helper pass
-and stays attached to the head when it rotates. The projected grid is an artistic approximation of the reference;
-it is not a reconstruction of the movie's actual lighting setup. The extra shadow pass is skipped for Soft
+and stays attached to the head when it rotates. VIKI shadows adds feathered darkening tied to the head landmarks; this is an artistic match to the reference,
+not a reconstruction of the movie's actual lighting setup. The extra shadow pass is skipped for Soft
 portrait and fully dormant states.
 
 ## Audio-driven lip sync
@@ -143,7 +143,7 @@ with a simulated connection and the same browser setup.
 - `src/viki/HeadRig.ts` — canonical multi-part geometry and shared relative morph weights
 - `src/viki/headShader.ts` — shared GLSL: morphs, proportions, hair, lighting and semantic eye/mouth shading
 - `src/viki/SurfacePortrait.ts` — surface data pattern, depth occlusion and silhouette fade
-- `src/viki/HeadLight.ts` — animated light-space depth map for Cinema/Butterfly cast shadows
+- `src/viki/HeadLight.ts` — animated light-space depth map for the cinematic lighting presets
 - `src/viki/FacePass.ts` — depth/luminance/mask texture for the cube; four views in debug mode
 - `src/viki/DataCube.ts` — staggered rectangular cell volume, face occlusion and cube controls
 - `src/viki/sampleSurface.ts` — surface sampling that preserves the morphs for Dust

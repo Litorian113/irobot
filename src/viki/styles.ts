@@ -61,6 +61,7 @@ void main() {
 `
 
 const dustFragment = /* glsl */ `
+uniform float uLighting;
 uniform vec3 uColorA;
 uniform vec3 uColorB;
 uniform vec3 uColorC;
@@ -75,7 +76,7 @@ void main() {
   vec3 col = mix(uColorA, uColorB, clamp(vLum * 1.1, 0.0, 1.0));
   col = mix(col, uColorC, vSparkle * 0.9);
   col *= 1.0 - 0.85 * vCav;
-  gl_FragColor = vec4(col * uGain * mix(0.15, 1.0, clamp(vLum * 1.3, 0.0, 1.0)), vOpacity);
+  gl_FragColor = vec4(col * uGain * mix(uLighting > 1.5 ? 0.0 : 0.15, 1.0, clamp(vLum * 1.3, 0.0, 1.0)), vOpacity);
 }
 `
 

@@ -78,3 +78,11 @@ prüfen. Kopf und Augen dafür nicht erneut umformen.
   Keine Änderungen an GLB, Kopfproportionen oder Visemgewichten. Soft portrait erhält die frühere Lichtvariante.
 - Browserprüfung erweitert: Ruhepose hat weder Farbe noch Tiefensilhouette, Vorschau löst sich nach Stop wieder
   auf, Lichtpresets schalten um und werden gespeichert. Visuelle Vergleiche frontal und während der Auflösung.
+
+
+### Lichtkorrektur
+
+Das projizierte Raster wurde vollständig entfernt; „Cinema“ behält die Hauptlichtquelle und Schlagschatten.
+Zusätzlich „VIKI shadows“: nahezu schwarze Augenhöhlen, abgedunkelte äußere Wangen und weicher Übergang
+ins Dunkle oberhalb der Stirn. Die zusätzliche Abdunklung folgt den Kopfmerkmalen in allen Renderpässen,
+ohne Geometrie oder Augenmodell zu verändern.

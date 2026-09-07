@@ -27,10 +27,9 @@ export interface HeadConfig {
   cubeDepth: number
   cubeGap: number
   autoReturn: boolean // ease back to the front after a drag
-  lighting: 'soft' | 'cinema' | 'butterfly'
+  lighting: 'soft' | 'cinema' | 'butterfly' | 'viki'
   lightElevation: number
   lightFill: number
-  lightGobo: number
   // head placement
   headScale: number
   headY: number
@@ -62,7 +61,6 @@ const SHAPE_DEFAULTS = {
   lighting: 'cinema' as const,
   lightElevation: 45,
   lightFill: 0.035,
-  lightGobo: 0.22,
   autoReturn: true,
   headScale: 0.44,
   headY: -0.43,
@@ -150,7 +148,6 @@ export const SHAPE_GROUPS: SliderGroup[] = [
   { title: 'Lighting adjustment', sliders: [
     { key: 'lightElevation', label: 'Key elevation', min: 25, max: 65, step: 1 },
     { key: 'lightFill', label: 'Shadow fill', min: 0, max: 0.4, step: 0.01 },
-    { key: 'lightGobo', label: 'Projected grid', min: 0, max: 0.8, step: 0.02 },
   ] },
   {
     title: 'Head',

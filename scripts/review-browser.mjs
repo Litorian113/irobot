@@ -116,7 +116,7 @@ try {
     await shot(`style-${style}`)
   }
   await click('Configure')
-  for (const label of ['Soft portrait', 'Cinema grid', 'Butterfly']) {
+  for (const label of ['Soft portrait', 'Cinema', 'VIKI shadows', 'Butterfly']) {
     await click(label)
     await pause(200)
     await shot(`lighting-${label.replaceAll(' ', '-').toLowerCase()}`)
