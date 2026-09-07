@@ -15,6 +15,7 @@ import { SurfacePortrait } from './SurfacePortrait'
 import { HeadRig } from './HeadRig'
 import { HeadLight } from './HeadLight'
 import { OpticalEnclosure } from './OpticalEnclosure'
+import { VikiCube } from './VikiCube'
 
 export type Expression =
   | 'neutral'
@@ -70,6 +71,7 @@ function reviewNumber(key: string, fallback: number) {
 const BLOOM_SHAPE: Record<HeadStyle, { radius: number; threshold: number }> = {
   lattice: { radius: 0.3, threshold: 0.75 },
   dust: { radius: 0.3, threshold: 0.6 },
+  viki: { radius: 0.45, threshold: 0.35 },
 }
 
 /**
@@ -143,6 +145,7 @@ export class ParticleFace {
   private bloom: UnrealBloomPass
   private cube: DataCube
   private enclosure = new OpticalEnclosure()
+  private vikiCube: VikiCube | null = null
   private headUniforms = createHeadUniforms()
   private facePass = new FacePass(this.headUniforms, 256)
   private styles: StyleSet | null = null
@@ -274,7 +277,9 @@ export class ParticleFace {
     this.camera.aspect = w / h
     // Keep the cube's front corners and the portrait in frame on narrow screens.
     const halfFov = THREE.MathUtils.degToRad(FOV * 0.5)
-    this.camera.position.z = Math.max(CAM_DIST, 1.0 + 2.3 / (2 * Math.tan(halfFov) * this.camera.aspect))
+    this.camera.position.z = this.style === 'viki'
+      ? Math.max(4.9, 1.42 + 2.65 / (2 * Math.tan(halfFov) * this.camera.aspect))
+      : Math.max(CAM_DIST, 1.0 + 2.3 / (2 * Math.tan(halfFov) * this.camera.aspect))
     this.camera.updateProjectionMatrix()
     this.cube.resize(pr, h)
     this.styles?.setDustBase(pr * 1.4)
@@ -337,7 +342,15 @@ export class ParticleFace {
 
   /** Switch the head style (tab). */
   setStyle(style: HeadStyle) {
+    const changed = this.style !== style
     this.style = style
+    // Allocate the six panels only when requested; other styles keep their original render path.
+    if (style === 'viki' && !this.vikiCube) {
+      this.vikiCube = new VikiCube(this.facePass.views.front.target.texture)
+      this.vikiCube.applyConfig(this.config)
+      this.group.add(this.vikiCube.group)
+    }
+    if (this.vikiCube) this.vikiCube.group.visible = style === 'viki'
     const s = this.styles
     this.cube.group.visible = style === 'lattice' && !new URLSearchParams(window.location.search).has('inspect')
     if (this.portrait) this.portrait.group.visible = style === 'lattice'
@@ -350,6 +363,7 @@ export class ParticleFace {
     const shape = BLOOM_SHAPE[style]
     this.bloom.radius = shape.radius
     this.bloom.threshold = shape.threshold
+    if (changed) this.resize()
   }
 
   /** Apply the configurator's settings for the current style. */
@@ -360,7 +374,8 @@ export class ParticleFace {
     this.enclosure.applyConfig(cfg)
     this.enclosure.mesh.visible = this.style === 'lattice' && cfg.optical && !new URLSearchParams(window.location.search).has('inspect')
     this.cube.applyConfig(cfg)
-    this.renderer.setClearColor(cfg.optical ? 0x020405 : 0x02050c, 1)
+    this.vikiCube?.applyConfig(cfg)
+    this.renderer.setClearColor(this.style === 'viki' ? 0x000102 : cfg.optical ? 0x020405 : 0x02050c, 1)
     this.bloom.strength = cfg.optical ? Math.min(0.25, cfg.bloom) : cfg.bloom
     this.portrait?.applyConfig(cfg)
     this.styles?.applyConfig(cfg)
@@ -429,10 +444,11 @@ export class ParticleFace {
     this.rig?.update(this.mouth.open, this.mouth.wide, this.mouth.round, this.current.smile, this.current.brow, this.current.eyeOpen * blink, this.visemes, this.config.speechStrength)
     applyPlacement(hu, this.config, this.current.forward)
 
-    if (this.styles) this.styles.dust.visible = this.style === 'dust' || (hu.uFormation.value > 0 && hu.uFormation.value < 1)
+    if (this.styles) this.styles.dust.visible = this.style === 'dust' || (this.style === 'lattice' && hu.uFormation.value > 0 && hu.uFormation.value < 1)
     this.cube.update(t, hu.uFormation.value)
     this.styles?.setTime(t)
     this.portrait?.update(t, hu.uFormation.value, this.current.turb)
+    if (this.style === 'viki') this.vikiCube?.update(t, hu.uFormation.value)
 
     // drag rotation: radians per pixel while dragging, inertia afterwards; fully free
     const perPx = 0.006
@@ -460,13 +476,14 @@ export class ParticleFace {
       }
     }
     this.group.rotation.order = 'YXZ'
-    this.group.rotation.y = FROZEN ? THREE.MathUtils.degToRad(reviewNumber('yaw', 0)) : (this.config.optical ? 0 : Math.sin(t * 0.18) * 0.08) + this.yaw
-    this.group.rotation.x = FROZEN ? THREE.MathUtils.degToRad(reviewNumber('pitch', 0)) : (this.config.optical ? 0 : Math.sin(t * 0.13) * 0.03) + this.pitch
-    this.group.scale.setScalar(FROZEN || this.config.optical ? 1 : 1 + Math.sin(t * 0.9) * 0.006)
+    const isViki = this.style === 'viki'
+    this.group.rotation.y = FROZEN ? THREE.MathUtils.degToRad(reviewNumber('yaw', isViki ? 45 : 0)) : (isViki ? Math.PI / 4 : this.config.optical ? 0 : Math.sin(t * 0.18) * 0.08) + this.yaw
+    this.group.rotation.x = FROZEN ? THREE.MathUtils.degToRad(reviewNumber('pitch', isViki ? -4 : 0)) : (isViki ? -0.07 : this.config.optical ? 0 : Math.sin(t * 0.13) * 0.03) + this.pitch
+    this.group.scale.setScalar(FROZEN || this.config.optical || isViki ? 1 : 1 + Math.sin(t * 0.9) * 0.006)
 
     const t0 = performance.now()
     this.headLight?.render(this.renderer)
-    if (this.style === 'lattice' || this.debugQuad) this.facePass.render(this.renderer, Boolean(this.debugQuad))
+    if (this.style === 'lattice' || isViki || this.debugQuad) this.facePass.render(this.renderer, Boolean(this.debugQuad))
     this.fpsCount++
     if (now - this.fpsSince > 1000) {
       this.renderedFps = this.fpsCount
@@ -509,6 +526,7 @@ export class ParticleFace {
       cpuFrameMs: Number(this.frameMs.toFixed(2)),
       passes: this.composer.passes.map((p) => `${p.constructor.name}:${p.enabled ? 1 : 0}`),
       cubeVisible: this.cube.group.visible,
+      vikiVisible: this.vikiCube?.group.visible ?? false,
     }
   }
 
@@ -522,6 +540,7 @@ export class ParticleFace {
     window.removeEventListener('pointercancel', this.onPointerUp)
     document.removeEventListener('visibilitychange', this.onVisibility)
     this.enclosure.dispose()
+    this.vikiCube?.dispose()
     this.cube.dispose()
     this.styles?.dispose()
     this.portrait?.dispose()

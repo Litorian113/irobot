@@ -23,7 +23,7 @@ const API_KEY = import.meta.env.VITE_OPENAI_API_KEY as string | undefined
 const PREVIEW = new URLSearchParams(window.location.search).get('preview') as Expression | null
 /** Dev aid: `?facepass=1` shows the raw head textures (depth/light) the lattice samples. */
 const DEBUG_FACE = new URLSearchParams(window.location.search).has('facepass')
-/** Dev aid: `?style=dots` opens that tab. */
+/** Dev aid: `?style=viki` (or lattice / dust) opens that tab. */
 const STYLE_PARAM = new URLSearchParams(window.location.search).get('style') as HeadStyle | null
 
 function initialStyle(): HeadStyle {

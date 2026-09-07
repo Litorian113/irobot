@@ -18,8 +18,8 @@ While idle, the face dissolves completely into the data cube. It reforms when th
 ending the connection disperses it again. Preview animation and Configure also reveal the head without connecting. Drag to rotate the head and data field
 (it eases back to the front unless you turn that off).
 
-Two **head styles** live in the tabs — Lattice (the surface data portrait and cube) and Dust (surface particles).
-Both share the same deformed head, expressions
+Three **head styles** live in the tabs — Lattice (the surface data portrait and cube), Dust (surface particles),
+and VIKI (a mirrored, silver-green tiled cube). All share the same deformed head, expressions
 and lip-sync; each tab keeps its own saved configuration.
 
 **Configure** opens the character panel for the current tab: colors, head size and shape (jaw, chin, cheekbones, brow ridge, nose), hair,
@@ -48,7 +48,7 @@ The previous **Lee Perry-Smith** scan remains available with `?model=legacy`
 Settings now use `viki.config.v5.*`. Previous v3/v4 settings remain stored. New defaults apply automatically until
 a v5 configuration is saved; use **Reset to standard** to restore them.
 
-Dev aids: `?preview=happy` (any expression, no API calls), `?style=dots` (open a tab), `?facepass=1` (raw head textures),
+Dev aids: `?preview=happy` (any expression, no API calls), `?style=viki` (or `lattice` / `dust`, open a tab), `?facepass=1` (raw head textures),
 `?inspect=1` (opaque gray diagnostic in Lattice), and `window.__viki()` (animated state).
 
 To inspect speech without connecting, open **Configure** and enable its speech test, or use
@@ -57,6 +57,23 @@ The preview includes phrase pauses. Blinking closes and opens smoothly, and the 
 Add `&wide=0.8&round=0.1` to compare lip shapes independently. Deterministic comparisons use
 `?preview=neutral&mouth=0&freeze=1`: time and pose settle immediately, natural swaying/blinking pause.
 Add `&blink=1` for closed lids (`0.5` for halfway), `&yaw=35&pitch=0` for rotation in degrees, or `&time=2` for a fixed shimmer time.
+
+## VIKI mirrored display
+
+The independent **VIKI** tab uses muted silver, green-gray shadows and slightly warm highlights. Six outward-facing
+tiled surfaces display the same live frontal portrait, mirrored on alternating faces. Mouth poses, blinks and expressions
+stay synchronized. This is an artistic mirrored display, rather than a ray-traced reflection of a head inside glass.
+The default corner view exposes two faces; dragging reveals the back, sides, top and bottom.
+
+Individual tiles vary in size and intensity. Soft light packets travel along their columns, with a weaker shifting
+pattern across rows. Local tile diffusion and restrained bloom soften the light without bending the face. Background
+cells remain visible after the face dissolves; the eye sockets stay dark while it is present.
+
+**Configure → VIKI display** offers **Pixel movement**, **Flow speed**, **Tile density**, **Tile fill**, **Background tiles**,
+**Cube depth**, **Tile diffusion**, brightness and bloom. Set Pixel movement to zero to remove the animated light layer.
+Save/Reset apply only to VIKI (`viki.config.v5.viki`). Dust and Lattice retain their existing defaults and materials.
+The extra display meshes are allocated only when VIKI is first selected, and share one portrait render per frame.
+Preview without connecting: `?style=viki&preview=neutral`; use `&mouth=0` to inspect only the moving tiles.
 
 ## Analog optical enclosure
 
@@ -157,7 +174,7 @@ Optional browser review: provide `puppeteer-core` (for example in a separate too
 then run `scripts/review-browser.mjs` with `PUPPETEER_MODULE` set to its module path, `CHROME_PATH` to a Chrome executable,
 and `VIKI_URL` to the local server URL (default `http://127.0.0.1:5173`). `VIKI_REVIEW_DIR` selects screenshot output
 (default `/tmp/viki-review`). The check uses API-free previews and a synthetic audio stream, and covers poses,
-shared depth animation, both styles, configuration, saved settings and mobile controls. A real voice conversation
+shared depth animation, Lattice/Dust, configuration, saved settings and mobile controls. A real voice conversation
 still needs a separate microphone/listening check.
 
 `scripts/review-speech-browser.mjs` uses the same browser environment variables. It checks fixed visemes, the real
@@ -166,6 +183,10 @@ AudioWorklet, measured audio delay, interruption/restart and audible fallback on
 to verify remote-track detection, output and mouth closure. All tests block external requests and make no OpenAI calls.
 `scripts/review-realtime-browser.mjs` separately checks start/end/interruption events and failed-handshake cleanup
 with a simulated connection and the same browser setup.
+
+`scripts/review-viki-browser.mjs` checks all six display faces, shared lip poses, moving/stopped pixels, dissolve,
+VIKI controls and saved settings, switching back to Dust/Lattice, pointer rotation and mobile framing. It uses the same
+browser environment variables, blocks external requests and saves screenshots to `/tmp/viki-cube-review` by default.
 
 ## Layout
 
@@ -176,6 +197,7 @@ with a simulated connection and the same browser setup.
 - `src/viki/HeadLight.ts` — animated light-space depth map for the cinematic lighting presets
 - `src/viki/FacePass.ts` — depth/luminance/mask texture for the cube; four views in debug mode
 - `src/viki/DataCube.ts` — staggered rectangular cell volume, face occlusion and cube controls
+- `src/viki/VikiCube.ts` — six mirrored portrait displays with local tile diffusion and travelling pixel light
 - `src/viki/sampleSurface.ts` — surface sampling that preserves the morphs for Dust
 - `src/viki/styles.ts` — contour / dots / plasma / dust materials and their post passes
 - `src/viki/config.ts` — configurator settings, defaults, persistence

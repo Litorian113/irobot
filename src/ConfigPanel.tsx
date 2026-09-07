@@ -16,7 +16,7 @@ const COLOR_KEYS: (keyof HeadConfig)[] = ['colorA', 'colorB', 'colorC']
 
 export default function ConfigPanel({ style, draft, dirty, testSpeech, onChange, onTestSpeech, onSave, onReset, onClose }: Props) {
   const meta = STYLES.find((s) => s.id === style)
-  const groups = [STYLE_GROUPS[style], ...SHAPE_GROUPS]
+  const groups = [STYLE_GROUPS[style], ...SHAPE_GROUPS.filter((group) => style !== 'viki' || group.title !== 'Optical enclosure')]
   return (
     <aside className="config" aria-label="Head configuration">
       <header className="config-head">
@@ -43,11 +43,15 @@ export default function ConfigPanel({ style, draft, dirty, testSpeech, onChange,
         </section>
 
         <section>
-          <h3>Optical surface</h3>
-          <label className="check">
-            <input type="checkbox" checked={draft.optical} onChange={(e) => onChange({ optical: e.target.checked })} />
-            <span>Analog optical enclosure</span>
-          </label>
+          {style !== 'viki' && (
+            <>
+              <h3>Optical surface</h3>
+              <label className="check">
+                <input type="checkbox" checked={draft.optical} onChange={(e) => onChange({ optical: e.target.checked })} />
+                <span>Analog optical enclosure</span>
+              </label>
+            </>
+          )}
           <h3>Lighting</h3>
           <div className="lighting-options" role="group" aria-label="Lighting preset">
             {([
@@ -89,7 +93,7 @@ export default function ConfigPanel({ style, draft, dirty, testSpeech, onChange,
           <h3>Behaviour</h3>
           <label className="check">
             <input type="checkbox" checked={draft.autoReturn} onChange={(e) => onChange({ autoReturn: e.target.checked })} />
-            <span>Turn back to the front after dragging</span>
+            <span>{style === 'viki' ? 'Return to the corner view after dragging' : 'Turn back to the front after dragging'}</span>
           </label>
           <label className="check">
             <input type="checkbox" checked={testSpeech} onChange={(e) => onTestSpeech(e.target.checked)} />

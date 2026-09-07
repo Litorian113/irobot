@@ -106,3 +106,11 @@ Die großflächige Glasverzerrung wurde stark zurückgenommen; die feinere Streu
 Ein dezentes Kachelraster mit schmalen, weichen Fugen liegt unter dem Glas. Teile des Datenwürfels werden
 wieder sichtbar, andere Bereiche verschwinden über eine räumliche Helligkeitsmaske im Dunkeln.
 Keine Änderung an Kopfgeometrie, Lichtpresets oder Sprachsteuerung.
+
+### VIKI als dritter Stil
+
+Eigener Tab neben Lattice und Dust, mit silbrigem Grünblau und sechs gekachelten Würfelflächen. Alle zeigen
+dieselbe live animierte Frontalansicht, auf benachbarten Seiten gespiegelt. Lichtpakete wandern über die Kacheln,
+ohne die Gesichtsgeometrie zu verzerren. Eigene Regler für Bewegung, Geschwindigkeit, Kacheln, Diffusion und Farbe;
+eigener Speicherbereich. Startansicht über die Würfelkante, weiterhin frei drehbar und im Ruhezustand ohne Gesicht.
+Dust bleibt für spätere Arbeiten unverändert. Browserprüfung: `scripts/review-viki-browser.mjs`.

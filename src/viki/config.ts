@@ -1,11 +1,12 @@
 /** The head's reference scale: feature anchors are defined for the head at this size, centred on its placement. */
 export const REF_SCALE = 0.29
 
-export type HeadStyle = 'lattice' | 'dust'
+export type HeadStyle = 'lattice' | 'dust' | 'viki'
 
 export const STYLES: { id: HeadStyle; label: string; hint: string }[] = [
   { id: 'lattice', label: 'Lattice', hint: 'A human presence inside a layered cube of light' },
   { id: 'dust', label: 'Dust', hint: 'Fine particles that scatter at the edges' },
+  { id: 'viki', label: 'VIKI', hint: 'A silver-green tiled portrait mirrored around an optical cube' },
 ]
 
 /** Everything the configurator can change. Feature positions are head-local (see REF_SCALE). */
@@ -35,6 +36,8 @@ export interface HeadConfig {
   diffusion: number
   glassRibs: number
   filmGrain: number
+  dataFlow?: number // VIKI only: travelling cell highlights
+  flowSpeed?: number // VIKI only: speed of the travelling highlights
   // head placement
   headScale: number
   headY: number
@@ -140,6 +143,24 @@ export const STYLE_DEFAULTS: Record<HeadStyle, HeadConfig> = {
     bloom: 0.35,
     gain: 1.1,
   },
+  viki: {
+    ...APPEARANCE_BASE,
+    ...SHAPE_DEFAULTS,
+    colorA: '#4c7277',
+    colorB: '#98b5b5',
+    colorC: '#eef1e7',
+    lighting: 'viki',
+    lightElevation: 50,
+    lightFill: 0.008,
+    gain: 1.4,
+    bloom: 0.3,
+    density: 0.7,
+    cage: 0.7,
+    cubeDepth: 1,
+    diffusion: 0.45,
+    dataFlow: 0.55,
+    flowSpeed: 0.7,
+  },
 }
 
 export const DEFAULT_CONFIG: HeadConfig = STYLE_DEFAULTS.lattice
@@ -214,6 +235,20 @@ export const SHAPE_GROUPS: SliderGroup[] = [
 
 /** Appearance group per style. */
 export const STYLE_GROUPS: Record<HeadStyle, SliderGroup> = {
+  viki: {
+    title: 'VIKI display',
+    sliders: [
+      { key: 'gain', label: 'Face brightness', min: 0.4, max: 2, step: 0.02 },
+      { key: 'density', label: 'Tile density', min: 0.1, max: 1, step: 0.01 },
+      { key: 'cellSize', label: 'Tile fill', min: 0.5, max: 1.4, step: 0.02 },
+      { key: 'dataFlow', label: 'Pixel movement', min: 0, max: 1, step: 0.01 },
+      { key: 'flowSpeed', label: 'Flow speed', min: 0, max: 2, step: 0.02 },
+      { key: 'cage', label: 'Background tiles', min: 0, max: 1, step: 0.01 },
+      { key: 'cubeDepth', label: 'Cube depth', min: 0.6, max: 1.3, step: 0.02 },
+      { key: 'diffusion', label: 'Tile diffusion', min: 0, max: 1.5, step: 0.02 },
+      { key: 'bloom', label: 'Bloom', min: 0, max: 1.5, step: 0.02 },
+    ],
+  },
   lattice: {
     title: 'Lattice',
     sliders: [
@@ -244,6 +279,7 @@ export const STYLE_GROUPS: Record<HeadStyle, SliderGroup> = {
 export const COLOR_LABELS: Record<HeadStyle, [string, string, string]> = {
   lattice: ['Cube', 'Face', 'Highlights'],
   dust: ['Shadow', 'Light', 'Sparkle'],
+  viki: ['Shadow', 'Silver', 'Highlights'],
 }
 
 // A new portrait preset. Previous v3/v4 settings remain stored, untouched.
