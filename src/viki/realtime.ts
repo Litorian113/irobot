@@ -8,6 +8,8 @@ export interface RealtimeHandlers {
   onUserText: (text: string) => void
   onExpression: (e: Expression) => void
   onRemoteStream: (stream: MediaStream) => void
+  onSpeechStart: () => void
+  onInterrupt: () => void
   onError: (message: string) => void
 }
 
@@ -129,154 +131,168 @@ export async function connectRealtime(
   h.onStatus('connecting')
 
   const pc = new RTCPeerConnection()
-  const audioEl = document.createElement('audio')
-  audioEl.autoplay = true
-  // Chrome only pumps a remote WebRTC track into WebAudio if it is also attached to a media element.
+  // SpeechOutput owns the single audible WebAudio path and its muted track pump.
   pc.ontrack = (e) => {
-    audioEl.srcObject = e.streams[0]
-    h.onRemoteStream(e.streams[0])
+    if (e.track.kind === 'audio') h.onRemoteStream(e.streams[0] ?? new MediaStream([e.track]))
   }
 
-  let micStream = await openPreferredMic(preferredMicId)
-  const micSender = pc.addTrack(micStream.getTracks()[0], micStream)
-
-  const dc = pc.createDataChannel('oai-events')
-  const send = (ev: Record<string, unknown>) => {
-    if (dc.readyState === 'open') dc.send(JSON.stringify(ev))
-  }
-
-  let transcript = ''
-  let speaking = false
-  let closed = false
-
-  dc.onopen = () => {
-    send({ type: 'session.update', session: sessionConfig(false) })
-    h.onStatus('listening')
-  }
-
-  dc.onmessage = (msg) => {
-    let ev: any
-    try {
-      ev = JSON.parse(msg.data)
-    } catch {
-      return
-    }
-    if (import.meta.env.DEV && !String(ev.type).endsWith('.delta')) console.debug('[viki]', ev.type, ev)
-    switch (ev.type) {
-      case 'input_audio_buffer.speech_started':
-        h.onStatus('listening')
-        break
-      case 'input_audio_buffer.speech_stopped':
-        h.onStatus('thinking')
-        break
-      case 'response.created':
-        transcript = ''
-        if (!speaking) h.onStatus('thinking')
-        break
-      case 'output_audio_buffer.started':
-        speaking = true
-        h.onStatus('speaking')
-        break
-      case 'output_audio_buffer.stopped':
-      case 'output_audio_buffer.cleared':
-        speaking = false
-        h.onStatus('listening')
-        break
-      case 'response.output_audio_transcript.delta':
-      case 'response.audio_transcript.delta':
-        transcript += ev.delta ?? ''
-        h.onAssistantText(transcript, false)
-        break
-      case 'response.output_audio_transcript.done':
-      case 'response.audio_transcript.done':
-        transcript = ev.transcript ?? transcript
-        h.onAssistantText(transcript, true)
-        break
-      case 'conversation.item.input_audio_transcription.completed':
-        if (ev.transcript) h.onUserText(String(ev.transcript).trim())
-        break
-      case 'response.function_call_arguments.done': {
-        if (ev.name === 'set_expression') {
-          try {
-            const args = JSON.parse(ev.arguments ?? '{}')
-            if (args.expression) h.onExpression(args.expression as Expression)
-          } catch {
-            /* ignore malformed args */
-          }
-        }
-        send({
-          type: 'conversation.item.create',
-          item: { type: 'function_call_output', call_id: ev.call_id, output: JSON.stringify({ ok: true }) },
-        })
-        // Continue with the spoken answer; no further tool calls for this turn.
-        send({ type: 'response.create', response: { tool_choice: 'none' } })
-        break
-      }
-      case 'response.done':
-        if (!speaking) h.onStatus('listening')
-        break
-      case 'error':
-        h.onError(ev.error?.message ?? 'Unknown realtime error')
-        break
-      default:
-        break
-    }
-  }
-
-  pc.onconnectionstatechange = () => {
-    if (closed) return
-    if (pc.connectionState === 'failed' || pc.connectionState === 'disconnected') {
-      h.onError('Connection to the Realtime API was lost.')
-    }
-  }
-
-  const offer = await pc.createOffer()
-  await pc.setLocalDescription(offer)
-
-  const form = new FormData()
-  form.set('sdp', offer.sdp ?? '')
-  form.set('session', JSON.stringify(sessionConfig(true)))
-
-  let res = await fetch('https://api.openai.com/v1/realtime/calls', {
-    method: 'POST',
-    headers: { Authorization: `Bearer ${apiKey}` },
-    body: form,
-  })
-  if (!res.ok) {
-    // Fallback to the plain-SDP form of the handshake (session.update on the data channel covers config).
-    res = await fetch(`https://api.openai.com/v1/realtime/calls?model=${MODEL}`, {
-      method: 'POST',
-      headers: { Authorization: `Bearer ${apiKey}`, 'Content-Type': 'application/sdp' },
-      body: offer.sdp ?? '',
-    })
-  }
-  if (!res.ok) {
-    const body = await res.text().catch(() => '')
-    micStream.getTracks().forEach((t) => t.stop())
+  let micStream = await openPreferredMic(preferredMicId).catch((error) => {
     pc.close()
-    throw new Error(`Realtime handshake failed (${res.status}): ${body.slice(0, 300)}`)
-  }
-  await pc.setRemoteDescription({ type: 'answer', sdp: await res.text() })
+    throw error
+  })
+  try {
+    const micSender = pc.addTrack(micStream.getTracks()[0], micStream)
 
-  return {
-    get micStream() {
-      return micStream
-    },
-    setMicrophone: async (deviceId: string) => {
-      const next = await openMic(deviceId)
-      await micSender.replaceTrack(next.getAudioTracks()[0])
+    const dc = pc.createDataChannel('oai-events')
+    const send = (ev: Record<string, unknown>) => {
+      if (dc.readyState === 'open') dc.send(JSON.stringify(ev))
+    }
+
+    let transcript = ''
+    let speaking = false
+    let closed = false
+
+    dc.onopen = () => {
+      send({ type: 'session.update', session: sessionConfig(false) })
+      h.onStatus('listening')
+    }
+
+    dc.onmessage = (msg) => {
+      let ev: any
+      try {
+        ev = JSON.parse(msg.data)
+      } catch {
+        return
+      }
+      if (import.meta.env.DEV && !String(ev.type).endsWith('.delta')) console.debug('[viki]', ev.type, ev)
+      switch (ev.type) {
+        case 'input_audio_buffer.speech_started':
+          h.onInterrupt()
+          h.onStatus('listening')
+          break
+        case 'input_audio_buffer.speech_stopped':
+          h.onStatus('thinking')
+          break
+        case 'response.created':
+          transcript = ''
+          if (!speaking) h.onStatus('thinking')
+          break
+        case 'output_audio_buffer.started':
+          h.onSpeechStart()
+          speaking = true
+          h.onStatus('speaking')
+          break
+        case 'output_audio_buffer.cleared':
+          h.onInterrupt()
+          speaking = false
+          h.onStatus('listening')
+          break
+        case 'output_audio_buffer.stopped':
+          speaking = false
+          h.onStatus('listening')
+          break
+        case 'response.output_audio_transcript.delta':
+        case 'response.audio_transcript.delta':
+          transcript += ev.delta ?? ''
+          h.onAssistantText(transcript, false)
+          break
+        case 'response.output_audio_transcript.done':
+        case 'response.audio_transcript.done':
+          transcript = ev.transcript ?? transcript
+          h.onAssistantText(transcript, true)
+          break
+        case 'conversation.item.input_audio_transcription.completed':
+          if (ev.transcript) h.onUserText(String(ev.transcript).trim())
+          break
+        case 'response.function_call_arguments.done': {
+          if (ev.name === 'set_expression') {
+            try {
+              const args = JSON.parse(ev.arguments ?? '{}')
+              if (args.expression) h.onExpression(args.expression as Expression)
+            } catch {
+              /* ignore malformed args */
+            }
+          }
+          send({
+            type: 'conversation.item.create',
+            item: { type: 'function_call_output', call_id: ev.call_id, output: JSON.stringify({ ok: true }) },
+          })
+          // Continue with the spoken answer; no further tool calls for this turn.
+          send({ type: 'response.create', response: { tool_choice: 'none' } })
+          break
+        }
+        case 'response.done':
+          if (!speaking) h.onStatus('listening')
+          break
+        case 'error':
+          h.onError(ev.error?.message ?? 'Unknown realtime error')
+          break
+        default:
+          break
+      }
+    }
+
+    pc.onconnectionstatechange = () => {
+      if (closed) return
+      if (pc.connectionState === 'failed' || pc.connectionState === 'disconnected') {
+        h.onError('Connection to the Realtime API was lost.')
+      }
+    }
+
+    const offer = await pc.createOffer()
+    await pc.setLocalDescription(offer)
+
+    const form = new FormData()
+    form.set('sdp', offer.sdp ?? '')
+    form.set('session', JSON.stringify(sessionConfig(true)))
+
+    let res = await fetch('https://api.openai.com/v1/realtime/calls', {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${apiKey}` },
+      body: form,
+    })
+    if (!res.ok) {
+      // Fallback to the plain-SDP form of the handshake (session.update on the data channel covers config).
+      res = await fetch(`https://api.openai.com/v1/realtime/calls?model=${MODEL}`, {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${apiKey}`, 'Content-Type': 'application/sdp' },
+        body: offer.sdp ?? '',
+      })
+    }
+    if (!res.ok) {
+      const body = await res.text().catch(() => '')
       micStream.getTracks().forEach((t) => t.stop())
-      micStream = next
-      return next
-    },
-    disconnect: () => {
-      closed = true
-      dc.close()
-      micStream.getTracks().forEach((t) => t.stop())
-      pc.getSenders().forEach((s) => s.track?.stop())
       pc.close()
-      audioEl.srcObject = null
-      h.onStatus('idle')
-    },
+      throw new Error(`Realtime handshake failed (${res.status}): ${body.slice(0, 300)}`)
+    }
+    await pc.setRemoteDescription({ type: 'answer', sdp: await res.text() })
+
+    return {
+      get micStream() {
+        return micStream
+      },
+      setMicrophone: async (deviceId: string) => {
+        const next = await openMic(deviceId)
+        await micSender.replaceTrack(next.getAudioTracks()[0])
+        micStream.getTracks().forEach((t) => t.stop())
+        micStream = next
+        return next
+      },
+      disconnect: () => {
+        closed = true
+        dc.close()
+        micStream.getTracks().forEach((t) => t.stop())
+        pc.getSenders().forEach((s) => s.track?.stop())
+        pc.close()
+        pc.ontrack = null
+        h.onStatus('idle')
+      },
+    }
+  } catch (error) {
+    pc.ontrack = null
+    pc.onconnectionstatechange = null
+    micStream.getTracks().forEach((track) => track.stop())
+    pc.close()
+    throw error
   }
 }

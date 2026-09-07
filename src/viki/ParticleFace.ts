@@ -1,4 +1,5 @@
 import * as THREE from 'three'
+import { mapVisemes } from './visemes'
 import { EffectComposer } from 'three/addons/postprocessing/EffectComposer.js'
 import { RenderPass } from 'three/addons/postprocessing/RenderPass.js'
 import { ShaderPass } from 'three/addons/postprocessing/ShaderPass.js'
@@ -47,6 +48,7 @@ export interface MouthSample {
   open: number
   wide: number
   round?: number
+  visemes?: readonly number[]
 }
 
 const CAM_DIST = 4.2
@@ -169,6 +171,7 @@ export class ParticleFace {
   private target: FaceState = { ...this.current }
 
   private mouth = { open: 0, wide: 0, round: 0 }
+  private visemes: readonly number[] | undefined
   private mouthSource: (() => MouthSample | null) | null = null
 
   // drag-to-rotate: yaw/pitch with inertia, optionally easing back to the front when released
@@ -410,7 +413,14 @@ export class ParticleFace {
     const blink = FROZEN ? 1 - THREE.MathUtils.clamp(reviewNumber('blink', 0), 0, 1) : 1 - Math.pow(Math.sin(blinkPhase * Math.PI), 2)
 
     // mouth
-    const sample = this.mouthSource?.() ?? null
+    let sample = this.mouthSource?.() ?? null
+    this.visemes = sample?.visemes
+    if (sample?.visemes && this.rig && !this.rig.rigged) {
+      // The optional old scan has no lip targets; retain its procedural motion.
+      const { pose } = mapVisemes(sample.visemes, this.config.speechStrength)
+      sample = { ...sample, open: pose.jawOpen / 0.6, wide: pose.mouthWide,
+        round: pose.mouthFunnel + pose.mouthPucker }
+    }
     const targetOpen = sample ? sample.open : 0
     const targetWide = sample ? sample.wide : 0
     const targetRound = sample ? (sample.round ?? sample.open * (1 - sample.wide)) : 0
@@ -427,7 +437,7 @@ export class ParticleFace {
     hu.uSmile.value = this.current.smile
     hu.uBrow.value = this.current.brow + Math.sin(t * 0.7) * 0.04
     hu.uEyeOpen.value = this.current.eyeOpen * blink
-    this.rig?.update(this.mouth.open, this.mouth.wide, this.mouth.round, this.current.smile, this.current.brow, this.current.eyeOpen * blink)
+    this.rig?.update(this.mouth.open, this.mouth.wide, this.mouth.round, this.current.smile, this.current.brow, this.current.eyeOpen * blink, this.visemes, this.config.speechStrength)
     applyPlacement(hu, this.config, this.current.forward)
 
     this.cube.update(t, this.current.face)
@@ -489,6 +499,7 @@ export class ParticleFace {
       current: { ...this.current },
       target: { ...this.target },
       mouth: { ...this.mouth },
+      visemes: this.visemes?.slice(),
       headLoaded: this.headLoaded,
       rigged: this.rig?.rigged,
       morphs: this.rig?.influences.slice(),

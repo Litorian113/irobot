@@ -92,6 +92,13 @@ poses = {
     'blinkRight': [('eyeBlinkRight', 1)],
     'browUp': [('browInnerUp', 0.5), ('browOuterUpLeft', 0.55), ('browOuterUpRight', 0.55)],
     'browDown': [('browDownLeft', 0.65), ('browDownRight', 0.65)],
+    'mouthClose': [('mouthClose', 1)],
+    'mouthPress': [('mouthPressLeft', 0.65), ('mouthPressRight', 0.65)],
+    'mouthPucker': [('mouthPucker', 1)],
+    'mouthFunnel': [('mouthFunnel', 1)],
+    'upperLipUp': [('mouthUpperUpLeft', 0.65), ('mouthUpperUpRight', 0.65)],
+    'lowerLipDown': [('mouthLowerDownLeft', 0.65), ('mouthLowerDownRight', 0.65)],
+    'lowerLipRoll': [('mouthRollLower', 1)],
 }
 deltas = {}
 for name, parts in poses.items():

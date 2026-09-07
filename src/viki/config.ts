@@ -54,6 +54,8 @@ export interface HeadConfig {
   mouthY: number
   mouthWidth: number
   lipFull: number
+  speechStrength: number
+  speechDelay: number // milliseconds of assistant audio buffering for lip sync
 }
 
 /** Shared shape defaults (the same face in every style). */
@@ -77,6 +79,8 @@ const SHAPE_DEFAULTS = {
   mouthY: 0.11,
   mouthWidth: 0.15,
   lipFull: 0.0,
+  speechStrength: 1.0,
+  speechDelay: 100,
 }
 
 const APPEARANCE_BASE = {
@@ -209,6 +213,13 @@ export const SHAPE_GROUPS: SliderGroup[] = [
     sliders: [
       { key: 'mouthWidth', label: 'Width', min: 0.08, max: 0.24, step: 0.002 },
       { key: 'lipFull', label: 'Lips', min: 0, max: 0.35, step: 0.01 },
+    ],
+  },
+  {
+    title: 'Speech',
+    sliders: [
+      { key: 'speechStrength', label: 'Articulation', min: 0.5, max: 1.5, step: 0.05 },
+      { key: 'speechDelay', label: 'Voice delay (ms)', min: 40, max: 250, step: 10 },
     ],
   },
 ]

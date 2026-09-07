@@ -5,6 +5,7 @@ import * as THREE from 'three'
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js'
 import { HeadRig, MORPH_NAMES } from '../src/viki/HeadRig.ts'
 import { sampleAnimatedSurface } from '../src/viki/sampleSurface.ts'
+import { fixedViseme } from '../src/viki/visemes.ts'
 
 const data = await readFile(new URL('../public/models/VikiHead.glb', import.meta.url))
 const gltf = await new GLTFLoader().parseAsync(data.buffer.slice(data.byteOffset, data.byteOffset + data.byteLength), '')
@@ -78,4 +79,30 @@ test('node transforms affect positions and relative deltas correctly', () => {
   transformed.dispose()
   geometry.dispose()
   mesh.material.dispose()
+})
+
+test('all seven additional lip poses move actual model vertices and preserve eye geometry', () => {
+  const g = rig.geometry
+  for (const name of ['mouthClose', 'mouthPress', 'mouthPucker', 'mouthFunnel', 'upperLipUp', 'lowerLipDown', 'lowerLipRoll']) {
+    const target = g.morphAttributes.position[MORPH_NAMES.indexOf(name)]
+    assert.ok(target.array.some((v) => Math.abs(v) > 0.001), `${name} has a real lip deformation`)
+    for (let i = 0; i < target.count; i++) {
+      if (g.attributes.aFeature.getX(i) === 1) assert.ok(Math.abs(target.getX(i)) + Math.abs(target.getY(i)) + Math.abs(target.getZ(i)) < 1e-6)
+    }
+  }
+})
+
+test('speech closure suppresses the smile, preserves eyelids and clears when speech ends', () => {
+  rig.update(0.9, 0.9, 0.9, 1, 0.5, 0.3, fixedViseme('PP'))
+  const weight = (name) => rig.influences[MORPH_NAMES.indexOf(name)]
+  assert.equal(weight('jawOpen'), 0)
+  assert.equal(weight('smile'), 0)
+  assert.equal(weight('mouthRound'), 0)
+  assert.ok(weight('mouthPress') > 0)
+  assert.equal(weight('blinkLeft'), 0.7)
+  rig.update(0, 0, 0, 1, 0.5, 0.3, [])
+  assert.equal(weight('mouthPress'), 0)
+  assert.equal(weight('smile'), 0.6)
+  rig.update(0, 0, 0, 0, 0, 1)
+  assert.ok(rig.influences.every((v) => v === 0))
 })

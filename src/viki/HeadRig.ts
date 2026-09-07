@@ -1,7 +1,8 @@
 import * as THREE from 'three'
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js'
+import { mapVisemes, SPEECH_MORPHS } from './visemes.ts'
 
-export const MORPH_NAMES = ['jawOpen', 'mouthWide', 'mouthRound', 'smile', 'frown', 'blinkLeft', 'blinkRight', 'browUp', 'browDown'] as const
+export const MORPH_NAMES = ['jawOpen', 'mouthWide', 'mouthRound', 'smile', 'frown', 'blinkLeft', 'blinkRight', 'browUp', 'browDown', 'mouthClose', 'mouthPress', 'mouthPucker', 'mouthFunnel', 'upperLipUp', 'lowerLipDown', 'lowerLipRoll'] as const
 
 /** Preserve all face parts and bake their node transforms into one canonical, morphable geometry. */
 export class HeadRig {
@@ -85,7 +86,7 @@ export class HeadRig {
     })
   }
 
-  update(open: number, wide: number, round: number, smile: number, brow: number, eyeOpen: number) {
+  update(open: number, wide: number, round: number, smile: number, brow: number, eyeOpen: number, visemes?: readonly number[], strength = 1) {
     const clamp = THREE.MathUtils.clamp
     const values = [
       clamp(open, 0, 1) * 0.6,
@@ -98,7 +99,15 @@ export class HeadRig {
       clamp(brow, 0, 1) * 0.55,
       clamp(-brow, 0, 1) * 0.45,
     ]
+    this.influences.fill(0)
     for (let i = 0; i < values.length; i++) this.influences[i] = values[i]
+    if (visemes && this.rigged) {
+      const { pose, expressionScale } = mapVisemes(visemes, strength)
+      this.influences[2] = 0 // The legacy combined rounding pose must not stack with funnel/pucker.
+      this.influences[3] *= expressionScale
+      this.influences[4] *= expressionScale
+      for (const name of SPEECH_MORPHS) this.influences[MORPH_NAMES.indexOf(name)] = pose[name]
+    }
   }
 
   dispose() { this.geometry.dispose() }

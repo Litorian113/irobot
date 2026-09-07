@@ -14,7 +14,14 @@
     "blinkLeft",
     "blinkRight",
     "browUp",
-    "browDown"
+    "browDown",
+    "mouthClose",
+    "mouthPress",
+    "mouthPucker",
+    "mouthFunnel",
+    "upperLipUp",
+    "lowerLipDown",
+    "lowerLipRoll"
   ],
   "sourceVertices": 4438,
   "vertices": 17699

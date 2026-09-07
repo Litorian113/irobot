@@ -16,7 +16,7 @@ Source archive SHA-256:
 `cb7ae79ac3d799bee1598f150ca581935f91731f96f8441a1d3921a0656149f9`
 
 Current generated GLB SHA-256:
-`0ab63f1ef21f82320b6c03ef2a1c46f9c6ce8cb3ba1cf268ab85a3f07e8df757`
+`4772943e96d5926045ef7a0a9b49de41b056f59521fcf07b3d487c75f446d5c0`
 
 ## Rebuild
 
@@ -32,8 +32,10 @@ and their normals, plus `VikiHead.json` with normalization landmarks and source 
 The archive is extracted to a temporary directory and removed after the build. No network is needed.
 
 The model is normalized using eye joints and lip vertices, rather than the previous scan's transform. All three
-parts are retained at runtime. The nine morphs are `jawOpen`, `mouthWide`, `mouthRound`, `smile`, `frown`,
-`blinkLeft`, `blinkRight`, `browUp`, and `browDown`. Part labels `Skin`, `Eyes`, and `MouthInterior` keep shading
-on the appropriate geometry.
+parts are retained at runtime. The sixteen morphs are `jawOpen`, `mouthWide`, `mouthRound`, `smile`, `frown`,
+`blinkLeft`, `blinkRight`, `browUp`, `browDown`, `mouthClose`, `mouthPress`, `mouthPucker`, `mouthFunnel`,
+`upperLipUp`, `lowerLipDown`, and `lowerLipRoll`. The last seven come from additional targets already in the
+bundled face-unit pack. The neutral geometry, normals and original nine poses are unchanged by this extension.
+Part labels `Skin`, `Eyes`, and `MouthInterior` keep shading on the appropriate geometry.
 
 The old Lee Perry-Smith model has its own CC BY 3.0 terms; this CC0 description applies only to the new VikiHead asset.

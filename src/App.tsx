@@ -13,6 +13,8 @@ import {
   type HeadStyle,
 } from './viki/config'
 import { LipSync } from './viki/lipsync'
+import { SpeechOutput } from './viki/SpeechOutput'
+import { fixedViseme, VISEMES } from './viki/visemes'
 import { connectRealtime, listMicrophones, type MicInfo, type RealtimeSession, type VoiceStatus } from './viki/realtime'
 
 const API_KEY = import.meta.env.VITE_OPENAI_API_KEY as string | undefined
@@ -62,7 +64,12 @@ function fakeTalk(t0: number) {
   const t = (performance.now() - t0) / 1000
   const phrase = t % 5.6 < 4.3 ? 1 : 0
   const talk = Math.max(0, 0.18 + Math.sin(t * 8.4) * 0.35 + Math.sin(t * 13.1) * 0.2)
-  return { open: talk * phrase, wide: 0.5 + 0.35 * Math.sin(t * 2.1) }
+  const sequence = [5, 0, 11, 2, 9, 1, 12, 3, 5, 4, 6, 1, 8, 0]
+  const step = t * 5
+  const index = Math.floor(step) % sequence.length
+  const mix = Math.min(1, (step % 1) * 4)
+  const visemes = VISEMES.map((_, i) => phrase * ((sequence[index] === i ? mix : 0) + (sequence[(index + sequence.length - 1) % sequence.length] === i ? 1 - mix : 0)))
+  return { open: talk * phrase, wide: 0.5 + 0.35 * Math.sin(t * 2.1), visemes }
 }
 
 export default function App() {
@@ -70,7 +77,8 @@ export default function App() {
   const faceRef = useRef<ParticleFace | null>(null)
   const sessionRef = useRef<RealtimeSession | null>(null)
   const audioCtxRef = useRef<AudioContext | null>(null)
-  const lipRef = useRef<LipSync | null>(null)
+  const lipRef = useRef<SpeechOutput | null>(null)
+  const connectionEpoch = useRef(0)
   const micLipRef = useRef<LipSync | null>(null)
   const relaxTimer = useRef<number | undefined>(undefined)
   const meterRef = useRef<HTMLSpanElement>(null)
@@ -108,11 +116,12 @@ export default function App() {
       const mouthParam = new URLSearchParams(window.location.search).get('mouth')
       const fixedMouth = mouthParam === null ? NaN : Number(mouthParam)
       const params = new URLSearchParams(window.location.search)
+      const visemes = fixedViseme(params.get('viseme') ?? '')
       const fixed = (key: string, fallback: number) => {
         const value = params.get(key)
         return value !== null && Number.isFinite(Number(value)) ? Math.max(0, Math.min(1, Number(value))) : fallback
       }
-      face.setMouthSource(() => (Number.isFinite(fixedMouth)
+      face.setMouthSource(() => (visemes ? { open: 0, wide: 0, visemes } : Number.isFinite(fixedMouth)
         ? { open: fixed('mouth', 0), wide: fixed('wide', 0.4), round: fixed('round', fixed('mouth', 0) * (1 - fixed('wide', 0.4))) }
         : fakeTalk(t0)))
     }
@@ -133,7 +142,7 @@ export default function App() {
       face.setExpression('neutral')
       const t0 = performance.now()
       face.setMouthSource(
-        status === 'speaking' && lipRef.current ? () => lipRef.current!.sample() : testSpeech ? () => fakeTalk(t0) : null,
+        lipRef.current ? () => lipRef.current?.sample() ?? null : testSpeech ? () => fakeTalk(t0) : null,
       )
       return
     }
@@ -146,12 +155,15 @@ export default function App() {
     }
     face.setTarget(STATE_FORM[status])
     if (status === 'thinking') face.setExpression('thinking')
-    face.setMouthSource(status === 'speaking' && lipRef.current ? () => lipRef.current!.sample() : null)
+    // Audio can still be playing after the server's buffer-stopped event.
+    // Let the detector's audio clock carry the final lips and close on silence.
+    face.setMouthSource(lipRef.current && !['idle', 'error', 'connecting'].includes(status) ? () => lipRef.current?.sample() ?? null : null)
   }, [status, configOpen, testSpeech, previewSpeech])
 
   // Live preview of the draft
   useEffect(() => {
     faceRef.current?.applyConfig(draft)
+    lipRef.current?.setDelay(draft.speechDelay)
   }, [draft])
 
   // Switch tabs: load that head's saved config and make it the current one
@@ -243,6 +255,8 @@ export default function App() {
   }, [])
 
   const disconnect = useCallback(() => {
+    connectionEpoch.current++
+    window.clearTimeout(relaxTimer.current)
     sessionRef.current?.disconnect()
     sessionRef.current = null
     lipRef.current?.dispose()
@@ -255,6 +269,7 @@ export default function App() {
   }, [])
 
   const connect = useCallback(async () => {
+    disconnect()
     setPreviewSpeech(false)
     if (!API_KEY) {
       setError('VITE_OPENAI_API_KEY is not set in .env')
@@ -262,45 +277,61 @@ export default function App() {
       return
     }
     setError(null)
+    setStatus('connecting')
     setAssistantText('')
     setUserText('')
     const ctx = new AudioContext()
+    const epoch = ++connectionEpoch.current
     audioCtxRef.current = ctx
-    await ctx.resume()
 
     try {
+      await ctx.resume()
+      const speech = await SpeechOutput.create(ctx, draft.speechDelay, (message) => {
+        if (epoch === connectionEpoch.current) setError(message)
+      })
+      if (epoch !== connectionEpoch.current) { speech.dispose(); return }
+      lipRef.current = speech
+      ;(window as unknown as { __vikiSpeech?: () => unknown }).__vikiSpeech = () => speech.debug()
       const session = await connectRealtime(
         API_KEY,
         {
-          onStatus: (s) => setStatus(s),
-          onAssistantText: (text) => setAssistantText(text),
-          onUserText: (text) => setUserText(text),
+          onStatus: (s) => { if (epoch === connectionEpoch.current) setStatus(s) },
+          onAssistantText: (text) => { if (epoch === connectionEpoch.current) setAssistantText(text) },
+          onUserText: (text) => { if (epoch === connectionEpoch.current) setUserText(text) },
           onExpression: (e: Expression) => {
+            if (epoch !== connectionEpoch.current) return
             faceRef.current?.setExpression(e)
             window.clearTimeout(relaxTimer.current)
             relaxTimer.current = window.setTimeout(() => faceRef.current?.setExpression('neutral'), 9000)
           },
           onRemoteStream: (stream) => {
-            lipRef.current?.dispose()
-            lipRef.current = new LipSync(ctx, stream)
+            if (epoch === connectionEpoch.current) speech.attachStream(stream)
           },
+          onSpeechStart: () => speech.resume(),
+          onInterrupt: () => speech.interrupt(),
           onError: (msg) => {
+            if (epoch !== connectionEpoch.current) return
+            disconnect()
             setError(msg)
             setStatus('error')
           },
         },
         micId || undefined,
       )
+      if (epoch !== connectionEpoch.current) { session.disconnect(); speech.dispose(); return }
       sessionRef.current = session
       micLipRef.current = new LipSync(ctx, session.micStream)
       void refreshMics(session.micStream)
     } catch (e) {
+      if (epoch !== connectionEpoch.current) return
+      lipRef.current?.dispose()
+      lipRef.current = null
       setError(e instanceof Error ? e.message : String(e))
       setStatus('error')
       await ctx.close().catch(() => {})
       audioCtxRef.current = null
     }
-  }, [micId, refreshMics])
+  }, [micId, refreshMics, draft.speechDelay, disconnect])
 
   useEffect(() => () => disconnect(), [disconnect])
 
