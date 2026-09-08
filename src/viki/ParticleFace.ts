@@ -567,6 +567,12 @@ export class ParticleFace {
     this.frameMs += (performance.now() - t0 - this.frameMs) * 0.1
   }
 
+  /** True once she is fully there: the VIKI cube finished assembling, or the face finished forming. */
+  isFormed() {
+    if (this.style === 'viki') return this.vikiAssembly.progress >= 0.999
+    return this.current.face >= 0.97
+  }
+
   /** Snapshot of the animated state (dev aid). */
   debug() {
     return {

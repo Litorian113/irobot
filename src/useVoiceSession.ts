@@ -75,10 +75,14 @@ export function useVoiceSession(faceRef: RefObject<ParticleFace | null>, speechD
       if (epoch !== connectionEpoch.current) { speech.dispose(); return }
       lipRef.current = speech
       ;(window as unknown as { __vikiSpeech?: () => unknown }).__vikiSpeech = () => speech.debug()
+      let latestStatus: VoiceStatus = 'connecting'
       const session = await connectRealtime(
         API_KEY,
         {
-          onStatus: (s) => { if (epoch === connectionEpoch.current) setStatus(s) },
+          onStatus: (s) => {
+            latestStatus = s
+            if (epoch === connectionEpoch.current) setStatus(s)
+          },
           onAssistantText: (text) => { if (epoch === connectionEpoch.current) setAssistantText(text) },
           onUserText: (text) => { if (epoch === connectionEpoch.current) setUserText(text) },
           onExpression: (e: Expression) => {
@@ -103,6 +107,17 @@ export function useVoiceSession(faceRef: RefObject<ParticleFace | null>, speechD
       if (epoch !== connectionEpoch.current) { session.disconnect(); speech.dispose(); return }
       sessionRef.current = session
       micLipRef.current = new LipSync(ctx, session.micStream)
+      // The film moment: once she has fully materialized and nothing else is
+      // happening yet, she opens the conversation herself - then waits.
+      const greetTimer = window.setInterval(() => {
+        if (epoch !== connectionEpoch.current) {
+          window.clearInterval(greetTimer)
+          return
+        }
+        if (!faceRef.current?.isFormed()) return
+        window.clearInterval(greetTimer)
+        if (latestStatus === 'listening') session.greet()
+      }, 250)
     } catch (e) {
       if (epoch !== connectionEpoch.current) return
       lipRef.current?.dispose()

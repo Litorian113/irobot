@@ -15,6 +15,8 @@ export interface RealtimeHandlers {
 
 export interface RealtimeSession {
   disconnect: () => void
+  /** Have her speak the film's opening line, unprompted. */
+  greet: () => void
   micStream: MediaStream
   /** Swap the microphone without reconnecting. Returns the new stream. */
   setMicrophone: (deviceId: string) => Promise<MediaStream>
@@ -277,6 +279,15 @@ export async function connectRealtime(
     await pc.setRemoteDescription({ type: 'answer', sdp: await res.text() })
 
     return {
+      greet: () => {
+        send({
+          type: 'response.create',
+          response: {
+            instructions:
+              'Greet the user right now with exactly the words: "Hello, Detective." Speak it calmly in English. Say nothing else, then wait silently for the user to speak.',
+          },
+        })
+      },
       get micStream() {
         return micStream
       },
