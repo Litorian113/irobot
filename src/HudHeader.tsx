@@ -1,4 +1,6 @@
 interface Props {
+  title: string
+  subtitle: string
   statusClass: string
   statusLabel: string
   configOpen: boolean
@@ -6,12 +8,12 @@ interface Props {
 }
 
 /** Brand banner, status lamp and the Configure button. */
-export default function HudHeader({ statusClass, statusLabel, configOpen, onConfigure }: Props) {
+export default function HudHeader({ title, subtitle, statusClass, statusLabel, configOpen, onConfigure }: Props) {
   return (
     <header className="hud-top">
       <div className="brand">
-        <span className="brand-name">V.I.K.I.</span>
-        <span className="brand-sub">Virtual Interactive Kinetic Intelligence</span>
+        <span className="brand-name">{title}</span>
+        <span className="brand-sub">{subtitle}</span>
       </div>
       <div className="actions">
         <div className={`status status-${statusClass}`}>

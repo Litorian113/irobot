@@ -9,7 +9,7 @@ import { applyUrlPreview, fakeTalk, PREVIEW } from './previewMode'
 import { useHeadConfig, initialStyle } from './useHeadConfig'
 import { useVoiceSession } from './useVoiceSession'
 import { ParticleFace } from './viki/ParticleFace'
-import { loadConfig } from './viki/config'
+import { loadConfig, STYLES } from './viki/config'
 import type { VoiceStatus } from './viki/realtime'
 
 /** Dev aid: `?facepass=1` shows the raw head textures (depth/light) the lattice samples. */
@@ -104,6 +104,8 @@ export default function App() {
 
       <div className={`hud${cfg.configOpen ? ' config-open' : ''}`}>
         <HudHeader
+          title={STYLES.find((s) => s.id === cfg.style)?.title ?? 'V.I.K.I.'}
+          subtitle={STYLES.find((s) => s.id === cfg.style)?.subtitle ?? ''}
           statusClass={status}
           statusLabel={PREVIEW || previewSpeech ? 'ANIMATION PREVIEW' : STATUS_LABEL[status]}
           configOpen={cfg.configOpen}
@@ -154,10 +156,6 @@ export default function App() {
 
       {docsOpen && <DocsPage onClose={() => setDocsOpen(false)} />}
 
-      <div className="corner tl" />
-      <div className="corner tr" />
-      <div className="corner bl" />
-      <div className="corner br" />
     </div>
   )
 }

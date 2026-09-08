@@ -70,10 +70,6 @@ body,
   display: flex;
   flex-direction: column;
   gap: 6px;
-  padding: 10px 34px 10px 16px;
-  border: 1px solid rgba(255, 255, 255, 0.55);
-  background: linear-gradient(100deg, rgba(255, 255, 255, 0.07), rgba(255, 255, 255, 0.0) 65%);
-  clip-path: polygon(0 0, calc(100% - 26px) 0, 100% 62%, calc(100% - 8px) 100%, 0 100%);
 }
 
 .brand-name {
@@ -350,39 +346,6 @@ body,
   text-align: center;
 }
 
-.corner {
-  position: absolute;
-  width: 26px;
-  height: 26px;
-  border: 1px solid var(--ink-faint);
-  pointer-events: none;
-}
-
-.corner.tl {
-  top: 14px;
-  left: 14px;
-  border-right: 0;
-  border-bottom: 0;
-}
-.corner.tr {
-  top: 14px;
-  right: 14px;
-  border-left: 0;
-  border-bottom: 0;
-}
-.corner.bl {
-  bottom: 14px;
-  left: 14px;
-  border-right: 0;
-  border-top: 0;
-}
-.corner.br {
-  bottom: 14px;
-  right: 14px;
-  border-left: 0;
-  border-top: 0;
-}
-
 /* ---------- configurator ---------- */
 
 .hud-top .actions {
@@ -617,7 +580,6 @@ body,
 
 
 /* The optical scene stays clear; controls return on deliberate hover/focus. */
-.film-look .corner { display: none; }
 .film-look:not(.configuring) .hud-top,
 .film-look:not(.configuring) .tabs,
 .film-look:not(.configuring) .hud-bottom,

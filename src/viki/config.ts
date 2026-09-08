@@ -3,10 +3,28 @@ export const REF_SCALE = 0.29
 
 export type HeadStyle = 'lattice' | 'dust' | 'viki'
 
-export const STYLES: { id: HeadStyle; label: string; hint: string }[] = [
-  { id: 'lattice', label: 'Lattice', hint: 'A human presence inside a layered cube of light' },
-  { id: 'dust', label: 'Dust', hint: 'Fine particles that scatter at the edges' },
-  { id: 'viki', label: 'VIKI', hint: 'A silver-green tiled portrait mirrored around an optical cube' },
+export const STYLES: { id: HeadStyle; label: string; hint: string; title: string; subtitle: string }[] = [
+  {
+    id: 'lattice',
+    label: 'Lattice',
+    hint: 'A human presence inside a layered cube of light',
+    title: 'L.A.T.T.I.C.E.',
+    subtitle: 'A human presence inside a layered cube of light',
+  },
+  {
+    id: 'dust',
+    label: 'Dust',
+    hint: 'Fine particles that scatter at the edges',
+    title: 'D.U.S.T.',
+    subtitle: 'Fine particles that scatter at the edges',
+  },
+  {
+    id: 'viki',
+    label: 'VIKI',
+    hint: 'A silver-green tiled portrait mirrored around an optical cube',
+    title: 'V.I.K.I.',
+    subtitle: 'Virtual Interactive Kinetic Intelligence',
+  },
 ]
 
 /** Everything the configurator can change. Feature positions are head-local (see REF_SCALE). */
