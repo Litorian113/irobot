@@ -1,5 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import ConfigPanel from './ConfigPanel'
+import DocsPage from './DocsPage'
+import RadialMenu from './RadialMenu'
 import { EXPRESSIONS, ParticleFace, type Expression } from './viki/ParticleFace'
 import {
   clearConfig,
@@ -85,6 +87,7 @@ export default function App() {
   const [configOpen, setConfigOpen] = useState(false)
   const [testSpeech, setTestSpeech] = useState(false)
   const [previewSpeech, setPreviewSpeech] = useState(false)
+  const [docsOpen, setDocsOpen] = useState(false)
   const dirty = JSON.stringify(draft) !== JSON.stringify(config)
 
   // Renderer lifecycle
@@ -307,20 +310,7 @@ export default function App() {
           </div>
         </header>
 
-        <nav className="tabs" aria-label="Head style">
-          {STYLES.map((s, i) => (
-            <button
-              key={s.id}
-              type="button"
-              className={`tab${s.id === style ? ' active' : ''}`}
-              onClick={() => chooseStyle(s.id)}
-              title={s.hint}
-            >
-              <span className="tab-index">{String(i + 1).padStart(2, '0')}</span>
-              {s.label}
-            </button>
-          ))}
-        </nav>
+        <RadialMenu style={style} onSelect={chooseStyle} onDocs={() => setDocsOpen(true)} />
 
         <div className="captions" aria-live="polite">
           {userText && <p className="caption user">{userText}</p>}
@@ -382,6 +372,8 @@ export default function App() {
           />
         )}
       </div>
+
+      {docsOpen && <DocsPage onClose={() => setDocsOpen(false)} />}
 
       <div className="corner tl" />
       <div className="corner tr" />
