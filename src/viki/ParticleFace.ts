@@ -59,7 +59,8 @@ const CAM_DIST = 4.2
 const FOV = 40
 const MAX_PIXEL_RATIO = 1.5
 const IDLE_FPS = 20
-const ACTIVE_FPS = 60
+const ACTIVE_FPS = 30
+const DRAG_FPS = 60 // only while the pointer is turning the cube
 const TWO_PI = Math.PI * 2
 const REVIEW = new URLSearchParams(window.location.search)
 const FROZEN = REVIEW.has('freeze')
@@ -429,7 +430,8 @@ export class ParticleFace {
 
     const now = performance.now()
     const transitioning = Math.abs(this.current.face - this.target.face) > 0.002 || (this.style === 'viki' && this.vikiAssembly.moving)
-    const minInterval = 1000 / (this.active || this.mouthSource || transitioning ? ACTIVE_FPS : IDLE_FPS) - 2
+    const fps = this.drag.active ? DRAG_FPS : this.active || this.mouthSource || transitioning ? ACTIVE_FPS : IDLE_FPS
+    const minInterval = 1000 / fps - 2
     if (now - this.lastFrame < minInterval) return
     this.lastFrame = now
 
