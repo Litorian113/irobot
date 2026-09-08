@@ -55,7 +55,10 @@ body,
 
 /* Angular HUD chrome: cut corners like the reference plates. */
 .btn,
-.status,
+.status {
+  clip-path: polygon(9px 0, 100% 0, 100% calc(100% - 9px), calc(100% - 9px) 100%, 0 100%, 0 9px);
+}
+
 .hud-top {
   display: flex;
   justify-content: space-between;
