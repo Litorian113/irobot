@@ -5,10 +5,12 @@ interface Props {
   statusLabel: string
   configOpen: boolean
   onConfigure: () => void
+  /** Present only when the scene has an alternate backdrop to flip to. */
+  onBackdrop?: () => void
 }
 
 /** Brand banner, status lamp and the Configure button. */
-export default function HudHeader({ title, subtitle, statusClass, statusLabel, configOpen, onConfigure }: Props) {
+export default function HudHeader({ title, subtitle, statusClass, statusLabel, configOpen, onConfigure, onBackdrop }: Props) {
   return (
     <header className="hud-top">
       <div className="brand">
@@ -20,6 +22,11 @@ export default function HudHeader({ title, subtitle, statusClass, statusLabel, c
           <span className="dot" />
           {statusLabel}
         </div>
+        {onBackdrop && !configOpen && (
+          <button type="button" className="btn ghost small" onClick={onBackdrop}>
+            Backdrop
+          </button>
+        )}
         {!configOpen && (
           <button type="button" className="btn ghost small" onClick={onConfigure}>
             Configure

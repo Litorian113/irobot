@@ -41,6 +41,16 @@ export default function App() {
   const [testSpeech, setTestSpeech] = useState(false)
   const [previewSpeech, setPreviewSpeech] = useState(false)
   const [docsOpen, setDocsOpen] = useState(false)
+  const [backdrop, setBackdrop] = useState(() => {
+    try {
+      return localStorage.getItem('viki.backdrop') ?? 'viki-hall-main'
+    } catch {
+      return 'viki-hall-main'
+    }
+  })
+
+  const backdropRef = useRef('viki-hall-main')
+  backdropRef.current = backdrop
 
   const cfg = useHeadConfig(faceRef)
   const voice = useVoiceSession(faceRef, cfg.draft.speechDelay)
@@ -57,6 +67,7 @@ export default function App() {
     ;(window as unknown as { __viki?: () => unknown; __vikiFace?: unknown }).__viki = () => face.debug()
     ;(window as unknown as { __vikiFace?: unknown }).__vikiFace = face
     applyUrlPreview(face, STATE_FORM.speaking)
+    face.setBackdrop(backdropRef.current)
     return () => {
       face.dispose()
       faceRef.current = null
@@ -93,6 +104,18 @@ export default function App() {
     face.setMouthSource(lipRef.current && !['idle', 'error', 'connecting'].includes(status) ? () => lipRef.current?.sample() ?? null : null)
   }, [status, cfg.configOpen, testSpeech, previewSpeech, voice.lipRef])
 
+  // Flip between the two halls behind the VIKI scene
+  const toggleBackdrop = () => {
+    const next = backdrop === 'viki-hall-main' ? 'viki-hall' : 'viki-hall-main'
+    setBackdrop(next)
+    try {
+      localStorage.setItem('viki.backdrop', next)
+    } catch {
+      /* ignore */
+    }
+    faceRef.current?.setBackdrop(next)
+  }
+
   // The speech delay slider acts on the live output line
   useEffect(() => {
     voice.lipRef.current?.setDelay(cfg.draft.speechDelay)
@@ -110,6 +133,7 @@ export default function App() {
           statusLabel={PREVIEW || previewSpeech ? 'ANIMATION PREVIEW' : STATUS_LABEL[status]}
           configOpen={cfg.configOpen}
           onConfigure={cfg.openConfig}
+          onBackdrop={cfg.style === 'viki' ? toggleBackdrop : undefined}
         />
 
         <RadialMenu style={cfg.style} onSelect={cfg.chooseStyle} onDocs={() => setDocsOpen(true)} />

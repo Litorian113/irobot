@@ -149,7 +149,8 @@ export class ParticleFace {
   private enclosure = new OpticalEnclosure()
   private vikiCube: VikiCube | null = null
   private vikiAssembly = new VikiAssembly()
-  private bgTexture: THREE.Texture | null = null
+  private backdropName = 'viki-hall-main'
+  private backdrops = new Map<string, THREE.Texture>()
   private headUniforms = createHeadUniforms()
   private facePass = new FacePass(this.headUniforms, 256)
   private styles: StyleSet | null = null
@@ -273,6 +274,26 @@ export class ParticleFace {
     this.setStyle(this.style)
   }
 
+  private backdropTexture(): THREE.Texture {
+    let texture = this.backdrops.get(this.backdropName)
+    if (!texture) {
+      texture = new THREE.TextureLoader().load(`${import.meta.env.BASE_URL}images/${this.backdropName}.png`, () => this.resize())
+      texture.colorSpace = THREE.SRGBColorSpace
+      texture.center.set(0.5, 0.5)
+      this.backdrops.set(this.backdropName, texture)
+    }
+    return texture
+  }
+
+  /** Choose the hall behind the VIKI scene (file name in /images without extension). */
+  setBackdrop(name: string) {
+    this.backdropName = name
+    if (this.style === 'viki') {
+      this.scene.background = this.backdropTexture()
+      this.resize()
+    }
+  }
+
   private resize = () => {
     const w = this.canvas.clientWidth || window.innerWidth
     const h = this.canvas.clientHeight || window.innerHeight
@@ -298,11 +319,12 @@ export class ParticleFace {
     }
     this.camera.updateProjectionMatrix()
     // Cover-fit the hall backdrop: crop instead of stretching.
-    const image = this.bgTexture?.image as { width?: number; height?: number } | undefined
-    if (this.bgTexture && image?.width && image.height) {
+    const backdrop = this.scene.background instanceof THREE.Texture ? this.scene.background : this.backdrops.get(this.backdropName) ?? null
+    const image = backdrop?.image as { width?: number; height?: number } | undefined
+    if (backdrop && image?.width && image.height) {
       const cover = (w / h) / (image.width / image.height)
-      this.bgTexture.repeat.set(Math.min(1, 1 / cover), Math.min(1, cover))
-      this.bgTexture.offset.set((1 - this.bgTexture.repeat.x) / 2, (1 - this.bgTexture.repeat.y) / 2)
+      backdrop.repeat.set(Math.min(1, 1 / cover), Math.min(1, cover))
+      backdrop.offset.set((1 - backdrop.repeat.x) / 2, (1 - backdrop.repeat.y) / 2)
     }
     this.cube.resize(pr, h)
     this.styles?.setDustBase(pr * 1.4)
@@ -374,13 +396,8 @@ export class ParticleFace {
       this.vikiCube.applyConfig(this.config)
       this.group.add(this.vikiCube.group)
     }
-    if (style === 'viki' && !this.bgTexture) {
-      this.bgTexture = new THREE.TextureLoader().load(`${import.meta.env.BASE_URL}images/viki-hall.png`, () => this.resize())
-      this.bgTexture.colorSpace = THREE.SRGBColorSpace
-      this.bgTexture.center.set(0.5, 0.5)
-    }
     // The hall backdrop belongs to the VIKI scene only.
-    this.scene.background = style === 'viki' ? this.bgTexture : null
+    this.scene.background = style === 'viki' ? this.backdropTexture() : null
     if (this.vikiCube) this.vikiCube.group.visible = style === 'viki'
     const s = this.styles
     this.cube.group.visible = style === 'lattice' && !new URLSearchParams(window.location.search).has('inspect')
@@ -587,7 +604,7 @@ export class ParticleFace {
     document.removeEventListener('visibilitychange', this.onVisibility)
     this.enclosure.dispose()
     this.vikiCube?.dispose()
-    this.bgTexture?.dispose()
+    for (const texture of this.backdrops.values()) texture.dispose()
     this.cube.dispose()
     this.styles?.dispose()
     this.portrait?.dispose()
