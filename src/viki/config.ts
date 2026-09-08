@@ -24,6 +24,9 @@ export interface HeadConfig {
   scatter: number // dust edge scatter
   dotSize: number // dust particle size
   cage: number // brightness of the surrounding cube/cage
+  cubeScale: number // overall scale of the cube in the scene
+  cubeX: number // horizontal placement of the cube
+  cubeY: number // vertical placement of the cube
   cubeDensity: number
   cubeDepth: number
   cubeGap: number
@@ -94,6 +97,9 @@ const SHAPE_DEFAULTS = {
 }
 
 const APPEARANCE_BASE = {
+  cubeScale: 1,
+  cubeX: 0,
+  cubeY: 0,
   optical: false,
   refraction: 0.65,
   diffusion: 0.70,
@@ -165,6 +171,9 @@ export const STYLE_DEFAULTS: Record<HeadStyle, HeadConfig> = {
     portraitDepth: 0,
     headScale: 0.5,
     headY: -0.59,
+    cubeScale: 0.55,
+    cubeX: -1.0,
+    cubeY: 0.45,
   },
 }
 
@@ -243,6 +252,9 @@ export const STYLE_GROUPS: Record<HeadStyle, SliderGroup> = {
   viki: {
     title: 'VIKI display',
     sliders: [
+      { key: 'cubeScale', label: 'Cube scale', min: 0.3, max: 1.2, step: 0.01 },
+      { key: 'cubeX', label: 'Cube position', min: -1.6, max: 1.6, step: 0.01 },
+      { key: 'cubeY', label: 'Cube height', min: -1.0, max: 1.2, step: 0.01 },
       { key: 'gain', label: 'Face brightness', min: 0.4, max: 2, step: 0.02 },
       { key: 'density', label: 'Tile density', min: 0.1, max: 1, step: 0.01 },
       { key: 'cellSize', label: 'Tile fill', min: 0.5, max: 1.4, step: 0.02 },

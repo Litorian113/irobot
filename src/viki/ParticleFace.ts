@@ -146,6 +146,7 @@ export class ParticleFace {
   private cube: DataCube
   private enclosure = new OpticalEnclosure()
   private vikiCube: VikiCube | null = null
+  private bgTexture: THREE.Texture | null = null
   private headUniforms = createHeadUniforms()
   private facePass = new FacePass(this.headUniforms, 256)
   private styles: StyleSet | null = null
@@ -282,6 +283,13 @@ export class ParticleFace {
       ? Math.max(4.9, 1.42 + 2.65 / (2 * Math.tan(halfFov) * this.camera.aspect))
       : Math.max(CAM_DIST, 1.0 + 2.3 / (2 * Math.tan(halfFov) * this.camera.aspect))
     this.camera.updateProjectionMatrix()
+    // Cover-fit the hall backdrop: crop instead of stretching.
+    const image = this.bgTexture?.image as { width?: number; height?: number } | undefined
+    if (this.bgTexture && image?.width && image.height) {
+      const cover = (w / h) / (image.width / image.height)
+      this.bgTexture.repeat.set(Math.min(1, 1 / cover), Math.min(1, cover))
+      this.bgTexture.offset.set((1 - this.bgTexture.repeat.x) / 2, (1 - this.bgTexture.repeat.y) / 2)
+    }
     this.cube.resize(pr, h)
     this.styles?.setDustBase(pr * 1.4)
   }
@@ -352,6 +360,13 @@ export class ParticleFace {
       this.vikiCube.applyConfig(this.config)
       this.group.add(this.vikiCube.group)
     }
+    if (style === 'viki' && !this.bgTexture) {
+      this.bgTexture = new THREE.TextureLoader().load(`${import.meta.env.BASE_URL}images/viki-hall.png`, () => this.resize())
+      this.bgTexture.colorSpace = THREE.SRGBColorSpace
+      this.bgTexture.center.set(0.5, 0.5)
+    }
+    // The hall backdrop belongs to the VIKI scene only.
+    this.scene.background = style === 'viki' ? this.bgTexture : null
     if (this.vikiCube) this.vikiCube.group.visible = style === 'viki'
     const s = this.styles
     this.cube.group.visible = style === 'lattice' && !new URLSearchParams(window.location.search).has('inspect')
@@ -481,7 +496,8 @@ export class ParticleFace {
     const isViki = this.style === 'viki'
     this.group.rotation.y = FROZEN ? THREE.MathUtils.degToRad(reviewNumber('yaw', isViki ? 45 : 0)) : (isViki ? Math.PI / 4 : this.config.optical ? 0 : Math.sin(t * 0.18) * 0.08) + this.yaw
     this.group.rotation.x = FROZEN ? THREE.MathUtils.degToRad(reviewNumber('pitch', isViki ? -4 : 0)) : (isViki ? -0.07 : this.config.optical ? 0 : Math.sin(t * 0.13) * 0.03) + this.pitch
-    this.group.scale.setScalar(FROZEN || this.config.optical || isViki ? 1 : 1 + Math.sin(t * 0.9) * 0.006)
+    this.group.scale.setScalar((FROZEN || this.config.optical || isViki ? 1 : 1 + Math.sin(t * 0.9) * 0.006) * (isViki ? this.config.cubeScale : 1))
+    this.group.position.set(isViki ? this.config.cubeX : 0, isViki ? this.config.cubeY : 0, 0)
 
     const t0 = performance.now()
     this.headLight?.render(this.renderer, isViki)
