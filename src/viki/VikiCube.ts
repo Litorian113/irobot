@@ -26,14 +26,13 @@ void main() {
   float faceLight = pow(max(light, 0.0), 1.12) * uFormation;
   // Keep the sockets dark: moving data there stays much weaker than on the lit face.
   float field = uField * (face.r * mix(1.0, 0.12, face.b * uFormation) + 0.002);
-  float energy = field + faceLight * 1.65;
   float boundary = min(min(vUv.x, 1.0 - vUv.x), min(vUv.y, 1.0 - vUv.y));
   float edge = smoothstep(0.0, 0.024, boundary);
-  energy *= edge;
 
   // Silvery green-gray phosphor on a nearly black optical substrate.
   vec3 tint = mix(uSilver, uHighlight, smoothstep(0.25, 0.75, faceLight) * 0.65);
-  vec3 color = tint * energy * uGain;
+  // Face brightness is independent of the surrounding matrix (Background tiles).
+  vec3 color = (tint * faceLight * 1.65 * uGain + uSilver * field) * edge;
   // Lift the space around the portrait without filling its dark eye sockets.
   color += uShadow * (0.004 + 0.018 * (1.0 - face.b * uFormation) + field * 0.08) * edge;
   gl_FragColor = vec4(color, 1.0);

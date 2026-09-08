@@ -70,6 +70,9 @@ The default corner view exposes two faces; dragging reveals the back, sides, top
 Individual tiles vary in size and intensity. Multiple short, 3–5-cell light trails turn left, right, up and down along
 independent paths, suggesting local refreshes of the image. They run across the head tiles, data layers and inner walls.
 The tiles are attached to the head's 3D surface, so they follow its contours and speech movements.
+Four transparent matrix layers share that same tile spacing, fill and moving light pattern, extending it in front of
+and behind the head. Their different depths produce parallax, while the inner walls continue the grid around the sides
+and floor. Feathered edges and uneven brightness let parts of the enclosure disappear into darkness.
 Local transmission diffusion and restrained bloom soften the light without bending the face. Background
 cells remain visible after the face dissolves; the eye sockets stay dark while it is present. The background is a dark
 blue-gray, with a small lift in the space around the face instead of a completely black surround.
@@ -77,16 +80,23 @@ blue-gray, with a small lift in the space around the face instead of a completel
 **Configure → VIKI display** offers **Pixel movement**, **Flow speed**, **Tile density**, **Tile fill**, **Background tiles**,
 **Cube depth**, **Head recess**, **Tile diffusion**, brightness and bloom. Head recess moves the whole head farther
 behind the window; Cube depth changes the outer enclosure's proportions. Set Pixel movement to zero to remove the animated light layer.
+**Background tiles** controls the surrounding matrix independently of **Face brightness**, so a dimmer head does not
+erase the cube. Defaults match the selected reference settings: face brightness **0.40**, density **0.51**, tile fill
+**0.78**, pixel movement **1.00**, flow speed **0.70**, background tiles **0.70**, cube depth **1.00**, head recess **0.00**,
+diffusion **0.40**, bloom **0.46**, key elevation **50°**, shadow fill **0.01**, head size **0.380** and height **−0.46**.
+Shape adjustments remain zero. Existing saved settings are preserved; use **Reset to standard** to adopt the new preset.
 Save/Reset apply only to VIKI (`viki.config.v5.viki`). Dust and Lattice retain their existing defaults and materials.
 The extra scene is allocated only when VIKI is first selected. It shares the original geometry and pose array.
 Only windows facing the viewer render their interiors (up to three passes), into targets capped at 640²; hidden windows
 skip rendering. This costs more GPU work than the previous flat portraits. No extra portrait passes run in Dust or Lattice.
+The four matrix layers use one instanced draw per visible window (eight triangles), sharing the existing pixel-chain
+texture and render targets. They add no new full-scene passes or render targets, and do not reduce existing particle counts.
 Preview without connecting: `?style=viki&preview=neutral`; use `&mouth=0` to inspect only the moving tiles.
 
 The VIKI shadow pass reuses its 1024² map when its exact geometry, pose and light inputs are unchanged. Speaking,
 blinking, shape edits and light movement invalidate it; viewing-camera movement and pixel flow do not. The invisible
-head is not submitted at formation zero, while all 19,040 interior data particles remain. Resolution, geometry,
-particle counts, bloom settings and frame-rate targets are unchanged.
+head is not submitted at formation zero, while all 19,040 interior data particles remain. That optimization preserves
+resolution, head geometry, particle counts and frame-rate targets.
 
 Chain motion shares one 128² RG texture between the materials. It uploads only when the chains advance a cell;
 interpolation between steps runs on the GPU. Renderer teardown explicitly releases the post-processing passes and
@@ -224,6 +234,7 @@ shutdown. It uses the same browser environment variables and makes no API calls.
 - `src/viki/DataCube.ts` — staggered rectangular cell volume, face occlusion and cube controls
 - `src/viki/VikiCube.ts` — six mirrored portrait displays with local tile diffusion and travelling pixel light
 - `src/viki/VikiInterior.ts` — shared 3D head, surface tiles and spatial data layers viewed through the cube windows
+- `src/viki/VikiMatrix.ts` / `VikiTiles.ts` — transparent matrix depth layers and tile pattern shared with the head
 - `src/viki/PixelChains.ts` — deterministic turning cell trails and their shared two-frame texture
 - `src/viki/sampleSurface.ts` — surface sampling that preserves the morphs for Dust
 - `src/viki/styles.ts` — contour / dots / plasma / dust materials and their post passes

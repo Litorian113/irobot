@@ -2,6 +2,8 @@ import * as THREE from 'three'
 import { HEAD_DEFORM_GLSL, HEAD_MORPH_GLSL, HEAD_MORPH_INPUT_GLSL, HEAD_PAINT_GLSL, HEAD_UNIFORMS_GLSL, type HeadUniforms } from './headShader'
 import type { HeadConfig } from './config'
 import { PixelChains, PIXEL_CHAINS_GLSL } from './PixelChains'
+import { VIKI_TILES_GLSL } from './VikiTiles'
+import { VikiMatrix } from './VikiMatrix'
 
 const headVertex = /* glsl */ `
 ${HEAD_UNIFORMS_GLSL}
@@ -28,19 +30,7 @@ ${HEAD_UNIFORMS_GLSL}
 ${HEAD_PAINT_GLSL}
 varying float vFeature, vHair;
 varying vec3 vLocal, vNormal, vHeadPosition, vPattern;
-uniform float uFlow, uDensity, uCellSize;
-${PIXEL_CHAINS_GLSL}
-float tileLight(vec2 point) {
-  vec2 grid = point * vec2(uDensity, uDensity * 1.16) * 0.5;
-  vec2 id = floor(grid), p = abs(fract(grid) - 0.5);
-  float footprint = max(length(dFdx(grid)), length(dFdy(grid)));
-  float grain = mix(hashH(vec3(id, 7.0)), 0.57735, smoothstep(0.8, 1.8, footprint));
-  vec2 radius = clamp(vec2(0.32, 0.39) * uCellSize * mix(0.78, 1.08, grain), vec2(0.17), vec2(0.46));
-  vec2 aa = max(fwidth(grid) * 0.6, vec2(0.035));
-  vec2 tile = 1.0 - smoothstep(radius - aa, radius + aa, p);
-  float aperture = mix(tile.x * tile.y, 4.0 * radius.x * radius.y, smoothstep(0.8, 1.5, footprint));
-  return (0.10 + 0.9 * aperture) * (0.3 + 1.25 * grain * grain + uFlow * chainLight(id) * 1.25);
-}
+${VIKI_TILES_GLSL}
 void main() {
   if (headCoverage(vLocal) < 0.5) discard;
   float cavity, maskv;
@@ -61,8 +51,13 @@ export class VikiInterior {
   private cells: THREE.Points
   private cellMaterial: THREE.ShaderMaterial
   private room: THREE.Mesh
+  private matrix: VikiMatrix
   private headUniforms: HeadUniforms
   private chains = new PixelChains()
+  private tileUniforms = {
+    ...this.chains.uniforms,
+    uFlow: { value: 1 }, uDensity: { value: 83.7 }, uCellSize: { value: 0.78 },
+  }
   private flow = 0.55
   private speed = 0.7
 
@@ -71,8 +66,7 @@ export class VikiInterior {
     this.headMaterial = new THREE.ShaderMaterial({
       vertexShader: headVertex, fragmentShader: headFragment,
       uniforms: {
-        ...head, ...this.chains.uniforms, uRecess: { value: 0.4 },
-        uFlow: { value: 0.55 }, uDensity: { value: 97 }, uCellSize: { value: 1 },
+        ...head, ...this.tileUniforms, uRecess: { value: 0 },
       },
       depthWrite: true, depthTest: true,
     })
@@ -121,31 +115,28 @@ export class VikiInterior {
     this.cells = new THREE.Points(geometry, this.cellMaterial)
     this.cells.frustumCulled = false
 
-    // Quiet inner walls/floor provide perspective cues around the floating head.
+    this.matrix = new VikiMatrix(this.tileUniforms)
+
+    // Walls continue the same tile matrix around the head, into the sides and floor.
     this.room = new THREE.Mesh(new THREE.BoxGeometry(2, 2, 1.8), new THREE.ShaderMaterial({
-      uniforms: { ...this.chains.uniforms, uFlow: { value: 0.55 } },
+      uniforms: this.tileUniforms,
       vertexShader: /* glsl */ `
         varying vec3 vPosition, vNormal;
         void main() { vPosition = position; vNormal = normal; gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }`,
       fragmentShader: /* glsl */ `
         varying vec3 vPosition, vNormal;
-        uniform float uFlow;
-        ${PIXEL_CHAINS_GLSL}
+        ${VIKI_TILES_GLSL}
         void main() {
           vec3 n = abs(vNormal);
           vec2 uv = n.x > 0.5 ? vPosition.zy : n.y > 0.5 ? vPosition.xz : vPosition.xy;
-          vec2 grid = uv * vec2(24.0, 28.0);
-          vec2 p = abs(fract(grid) - 0.5);
-          vec2 aa = max(fwidth(grid) * 0.6, vec2(0.02));
-          vec2 tile = 1.0 - smoothstep(vec2(0.3) - aa, vec2(0.3) + aa, p);
           float fade = 0.35 + 0.65 * pow(0.5 + 0.5 * sin(uv.x * 4.0) * cos(uv.y * 5.0), 2.0);
-          float refresh = 1.0 + uFlow * chainLight(grid + n.xy * 37.0) * 2.5;
-          gl_FragColor = vec4((0.005 + tile.x * tile.y * 0.038) * fade * refresh, 0.0, 0.0, 1.0);
+          vec2 point = (uv + vec2(0.0, 0.06)) / 1.08;
+          gl_FragColor = vec4((0.001 + tileLight(point) * 0.045) * fade, 0.0, 0.0, 1.0);
         }`,
       side: THREE.BackSide,
     }))
     this.room.position.z = -0.9
-    this.scene.add(this.room, this.cells)
+    this.scene.add(this.room, this.cells, this.matrix)
   }
 
   setGeometry(geometry: THREE.BufferGeometry, influences: number[]) {
@@ -156,7 +147,10 @@ export class VikiInterior {
     this.scene.add(this.head)
   }
 
-  setMirror(mirror: boolean) { if (this.head) this.head.scale.x = mirror ? -1 : 1 }
+  setMirror(mirror: boolean) {
+    if (this.head) this.head.scale.x = mirror ? -1 : 1
+    this.matrix.scale.x = mirror ? -1 : 1
+  }
 
   applyConfig(cfg: HeadConfig) {
     const u = this.headMaterial.uniforms
@@ -165,7 +159,6 @@ export class VikiInterior {
     u.uDensity.value = 48 + 70 * cfg.density
     u.uCellSize.value = cfg.cellSize
     this.cellMaterial.uniforms.uFlow.value = cfg.dataFlow ?? 0.55
-    ;(this.room.material as THREE.ShaderMaterial).uniforms.uFlow.value = cfg.dataFlow ?? 0.55
     this.flow = cfg.dataFlow ?? 0.55
     this.speed = cfg.flowSpeed ?? 0.7
   }
@@ -179,6 +172,7 @@ export class VikiInterior {
 
   dispose() {
     this.headMaterial.dispose()
+    this.matrix.dispose()
     this.chains.dispose()
     this.cellMaterial.dispose()
     this.cells.geometry.dispose()

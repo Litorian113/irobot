@@ -73,7 +73,7 @@ try {
 
   const disposal = await page.evaluate(async () => {
     const f = window.__vikiFace, passes = f.composer.passes
-    let disposedPasses = 0, bloomTargets = 0, chainTexture = 0, subsequentRenders = 0
+    let disposedPasses = 0, bloomTargets = 0, chainTexture = 0, matrixResources = 0, subsequentRenders = 0
     for (const pass of passes) {
       const dispose = pass.dispose.bind(pass)
       pass.dispose = () => { disposedPasses++; dispose() }
@@ -82,15 +82,20 @@ try {
       target.addEventListener('dispose', () => bloomTargets++)
     }
     f.vikiCube.interior.chains.texture.addEventListener('dispose', () => chainTexture++)
+    const matrix = f.vikiCube.interior.matrix
+    for (const resource of [matrix, matrix.geometry, matrix.material]) {
+      resource.addEventListener('dispose', () => matrixResources++)
+    }
     const render = f.renderer.render.bind(f.renderer)
     f.renderer.render = (...args) => { subsequentRenders++; return render(...args) }
     f.dispose(); f.dispose()
     await new Promise((resolve) => setTimeout(resolve, 250))
-    return { disposedPasses, expected: passes.length, bloomTargets, chainTexture, subsequentRenders }
+    return { disposedPasses, expected: passes.length, bloomTargets, chainTexture, matrixResources, subsequentRenders }
   })
   assert.equal(disposal.disposedPasses, disposal.expected)
   assert.equal(disposal.bloomTargets, 11)
   assert.equal(disposal.chainTexture, 1)
+  assert.equal(disposal.matrixResources, 3, 'Matrix instance buffer, geometry and material are disposed once')
   assert.equal(disposal.subsequentRenders, 0, 'Disposal stops the render loop')
   assert.deepEqual(errors, [])
   console.log('PASS: identical cached shadows, invalidation, unchanged particle count, stable resources, disposed passes and stopped render loop.', { warm, disposal })

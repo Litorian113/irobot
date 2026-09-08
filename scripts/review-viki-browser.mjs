@@ -64,19 +64,40 @@ try {
   // Read the window texture itself: moving the viewer must change its contents,
   // not merely the screen projection of a flat image on a rotating plane.
   await visit('style=viki&preview=neutral&mouth=0&freeze=1&yaw=0&pitch=0')
+  const preset = {
+    gain: 0.4, density: 0.51, cellSize: 0.78, dataFlow: 1, flowSpeed: 0.7,
+    cage: 0.7, cubeDepth: 1, portraitDepth: 0, diffusion: 0.4, bloom: 0.46,
+    lightElevation: 50, lightFill: 0.01, headScale: 0.38, headY: -0.46,
+    oval: 0, jawWidth: 0, chin: 0, cheek: 0, browRidge: 0, noseSize: 0,
+  }
+  const config = await page.evaluate(() => window.__vikiFace.config)
+  for (const [key, value] of Object.entries(preset)) assert.equal(config[key], value, `VIKI default: ${key}`)
   const readInterior = () => page.evaluate(() => {
     const f = window.__vikiFace, target = f.vikiCube.views[0].target
     const pixels = new Uint16Array(target.width * target.height * 4)
     f.renderer.readRenderTargetPixels(target, 0, 0, target.width, target.height, pixels)
-    let hash = 2166136261, lit = 0
+    let hash = 2166136261, fieldHash = 2166136261, lit = 0
     for (let i = 1; i < pixels.length; i += 4) {
       hash = Math.imul(hash ^ pixels[i], 16777619) >>> 0
+      fieldHash = Math.imul(fieldHash ^ pixels[i - 1], 16777619) >>> 0
       if (pixels[i] > 0) lit++
     }
-    return { hash, lit }
+    return { hash, fieldHash, lit }
   })
   const headOn = await readInterior()
   assert.ok(headOn.lit > 100, 'The interior render contains visible head pixels')
+  await page.evaluate(() => { window.__vikiFace.vikiCube.interior.matrix.visible = false })
+  await pause(150)
+  const withoutMatrix = await readInterior()
+  assert.equal(withoutMatrix.hash, headOn.hash, 'Transparent matrix preserves the rendered head luminance exactly')
+  assert.notEqual(withoutMatrix.fieldHash, headOn.fieldHash, 'Matrix contributes visible tiles to the spatial field')
+  await page.evaluate(() => { window.__vikiFace.vikiCube.interior.matrix.visible = true })
+  assert.equal(await page.evaluate(() => {
+    const interior = window.__vikiFace.vikiCube.interior
+    const matrix = interior.matrix, u = matrix.material.uniforms, head = interior.headMaterial.uniforms
+    return matrix.count === 4 && matrix.material.transparent && !matrix.material.depthWrite
+      && u.uDensity === head.uDensity && u.uCellSize === head.uCellSize && u.uChains === head.uChains
+  }), true, 'Four transparent depth slices share the face tile spacing, fill and pixel chains')
   await page.evaluate(() => { window.__vikiFace.camera.position.x = 0.6 })
   await pause(250)
   assert.notEqual((await readInterior()).hash, headOn.hash, 'The rendered head changes perspective inside the fixed window')
@@ -162,5 +183,5 @@ try {
   await shot('mobile')
   assert.deepEqual(errors, [])
   assert.deepEqual(external, [])
-  console.log('PASS: six 3D windows, rendered head parallax, shared lip poses, moving/stopped pixels, dissolve, recess controls, persistence, style isolation, drag and mobile framing.')
+  console.log('PASS: six 3D windows, head parallax, transparent matrix preserving head light, screenshot defaults, shared lip poses, moving/stopped pixels, dissolve, persistence, style isolation, drag and mobile framing.')
 } finally { await browser.close() }
