@@ -276,12 +276,14 @@ export class ParticleFace {
   }
 
   private backdropTexture(): THREE.Texture {
-    let texture = this.backdrops.get(this.backdropName)
+    // Phones get the portrait cut of the hall, whichever desktop hall is chosen.
+    const name = this.narrow ? 'mobile-bg' : this.backdropName
+    let texture = this.backdrops.get(name)
     if (!texture) {
-      texture = new THREE.TextureLoader().load(`${import.meta.env.BASE_URL}images/${this.backdropName}.png`, () => this.resize())
+      texture = new THREE.TextureLoader().load(`${import.meta.env.BASE_URL}images/${name}.png`, () => this.resize())
       texture.colorSpace = THREE.SRGBColorSpace
       texture.center.set(0.5, 0.5)
-      this.backdrops.set(this.backdropName, texture)
+      this.backdrops.set(name, texture)
     }
     return texture
   }
@@ -327,9 +329,10 @@ export class ParticleFace {
       const cover = (w / h) / (image.width / image.height)
       backdrop.repeat.set(Math.min(1, 1 / cover), Math.min(1, cover))
       // On narrow screens, crop towards the hall's light beam instead of the centre.
-      const focus = this.narrow ? (this.backdropName === 'viki-hall' ? 0.28 : 0.5) : 0.5
+      const focus = backdrop === this.backdrops.get('viki-hall') && this.narrow ? 0.28 : 0.5
       backdrop.offset.set((1 - backdrop.repeat.x) * focus, (1 - backdrop.repeat.y) / 2)
     }
+    if (this.style === 'viki') this.scene.background = this.backdropTexture()
     this.cube.resize(pr, h)
     this.styles?.setDustBase(pr * 1.4)
   }
@@ -541,7 +544,7 @@ export class ParticleFace {
     const isViki = this.style === 'viki'
     this.group.rotation.y = FROZEN ? THREE.MathUtils.degToRad(reviewNumber('yaw', isViki ? 45 : 0)) : (isViki ? Math.PI / 4 : this.config.optical ? 0 : Math.sin(t * 0.18) * 0.08) + this.yaw
     this.group.rotation.x = FROZEN ? THREE.MathUtils.degToRad(reviewNumber('pitch', isViki ? -4 : 0)) : (isViki ? -0.07 : this.config.optical ? 0 : Math.sin(t * 0.13) * 0.03) + this.pitch
-    this.group.scale.setScalar((FROZEN || this.config.optical || isViki ? 1 : 1 + Math.sin(t * 0.9) * 0.006) * (isViki ? this.config.cubeScale : 1))
+    this.group.scale.setScalar((FROZEN || this.config.optical || isViki ? 1 : 1 + Math.sin(t * 0.9) * 0.006) * (isViki ? this.config.cubeScale * (this.narrow ? 1.3 : 1) : 1))
     this.group.position.set(isViki && !this.narrow ? this.config.cubeX : 0, isViki ? this.config.cubeY : 0, 0)
 
     const t0 = performance.now()
