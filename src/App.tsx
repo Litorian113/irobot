@@ -15,7 +15,7 @@ import {
 import { LipSync } from './viki/lipsync'
 import { SpeechOutput } from './viki/SpeechOutput'
 import { fixedViseme, VISEMES } from './viki/visemes'
-import { connectRealtime, listMicrophones, type MicInfo, type RealtimeSession, type VoiceStatus } from './viki/realtime'
+import { connectRealtime, type RealtimeSession, type VoiceStatus } from './viki/realtime'
 
 const API_KEY = import.meta.env.VITE_OPENAI_API_KEY as string | undefined
 
@@ -28,16 +28,6 @@ const STYLE_PARAM = new URLSearchParams(window.location.search).get('style') as 
 
 function initialStyle(): HeadStyle {
   return STYLE_PARAM && STYLES.some((s) => s.id === STYLE_PARAM) ? STYLE_PARAM : loadStyle()
-}
-
-const MIC_STORAGE_KEY = 'viki.mic'
-
-function loadMicChoice(): string {
-  try {
-    return localStorage.getItem(MIC_STORAGE_KEY) ?? ''
-  } catch {
-    return ''
-  }
 }
 
 const STATUS_LABEL: Record<VoiceStatus, string> = {
@@ -81,14 +71,12 @@ export default function App() {
   const connectionEpoch = useRef(0)
   const micLipRef = useRef<LipSync | null>(null)
   const relaxTimer = useRef<number | undefined>(undefined)
-  const meterRef = useRef<HTMLSpanElement>(null)
+  const orbRef = useRef<HTMLButtonElement>(null)
 
   const [status, setStatus] = useState<VoiceStatus>('idle')
   const [assistantText, setAssistantText] = useState('')
   const [userText, setUserText] = useState('')
   const [error, setError] = useState<string | null>(null)
-  const [mics, setMics] = useState<MicInfo[]>([])
-  const [micId, setMicId] = useState<string>(loadMicChoice)
 
   // head style tabs + per-style configurator
   const [style, setStyle] = useState<HeadStyle>(initialStyle)
@@ -201,58 +189,18 @@ export default function App() {
     faceRef.current?.resetView()
   }, [style])
 
-  // Mic meter while connected (writes to the DOM directly: no React re-render per frame)
+  // Mic level drives the orb's glow (writes to the DOM directly: no React re-render per frame)
   useEffect(() => {
-    if (status === 'idle' || status === 'error') return
-    const meter = meterRef.current
+    const orb = orbRef.current
+    if (status === 'idle' || status === 'error') {
+      orb?.style.setProperty('--level', '0')
+      return
+    }
     const id = window.setInterval(() => {
-      if (!meter || !micLipRef.current) return
-      meter.style.transform = `scaleX(${0.08 + micLipRef.current.level() * 0.92})`
+      orb?.style.setProperty('--level', (micLipRef.current?.level() ?? 0).toFixed(3))
     }, 66)
     return () => window.clearInterval(id)
   }, [status])
-
-  // Refresh the microphone list (labels only appear once permission was granted)
-  const refreshMics = useCallback(async (activeStream?: MediaStream) => {
-    try {
-      const list = await listMicrophones()
-      setMics(list)
-      const activeLabel = activeStream?.getAudioTracks()[0]?.label
-      const active = list.find((m) => m.label === activeLabel)
-      if (active) setMicId(active.deviceId)
-    } catch {
-      /* enumerateDevices unavailable */
-    }
-  }, [])
-
-  useEffect(() => {
-    const initial = window.setTimeout(() => void refreshMics(), 0)
-    const onChange = () => void refreshMics(sessionRef.current?.micStream)
-    navigator.mediaDevices?.addEventListener('devicechange', onChange)
-    return () => {
-      window.clearTimeout(initial)
-      navigator.mediaDevices?.removeEventListener('devicechange', onChange)
-    }
-  }, [refreshMics])
-
-  const chooseMic = useCallback(async (deviceId: string) => {
-    setMicId(deviceId)
-    try {
-      localStorage.setItem(MIC_STORAGE_KEY, deviceId)
-    } catch {
-      /* ignore */
-    }
-    const session = sessionRef.current
-    const ctx = audioCtxRef.current
-    if (!session || !ctx) return
-    try {
-      const stream = await session.setMicrophone(deviceId)
-      micLipRef.current?.dispose()
-      micLipRef.current = new LipSync(ctx, stream)
-    } catch (e) {
-      setError(`Could not switch microphone: ${e instanceof Error ? e.message : String(e)}`)
-    }
-  }, [])
 
   const disconnect = useCallback(() => {
     connectionEpoch.current++
@@ -316,12 +264,10 @@ export default function App() {
             setStatus('error')
           },
         },
-        micId || undefined,
       )
       if (epoch !== connectionEpoch.current) { session.disconnect(); speech.dispose(); return }
       sessionRef.current = session
       micLipRef.current = new LipSync(ctx, session.micStream)
-      void refreshMics(session.micStream)
     } catch (e) {
       if (epoch !== connectionEpoch.current) return
       lipRef.current?.dispose()
@@ -331,7 +277,7 @@ export default function App() {
       await ctx.close().catch(() => {})
       audioCtxRef.current = null
     }
-  }, [micId, refreshMics, draft.speechDelay, disconnect])
+  }, [draft.speechDelay, disconnect])
 
   useEffect(() => () => disconnect(), [disconnect])
 
@@ -384,41 +330,41 @@ export default function App() {
         <footer className="hud-bottom">
           {error && <p className="error">{error}</p>}
           <div className="controls">
-            {!connected && !busy && !PREVIEW && (
-              <button type="button" className="btn ghost" aria-pressed={previewSpeech} onClick={() => setPreviewSpeech((v) => !v)}>
-                {previewSpeech ? 'Stop preview' : 'Preview animation'}
+            {!PREVIEW && (
+              <button
+                type="button"
+                ref={orbRef}
+                className={`mic-orb${connected ? ' live' : ''}${busy ? ' busy' : ''}`}
+                onClick={connected || busy ? disconnect : connect}
+                aria-label={connected || busy ? 'Shut her down' : 'Wake her up'}
+                title={connected || busy ? 'Shut her down' : 'Wake her up'}
+              >
+                <span className="ring r1" aria-hidden="true" />
+                <span className="ring r2" aria-hidden="true" />
+                <span className="pulse" aria-hidden="true" />
+                <span className="tick tn" aria-hidden="true" />
+                <span className="tick te" aria-hidden="true" />
+                <span className="tick ts" aria-hidden="true" />
+                <span className="tick tw" aria-hidden="true" />
+                <svg className="mic-glyph" viewBox="0 0 24 24" aria-hidden="true">
+                  <rect x="9" y="3" width="6" height="11" rx="3" />
+                  <path d="M6 11a6 6 0 0 0 12 0" fill="none" />
+                  <line x1="12" y1="17" x2="12" y2="20.5" />
+                </svg>
               </button>
             )}
-            {connected ? (
-              <>
-                <div className="meter" aria-hidden="true">
-                  <span ref={meterRef} />
-                </div>
-                <button type="button" className="btn ghost" onClick={disconnect}>
-                  Sever link
-                </button>
-              </>
-            ) : (
-              <button type="button" className="btn" onClick={connect} disabled={busy}>
-                {busy ? 'Establishing…' : 'Initiate link'}
+            {!connected && !busy && !PREVIEW && (
+              <button type="button" className="btn ghost small preview-toggle" aria-pressed={previewSpeech} onClick={() => setPreviewSpeech((v) => !v)}>
+                {previewSpeech ? 'Stop preview' : 'Preview'}
               </button>
             )}
           </div>
-          {mics.length > 0 && (
-            <label className="mic-select">
-              <span>Mic</span>
-              <select value={micId} onChange={(e) => void chooseMic(e.target.value)}>
-                {!mics.some((m) => m.deviceId === micId) && <option value="">Auto (built-in preferred)</option>}
-                {mics.map((m) => (
-                  <option key={m.deviceId} value={m.deviceId}>
-                    {m.label}
-                  </option>
-                ))}
-              </select>
-            </label>
-          )}
           <p className="hint">
-            {connected ? 'Speak. She is listening. Drag to turn the cube.' : 'Microphone access is required. Drag to turn the cube.'}
+            {connected
+              ? 'Speak. She is listening. Drag to turn the cube.'
+              : busy
+                ? 'Establishing link…'
+                : 'Tap the mic to wake her. Drag to turn the cube.'}
           </p>
         </footer>
 
