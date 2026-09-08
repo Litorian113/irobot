@@ -171,9 +171,9 @@ export const STYLE_DEFAULTS: Record<HeadStyle, HeadConfig> = {
     portraitDepth: 0,
     headScale: 0.5,
     headY: -0.59,
-    cubeScale: 0.55,
-    cubeX: -1.0,
-    cubeY: 0.45,
+    cubeScale: 0.44,
+    cubeX: -1.6,
+    cubeY: 0.64,
   },
 }
 
