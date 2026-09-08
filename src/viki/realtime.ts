@@ -43,8 +43,10 @@ async function openMic(deviceId?: string): Promise<MediaStream> {
 }
 
 /**
- * Opens the microphone. With no explicit choice, macOS often hands over a nearby iPhone
- * (Continuity); in that case we switch to the built-in mic when one exists.
+ * Opens the microphone. macOS often makes a nearby iPhone (Continuity) the default
+ * device, and merely opening it wakes the phone - so when device labels are already
+ * known, the built-in mic is selected by id up front and the phone is never touched.
+ * Only on a first-ever run (no labels yet) does the default open + switch fallback run.
  */
 async function openPreferredMic(preferredId?: string): Promise<MediaStream> {
   if (preferredId) {
@@ -53,6 +55,13 @@ async function openPreferredMic(preferredId?: string): Promise<MediaStream> {
     } catch {
       /* device gone — fall through to auto */
     }
+  }
+  try {
+    const labeled = (await listMicrophones()).filter((m) => m.label)
+    const builtin = labeled.find((m) => BUILTIN_RE.test(m.label)) ?? labeled.find((m) => !PHONE_RE.test(m.label))
+    if (builtin) return await openMic(builtin.deviceId)
+  } catch {
+    /* enumeration unavailable — fall through */
   }
   const stream = await openMic()
   const label = stream.getAudioTracks()[0]?.label ?? ''
