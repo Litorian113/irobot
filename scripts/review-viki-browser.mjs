@@ -53,11 +53,40 @@ try {
     await shot(name)
   }
   assert.equal(await page.evaluate(() => {
-    const f = window.__vikiFace, panels = f.vikiCube.group.children
-    return panels.length === 6 && panels.every((p) => p.material.uniforms.uFace.value === f.facePass.views.front.target.texture)
-      && f.facePass.head.morphTargetInfluences === f.rig.influences
-      && panels.filter((p) => p.material.uniforms.uMirror.value === 1).length === 3
-  }), true, 'All six panels share the live animated head, with alternating mirrored faces')
+    const f = window.__vikiFace, cube = f.vikiCube
+    return cube.views.length === 6 && new Set(cube.views.map((v) => v.target.texture)).size === 6
+      && cube.views.every((v) => v.panel.material.uniforms.uFace.value === v.target.texture)
+      && cube.interior.head.geometry === f.rig.geometry
+      && cube.interior.head.morphTargetInfluences === f.rig.influences
+      && cube.views.filter((v) => v.mirror).length === 3
+  }), true, 'Six perspective windows share the actual head geometry and pose, with alternating mirroring')
+
+  // Read the window texture itself: moving the viewer must change its contents,
+  // not merely the screen projection of a flat image on a rotating plane.
+  await visit('style=viki&preview=neutral&mouth=0&freeze=1&yaw=0&pitch=0')
+  const readInterior = () => page.evaluate(() => {
+    const f = window.__vikiFace, target = f.vikiCube.views[0].target
+    const pixels = new Uint16Array(target.width * target.height * 4)
+    f.renderer.readRenderTargetPixels(target, 0, 0, target.width, target.height, pixels)
+    let hash = 2166136261, lit = 0
+    for (let i = 1; i < pixels.length; i += 4) {
+      hash = Math.imul(hash ^ pixels[i], 16777619) >>> 0
+      if (pixels[i] > 0) lit++
+    }
+    return { hash, lit }
+  })
+  const headOn = await readInterior()
+  assert.ok(headOn.lit > 100, 'The interior render contains visible head pixels')
+  await page.evaluate(() => { window.__vikiFace.camera.position.x = 0.6 })
+  await pause(250)
+  assert.notEqual((await readInterior()).hash, headOn.hash, 'The rendered head changes perspective inside the fixed window')
+  assert.equal(await page.evaluate(() => {
+    const f = window.__vikiFace, cam = f.vikiCube.views[0].camera
+    const near = cam.position.clone().set(0, 0, -0.1).project(cam)
+    const far = cam.position.clone().set(0, 0, -1.5).project(cam)
+    return Math.abs(near.x - far.x) > 0.01
+  }), true, 'Front and rear layers have different parallax')
+  await shot('parallax-offset')
 
   const preview = 'style=viki&preview=neutral&mouth=0&freeze=1'
   const frames = []
@@ -91,8 +120,10 @@ try {
   // VIKI controls, discard/save, style isolation and camera restoration.
   await visit(preview)
   await click('Configure')
+  await slider('Head recess', 0.75)
   await slider('Pixel movement', 0.8)
   await click('Save')
+  assert.equal(await page.evaluate(() => window.__vikiFace.vikiCube.interior.headMaterial.uniforms.uRecess.value), 0.75)
   await slider('Flow speed', 1.4)
   await page.click('[aria-label="Close"]')
   assert.equal(await page.evaluate(() => window.__vikiFace.config.flowSpeed), 0.7, 'Closing discards unsaved flow settings')
@@ -106,6 +137,7 @@ try {
   const latticeCamera = await page.evaluate(() => window.__vikiFace.camera.position.z)
   await tab('viki')
   assert.equal(await page.evaluate(() => window.__vikiFace.config.dataFlow), 0.8)
+  assert.equal(await page.evaluate(() => window.__vikiFace.config.portraitDepth), 0.75)
   assert.equal(await page.evaluate(() => window.__vikiFace.enclosure.mesh.visible || window.__vikiFace.styles.dust.visible), false)
   await tab('dust')
   assert.deepEqual(await page.evaluate(() => window.__vikiFace.config), dustConfig)
@@ -130,5 +162,5 @@ try {
   await shot('mobile')
   assert.deepEqual(errors, [])
   assert.deepEqual(external, [])
-  console.log('PASS: six faces, shared lip poses, moving/stopped pixels, dissolve, controls, persistence, style isolation, drag and mobile framing.')
+  console.log('PASS: six 3D windows, rendered head parallax, shared lip poses, moving/stopped pixels, dissolve, recess controls, persistence, style isolation, drag and mobile framing.')
 } finally { await browser.close() }

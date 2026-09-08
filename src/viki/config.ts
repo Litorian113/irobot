@@ -38,6 +38,7 @@ export interface HeadConfig {
   filmGrain: number
   dataFlow?: number // VIKI only: travelling cell highlights
   flowSpeed?: number // VIKI only: speed of the travelling highlights
+  portraitDepth?: number // VIKI only: distance of the 3D head behind each window
   // head placement
   headScale: number
   headY: number
@@ -160,6 +161,7 @@ export const STYLE_DEFAULTS: Record<HeadStyle, HeadConfig> = {
     diffusion: 0.45,
     dataFlow: 0.55,
     flowSpeed: 0.7,
+    portraitDepth: 0.4,
   },
 }
 
@@ -245,6 +247,7 @@ export const STYLE_GROUPS: Record<HeadStyle, SliderGroup> = {
       { key: 'flowSpeed', label: 'Flow speed', min: 0, max: 2, step: 0.02 },
       { key: 'cage', label: 'Background tiles', min: 0, max: 1, step: 0.01 },
       { key: 'cubeDepth', label: 'Cube depth', min: 0.6, max: 1.3, step: 0.02 },
+      { key: 'portraitDepth', label: 'Head recess', min: 0, max: 1, step: 0.01 },
       { key: 'diffusion', label: 'Tile diffusion', min: 0, max: 1.5, step: 0.02 },
       { key: 'bloom', label: 'Bloom', min: 0, max: 1.5, step: 0.02 },
     ],

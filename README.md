@@ -61,19 +61,41 @@ Add `&blink=1` for closed lids (`0.5` for halfway), `&yaw=35&pitch=0` for rotati
 ## VIKI mirrored display
 
 The independent **VIKI** tab uses muted silver, green-gray shadows and slightly warm highlights. Six outward-facing
-tiled surfaces display the same live frontal portrait, mirrored on alternating faces. Mouth poses, blinks and expressions
-stay synchronized. This is an artistic mirrored display, rather than a ray-traced reflection of a head inside glass.
+tiled windows look into a 3D interior containing the actual animated head, mirrored on alternating faces. Mouth poses,
+blinks and expressions stay synchronized. Each visible window renders its own perspective from the viewer's position,
+so the nose, cheeks, foreground cells and rear layers have different parallax. Approximate refraction moderates grazing
+angles. These are views into a shared virtual scene, rather than ray-traced reflections between physical mirrors.
 The default corner view exposes two faces; dragging reveals the back, sides, top and bottom.
 
-Individual tiles vary in size and intensity. Soft light packets travel along their columns, with a weaker shifting
-pattern across rows. Local tile diffusion and restrained bloom soften the light without bending the face. Background
-cells remain visible after the face dissolves; the eye sockets stay dark while it is present.
+Individual tiles vary in size and intensity. Multiple short, 3–5-cell light trails turn left, right, up and down along
+independent paths, suggesting local refreshes of the image. They run across the head tiles, data layers and inner walls.
+The tiles are attached to the head's 3D surface, so they follow its contours and speech movements.
+Local transmission diffusion and restrained bloom soften the light without bending the face. Background
+cells remain visible after the face dissolves; the eye sockets stay dark while it is present. The background is a dark
+blue-gray, with a small lift in the space around the face instead of a completely black surround.
 
 **Configure → VIKI display** offers **Pixel movement**, **Flow speed**, **Tile density**, **Tile fill**, **Background tiles**,
-**Cube depth**, **Tile diffusion**, brightness and bloom. Set Pixel movement to zero to remove the animated light layer.
+**Cube depth**, **Head recess**, **Tile diffusion**, brightness and bloom. Head recess moves the whole head farther
+behind the window; Cube depth changes the outer enclosure's proportions. Set Pixel movement to zero to remove the animated light layer.
 Save/Reset apply only to VIKI (`viki.config.v5.viki`). Dust and Lattice retain their existing defaults and materials.
-The extra display meshes are allocated only when VIKI is first selected, and share one portrait render per frame.
+The extra scene is allocated only when VIKI is first selected. It shares the original geometry and pose array.
+Only windows facing the viewer render their interiors (up to three passes), into targets capped at 640²; hidden windows
+skip rendering. This costs more GPU work than the previous flat portraits. No extra portrait passes run in Dust or Lattice.
 Preview without connecting: `?style=viki&preview=neutral`; use `&mouth=0` to inspect only the moving tiles.
+
+The VIKI shadow pass reuses its 1024² map when its exact geometry, pose and light inputs are unchanged. Speaking,
+blinking, shape edits and light movement invalidate it; viewing-camera movement and pixel flow do not. The invisible
+head is not submitted at formation zero, while all 19,040 interior data particles remain. Resolution, geometry,
+particle counts, bloom settings and frame-rate targets are unchanged.
+
+Chain motion shares one 128² RG texture between the materials. It uploads only when the chains advance a cell;
+interpolation between steps runs on the GPU. Renderer teardown explicitly releases the post-processing passes and
+their targets as well as the chain texture. Hidden tabs already pause the animation loop.
+
+A bounded local still-pose comparison at 1000²/DPR 1 reduced submitted triangles from 114,939 to 76,643 per frame
+by eliminating redundant shadow draws, with a pixel-identical output before the requested visual changes. That is
+about 33% less triangle submission in that case, not a measurement of total GPU time or temperature. During speech
+the shadow map still needs frequent updates; multi-view rendering and bloom remain significant GPU work.
 
 ## Analog optical enclosure
 
@@ -184,9 +206,12 @@ to verify remote-track detection, output and mouth closure. All tests block exte
 `scripts/review-realtime-browser.mjs` separately checks start/end/interruption events and failed-handshake cleanup
 with a simulated connection and the same browser setup.
 
-`scripts/review-viki-browser.mjs` checks all six display faces, shared lip poses, moving/stopped pixels, dissolve,
+`scripts/review-viki-browser.mjs` checks all six windows, rendered parallax, shared lip poses, moving/stopped pixels, dissolve,
 VIKI controls and saved settings, switching back to Dust/Lattice, pointer rotation and mobile framing. It uses the same
 browser environment variables, blocks external requests and saves screenshots to `/tmp/viki-cube-review` by default.
+`scripts/review-viki-performance.mjs` checks cached/full shadow image equivalence, invalidation on pose/shape/light
+changes, unchanged particle count, stable GPU resource counts across style switches, pass disposal and render-loop
+shutdown. It uses the same browser environment variables and makes no API calls.
 
 ## Layout
 
@@ -198,6 +223,8 @@ browser environment variables, blocks external requests and saves screenshots to
 - `src/viki/FacePass.ts` — depth/luminance/mask texture for the cube; four views in debug mode
 - `src/viki/DataCube.ts` — staggered rectangular cell volume, face occlusion and cube controls
 - `src/viki/VikiCube.ts` — six mirrored portrait displays with local tile diffusion and travelling pixel light
+- `src/viki/VikiInterior.ts` — shared 3D head, surface tiles and spatial data layers viewed through the cube windows
+- `src/viki/PixelChains.ts` — deterministic turning cell trails and their shared two-frame texture
 - `src/viki/sampleSurface.ts` — surface sampling that preserves the morphs for Dust
 - `src/viki/styles.ts` — contour / dots / plasma / dust materials and their post passes
 - `src/viki/config.ts` — configurator settings, defaults, persistence

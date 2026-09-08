@@ -114,3 +114,22 @@ dieselbe live animierte Frontalansicht, auf benachbarten Seiten gespiegelt. Lich
 ohne die Gesichtsgeometrie zu verzerren. Eigene Regler für Bewegung, Geschwindigkeit, Kacheln, Diffusion und Farbe;
 eigener Speicherbereich. Startansicht über die Würfelkante, weiterhin frei drehbar und im Ruhezustand ohne Gesicht.
 Dust bleibt für spätere Arbeiten unverändert. Browserprüfung: `scripts/review-viki-browser.mjs`.
+
+### Tiefenwirkung der VIKI-Seiten
+
+Die flachen Frontalbilder wurden durch Fenster in eine echte 3D-Szene ersetzt. Jede sichtbare Seite erhält eine
+eigene perspektivische Kamera mit angenäherter Lichtbrechung; Kopf, vordere Datenpunkte und hintere Schichten
+verschieben sich beim Drehen unterschiedlich. Das Kachelmuster liegt auf dem animierten Kopf. „Head recess“
+regelt den Abstand hinter der Scheibe. Gemeinsam genutzte Geometrie und Visemgewichte; nur sichtbare Fenster
+werden zusätzlich gerendert. Dust und Lattice bleiben unverändert.
+
+### Kurze Pixelketten und Prüfung der Rechenlast
+
+Der Hintergrund ist dunkelblaugrau; der Datenraum um das Gesicht wird dezent aufgehellt. Mehrere unabhängige
+Ketten aus 3–5 Kacheln biegen in alle vier Richtungen ab. Eine kleine gemeinsame Textur steuert Kopf, Datenpunkte
+und Innenwände. „Pixel movement“ und „Flow speed“ regeln weiterhin Stärke und Geschwindigkeit.
+
+VIKI rendert seine Schattenkarte nur neu, wenn sich Geometrie, Pose oder Licht geändert haben. Im inaktiven
+Zustand wird das vollständig unsichtbare Kopfmesh übersprungen. Partikelzahl, Auflösung und Bildratenziele bleiben
+gleich. Fehlende Freigaben der Postprocessing-Pässe beim Abbau wurden ergänzt. Die Browserprüfung kontrolliert
+Bildgleichheit beim Schatten-Cache, stabile Ressourcen nach Stilwechseln und das Ende der Renderschleife.

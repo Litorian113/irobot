@@ -255,6 +255,7 @@ export class ParticleFace {
     const geometry = rig.geometry
     this.headUniforms.uRigged.value = rig.rigged ? 1 : 0
     this.facePass.setGeometry(geometry, rig.influences)
+    this.vikiCube?.setGeometry(geometry, rig.influences)
     this.headLight = new HeadLight(this.headUniforms, geometry, rig.influences)
     this.portrait = new SurfacePortrait(this.headUniforms, geometry)
     this.group.add(this.portrait.group)
@@ -346,7 +347,8 @@ export class ParticleFace {
     this.style = style
     // Allocate the six panels only when requested; other styles keep their original render path.
     if (style === 'viki' && !this.vikiCube) {
-      this.vikiCube = new VikiCube(this.facePass.views.front.target.texture)
+      this.vikiCube = new VikiCube(this.headUniforms)
+      if (this.rig) this.vikiCube.setGeometry(this.rig.geometry, this.rig.influences)
       this.vikiCube.applyConfig(this.config)
       this.group.add(this.vikiCube.group)
     }
@@ -375,7 +377,7 @@ export class ParticleFace {
     this.enclosure.mesh.visible = this.style === 'lattice' && cfg.optical && !new URLSearchParams(window.location.search).has('inspect')
     this.cube.applyConfig(cfg)
     this.vikiCube?.applyConfig(cfg)
-    this.renderer.setClearColor(this.style === 'viki' ? 0x000102 : cfg.optical ? 0x020405 : 0x02050c, 1)
+    this.renderer.setClearColor(this.style === 'viki' ? 0x030607 : cfg.optical ? 0x020405 : 0x02050c, 1)
     this.bloom.strength = cfg.optical ? Math.min(0.25, cfg.bloom) : cfg.bloom
     this.portrait?.applyConfig(cfg)
     this.styles?.applyConfig(cfg)
@@ -482,8 +484,9 @@ export class ParticleFace {
     this.group.scale.setScalar(FROZEN || this.config.optical || isViki ? 1 : 1 + Math.sin(t * 0.9) * 0.006)
 
     const t0 = performance.now()
-    this.headLight?.render(this.renderer)
-    if (this.style === 'lattice' || isViki || this.debugQuad) this.facePass.render(this.renderer, Boolean(this.debugQuad))
+    this.headLight?.render(this.renderer, isViki)
+    if (this.style === 'lattice' || this.debugQuad) this.facePass.render(this.renderer, Boolean(this.debugQuad))
+    if (isViki && !this.debugQuad) this.vikiCube?.capture(this.renderer, this.camera)
     this.fpsCount++
     if (now - this.fpsSince > 1000) {
       this.renderedFps = this.fpsCount
@@ -527,10 +530,12 @@ export class ParticleFace {
       passes: this.composer.passes.map((p) => `${p.constructor.name}:${p.enabled ? 1 : 0}`),
       cubeVisible: this.cube.group.visible,
       vikiVisible: this.vikiCube?.group.visible ?? false,
+      shadows: this.headLight?.debug(),
     }
   }
 
   dispose() {
+    if (this.disposed) return
     this.disposed = true
     cancelAnimationFrame(this.raf)
     window.removeEventListener('resize', this.resize)
@@ -547,6 +552,13 @@ export class ParticleFace {
     this.rig?.dispose()
     this.headLight?.dispose()
     this.facePass.dispose()
+    // EffectComposer disposes its own targets, not the passes it contains.
+    for (const pass of this.composer.passes) pass.dispose()
+    this.bloom.materialHighPassFilter.dispose()
+    if (this.debugQuad) {
+      this.debugQuad.geometry.dispose()
+      ;(this.debugQuad.material as THREE.Material).dispose()
+    }
     this.composer.dispose()
     this.renderer.dispose()
   }
