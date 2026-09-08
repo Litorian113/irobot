@@ -1,37 +1,19 @@
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
+import Captions from './Captions'
 import ConfigPanel from './ConfigPanel'
 import DocsPage from './DocsPage'
+import HudHeader from './HudHeader'
 import MicControl from './MicControl'
 import RadialMenu from './RadialMenu'
-import { EXPRESSIONS, ParticleFace, type Expression } from './viki/ParticleFace'
-import {
-  clearConfig,
-  loadConfig,
-  loadStyle,
-  saveConfig,
-  saveStyle,
-  STYLE_DEFAULTS,
-  STYLES,
-  type HeadConfig,
-  type HeadStyle,
-} from './viki/config'
-import { LipSync } from './viki/lipsync'
-import { SpeechOutput } from './viki/SpeechOutput'
-import { fixedViseme, VISEMES } from './viki/visemes'
-import { connectRealtime, type RealtimeSession, type VoiceStatus } from './viki/realtime'
+import { applyUrlPreview, fakeTalk, PREVIEW } from './previewMode'
+import { useHeadConfig, initialStyle } from './useHeadConfig'
+import { useVoiceSession } from './useVoiceSession'
+import { ParticleFace } from './viki/ParticleFace'
+import { loadConfig } from './viki/config'
+import type { VoiceStatus } from './viki/realtime'
 
-const API_KEY = import.meta.env.VITE_OPENAI_API_KEY as string | undefined
-
-/** Dev aid: `?preview=happy` forms the face with that expression and fakes speech (no API calls). */
-const PREVIEW = new URLSearchParams(window.location.search).get('preview') as Expression | null
 /** Dev aid: `?facepass=1` shows the raw head textures (depth/light) the lattice samples. */
 const DEBUG_FACE = new URLSearchParams(window.location.search).has('facepass')
-/** Dev aid: `?style=viki` (or lattice / dust) opens that tab. */
-const STYLE_PARAM = new URLSearchParams(window.location.search).get('style') as HeadStyle | null
-
-function initialStyle(): HeadStyle {
-  return STYLE_PARAM && STYLES.some((s) => s.id === STYLE_PARAM) ? STYLE_PARAM : loadStyle()
-}
 
 const STATUS_LABEL: Record<VoiceStatus, string> = {
   idle: 'DORMANT',
@@ -52,44 +34,17 @@ const STATE_FORM: Record<VoiceStatus, { face: number; turb: number; forward: num
   error: { face: 0, turb: 0.1, forward: 1 },
 }
 
-/** Fake speech pattern for previews / the configurator's test mode. */
-function fakeTalk(t0: number) {
-  const t = (performance.now() - t0) / 1000
-  const phrase = t % 5.6 < 4.3 ? 1 : 0
-  const talk = Math.max(0, 0.18 + Math.sin(t * 8.4) * 0.35 + Math.sin(t * 13.1) * 0.2)
-  const sequence = [5, 0, 11, 2, 9, 1, 12, 3, 5, 4, 6, 1, 8, 0]
-  const step = t * 5
-  const index = Math.floor(step) % sequence.length
-  const mix = Math.min(1, (step % 1) * 4)
-  const visemes = VISEMES.map((_, i) => phrase * ((sequence[index] === i ? mix : 0) + (sequence[(index + sequence.length - 1) % sequence.length] === i ? 1 - mix : 0)))
-  return { open: talk * phrase, wide: 0.5 + 0.35 * Math.sin(t * 2.1), visemes }
-}
-
 export default function App() {
   const canvasRef = useRef<HTMLCanvasElement>(null)
   const faceRef = useRef<ParticleFace | null>(null)
-  const sessionRef = useRef<RealtimeSession | null>(null)
-  const audioCtxRef = useRef<AudioContext | null>(null)
-  const lipRef = useRef<SpeechOutput | null>(null)
-  const connectionEpoch = useRef(0)
-  const micLipRef = useRef<LipSync | null>(null)
-  const relaxTimer = useRef<number | undefined>(undefined)
-  const orbRef = useRef<HTMLButtonElement>(null)
 
-  const [status, setStatus] = useState<VoiceStatus>('idle')
-  const [assistantText, setAssistantText] = useState('')
-  const [userText, setUserText] = useState('')
-  const [error, setError] = useState<string | null>(null)
-
-  // head style tabs + per-style configurator
-  const [style, setStyle] = useState<HeadStyle>(initialStyle)
-  const [config, setConfig] = useState<HeadConfig>(() => loadConfig(initialStyle()))
-  const [draft, setDraft] = useState<HeadConfig>(config)
-  const [configOpen, setConfigOpen] = useState(false)
   const [testSpeech, setTestSpeech] = useState(false)
   const [previewSpeech, setPreviewSpeech] = useState(false)
   const [docsOpen, setDocsOpen] = useState(false)
-  const dirty = JSON.stringify(draft) !== JSON.stringify(config)
+
+  const cfg = useHeadConfig(faceRef)
+  const voice = useVoiceSession(faceRef, cfg.draft.speechDelay)
+  const { status } = voice
 
   // Renderer lifecycle
   useEffect(() => {
@@ -101,22 +56,7 @@ export default function App() {
     face.applyConfig(loadConfig(first))
     ;(window as unknown as { __viki?: () => unknown; __vikiFace?: unknown }).__viki = () => face.debug()
     ;(window as unknown as { __vikiFace?: unknown }).__vikiFace = face
-    if (PREVIEW) {
-      face.setTarget(STATE_FORM.speaking)
-      face.setExpression(PREVIEW in EXPRESSIONS ? PREVIEW : 'neutral')
-      const t0 = performance.now()
-      const mouthParam = new URLSearchParams(window.location.search).get('mouth')
-      const fixedMouth = mouthParam === null ? NaN : Number(mouthParam)
-      const params = new URLSearchParams(window.location.search)
-      const visemes = fixedViseme(params.get('viseme') ?? '')
-      const fixed = (key: string, fallback: number) => {
-        const value = params.get(key)
-        return value !== null && Number.isFinite(Number(value)) ? Math.max(0, Math.min(1, Number(value))) : fallback
-      }
-      face.setMouthSource(() => (visemes ? { open: 0, wide: 0, visemes } : Number.isFinite(fixedMouth)
-        ? { open: fixed('mouth', 0), wide: fixed('wide', 0.4), round: fixed('round', fixed('mouth', 0) * (1 - fixed('wide', 0.4))) }
-        : fakeTalk(t0)))
-    }
+    applyUrlPreview(face, STATE_FORM.speaking)
     return () => {
       face.dispose()
       faceRef.current = null
@@ -127,9 +67,10 @@ export default function App() {
   // While the configurator is open the face is forced into its active look.
   useEffect(() => {
     const face = faceRef.current
+    const lipRef = voice.lipRef
     if (!face || PREVIEW) return
-    face.setActive(configOpen || previewSpeech || (status !== 'idle' && status !== 'error'))
-    if (configOpen) {
+    face.setActive(cfg.configOpen || previewSpeech || (status !== 'idle' && status !== 'error'))
+    if (cfg.configOpen) {
       face.setTarget({ face: 1, turb: 0, forward: 1 })
       face.setExpression('neutral')
       const t0 = performance.now()
@@ -150,198 +91,63 @@ export default function App() {
     // Audio can still be playing after the server's buffer-stopped event.
     // Let the detector's audio clock carry the final lips and close on silence.
     face.setMouthSource(lipRef.current && !['idle', 'error', 'connecting'].includes(status) ? () => lipRef.current?.sample() ?? null : null)
-  }, [status, configOpen, testSpeech, previewSpeech])
+  }, [status, cfg.configOpen, testSpeech, previewSpeech, voice.lipRef])
 
-  // Live preview of the draft
+  // The speech delay slider acts on the live output line
   useEffect(() => {
-    faceRef.current?.applyConfig(draft)
-    lipRef.current?.setDelay(draft.speechDelay)
-  }, [draft])
-
-  // Switch tabs: load that head's saved config and make it the current one
-  const chooseStyle = useCallback((next: HeadStyle) => {
-    const cfg = loadConfig(next)
-    setStyle(next)
-    setConfig(cfg)
-    setDraft(cfg)
-    saveStyle(next)
-    faceRef.current?.setStyle(next)
-    faceRef.current?.applyConfig(cfg)
-  }, [])
-
-  const openConfig = useCallback(() => {
-    setDraft(config)
-    setConfigOpen(true)
-  }, [config])
-
-  const closeConfig = useCallback(() => {
-    setDraft(config) // discard unsaved changes
-    setTestSpeech(false)
-    setConfigOpen(false)
-  }, [config])
-
-  const saveDraft = useCallback(() => {
-    setConfig(draft)
-    saveConfig(style, draft)
-  }, [draft, style])
-
-  const resetConfig = useCallback(() => {
-    clearConfig(style)
-    const cfg = { ...STYLE_DEFAULTS[style] }
-    setConfig(cfg)
-    setDraft(cfg)
-    faceRef.current?.resetView()
-  }, [style])
-
-  // Mic level drives the orb's glow (writes to the DOM directly: no React re-render per frame)
-  useEffect(() => {
-    const orb = orbRef.current
-    if (status === 'idle' || status === 'error') {
-      orb?.style.setProperty('--level', '0')
-      return
-    }
-    const id = window.setInterval(() => {
-      orb?.style.setProperty('--level', (micLipRef.current?.level() ?? 0).toFixed(3))
-    }, 66)
-    return () => window.clearInterval(id)
-  }, [status])
-
-  const disconnect = useCallback(() => {
-    connectionEpoch.current++
-    window.clearTimeout(relaxTimer.current)
-    sessionRef.current?.disconnect()
-    sessionRef.current = null
-    lipRef.current?.dispose()
-    lipRef.current = null
-    micLipRef.current?.dispose()
-    micLipRef.current = null
-    audioCtxRef.current?.close().catch(() => {})
-    audioCtxRef.current = null
-    setStatus('idle')
-  }, [])
-
-  const connect = useCallback(async () => {
-    disconnect()
-    setPreviewSpeech(false)
-    if (!API_KEY) {
-      setError('VITE_OPENAI_API_KEY is not set in .env')
-      setStatus('error')
-      return
-    }
-    setError(null)
-    setStatus('connecting')
-    setAssistantText('')
-    setUserText('')
-    const ctx = new AudioContext()
-    const epoch = ++connectionEpoch.current
-    audioCtxRef.current = ctx
-
-    try {
-      await ctx.resume()
-      const speech = await SpeechOutput.create(ctx, draft.speechDelay, (message) => {
-        if (epoch === connectionEpoch.current) setError(message)
-      })
-      if (epoch !== connectionEpoch.current) { speech.dispose(); return }
-      lipRef.current = speech
-      ;(window as unknown as { __vikiSpeech?: () => unknown }).__vikiSpeech = () => speech.debug()
-      const session = await connectRealtime(
-        API_KEY,
-        {
-          onStatus: (s) => { if (epoch === connectionEpoch.current) setStatus(s) },
-          onAssistantText: (text) => { if (epoch === connectionEpoch.current) setAssistantText(text) },
-          onUserText: (text) => { if (epoch === connectionEpoch.current) setUserText(text) },
-          onExpression: (e: Expression) => {
-            if (epoch !== connectionEpoch.current) return
-            faceRef.current?.setExpression(e)
-            window.clearTimeout(relaxTimer.current)
-            relaxTimer.current = window.setTimeout(() => faceRef.current?.setExpression('neutral'), 9000)
-          },
-          onRemoteStream: (stream) => {
-            if (epoch === connectionEpoch.current) speech.attachStream(stream)
-          },
-          onSpeechStart: () => speech.resume(),
-          onInterrupt: () => speech.interrupt(),
-          onError: (msg) => {
-            if (epoch !== connectionEpoch.current) return
-            disconnect()
-            setError(msg)
-            setStatus('error')
-          },
-        },
-      )
-      if (epoch !== connectionEpoch.current) { session.disconnect(); speech.dispose(); return }
-      sessionRef.current = session
-      micLipRef.current = new LipSync(ctx, session.micStream)
-    } catch (e) {
-      if (epoch !== connectionEpoch.current) return
-      lipRef.current?.dispose()
-      lipRef.current = null
-      setError(e instanceof Error ? e.message : String(e))
-      setStatus('error')
-      await ctx.close().catch(() => {})
-      audioCtxRef.current = null
-    }
-  }, [draft.speechDelay, disconnect])
-
-  useEffect(() => () => disconnect(), [disconnect])
-
-  const connected = status !== 'idle' && status !== 'error' && status !== 'connecting'
-  const busy = status === 'connecting'
+    voice.lipRef.current?.setDelay(cfg.draft.speechDelay)
+  }, [cfg.draft.speechDelay, voice.lipRef])
 
   return (
-    <div className={`hero${style === 'lattice' && draft.optical ? ' film-look' : ''}${configOpen ? ' configuring' : ''}${status === 'idle' && !PREVIEW && !previewSpeech ? ' dormant' : ''}`}>
+    <div className={`hero${cfg.style === 'lattice' && cfg.draft.optical ? ' film-look' : ''}${cfg.configOpen ? ' configuring' : ''}${status === 'idle' && !PREVIEW && !previewSpeech ? ' dormant' : ''}`}>
       <canvas ref={canvasRef} />
 
-      <div className={`hud${configOpen ? ' config-open' : ''}`}>
-        <header className="hud-top">
-          <div className="brand">
-            <span className="brand-name">V.I.K.I.</span>
-            <span className="brand-sub">Virtual Interactive Kinetic Intelligence</span>
-          </div>
-          <div className="actions">
-            <div className={`status status-${status}`}>
-              <span className="dot" />
-              {PREVIEW || previewSpeech ? 'ANIMATION PREVIEW' : STATUS_LABEL[status]}
-            </div>
-            {!configOpen && (
-              <button type="button" className="btn ghost small" onClick={openConfig}>
-                Configure
-              </button>
-            )}
-          </div>
-        </header>
+      <div className={`hud${cfg.configOpen ? ' config-open' : ''}`}>
+        <HudHeader
+          statusClass={status}
+          statusLabel={PREVIEW || previewSpeech ? 'ANIMATION PREVIEW' : STATUS_LABEL[status]}
+          configOpen={cfg.configOpen}
+          onConfigure={cfg.openConfig}
+        />
 
-        <RadialMenu style={style} onSelect={chooseStyle} onDocs={() => setDocsOpen(true)} />
+        <RadialMenu style={cfg.style} onSelect={cfg.chooseStyle} onDocs={() => setDocsOpen(true)} />
 
-        <div className="captions" aria-live="polite">
-          {userText && <p className="caption user">{userText}</p>}
-          {assistantText && <p className="caption viki">{assistantText}</p>}
-        </div>
+        <Captions userText={voice.userText} assistantText={voice.assistantText} />
 
         <footer className="hud-bottom">
-          {error && <p className="error">{error}</p>}
+          {voice.error && <p className="error">{voice.error}</p>}
           <MicControl
-            connected={connected}
-            busy={busy}
+            connected={voice.connected}
+            busy={voice.busy}
             hidePreview={Boolean(PREVIEW)}
             previewSpeech={previewSpeech}
-            orbRef={orbRef}
-            onToggle={connected || busy ? disconnect : connect}
+            orbRef={voice.orbRef}
+            onToggle={
+              voice.connected || voice.busy
+                ? voice.disconnect
+                : () => {
+                    setPreviewSpeech(false)
+                    void voice.connect()
+                  }
+            }
             onTogglePreview={() => setPreviewSpeech((v) => !v)}
           />
         </footer>
 
-        {configOpen && (
+        {cfg.configOpen && (
           <ConfigPanel
-            style={style}
-            draft={draft}
-            dirty={dirty}
+            style={cfg.style}
+            draft={cfg.draft}
+            dirty={cfg.dirty}
             testSpeech={testSpeech}
-            onChange={(patch) => setDraft((d) => ({ ...d, ...patch }))}
+            onChange={(patch) => cfg.setDraft((d) => ({ ...d, ...patch }))}
             onTestSpeech={setTestSpeech}
-            onSave={saveDraft}
-            onReset={resetConfig}
-            onClose={closeConfig}
+            onSave={cfg.saveDraft}
+            onReset={cfg.resetConfig}
+            onClose={() => {
+              setTestSpeech(false)
+              cfg.closeConfig()
+            }}
           />
         )}
       </div>
