@@ -41,6 +41,7 @@ export interface HeadConfig {
   flicker: number // lattice shimmer
   scatter: number // dust edge scatter
   dotSize: number // dust particle size
+  radialBlur?: number // Dust only: outward light trails around a sharp facial center
   cage: number // brightness of the surrounding cube/cage
   cubeScale: number // overall scale of the cube in the scene
   cubeX: number // horizontal placement of the cube
@@ -166,6 +167,7 @@ export const STYLE_DEFAULTS: Record<HeadStyle, HeadConfig> = {
     dotSize: 1,
     scatter: 0.5,
     bloom: 0.35,
+    radialBlur: 0.7,
     gain: 1.1,
   },
   viki: {
@@ -308,6 +310,7 @@ export const STYLE_GROUPS: Record<HeadStyle, SliderGroup> = {
       { key: 'scatter', label: 'Edge scatter', min: 0, max: 1, step: 0.01 },
       { key: 'gain', label: 'Brightness', min: 0.4, max: 2, step: 0.02 },
       { key: 'bloom', label: 'Glow', min: 0, max: 1.5, step: 0.02 },
+      { key: 'radialBlur', label: 'Radial blur', min: 0, max: 1, step: 0.02 },
       { key: 'cage', label: 'Cage', min: 0, max: 1, step: 0.01 },
     ],
   },

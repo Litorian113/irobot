@@ -17,6 +17,7 @@ import { HeadLight } from './HeadLight'
 import { OpticalEnclosure } from './OpticalEnclosure'
 import { VikiCube } from './VikiCube'
 import { VikiAssembly } from './VikiAssembly'
+import { DustRadialBlur } from './DustRadialBlur'
 
 export type Expression =
   | 'neutral'
@@ -145,6 +146,7 @@ export class ParticleFace {
   private composer: EffectComposer
   private softClamp: ShaderPass
   private bloom: UnrealBloomPass
+  private dustBlur = new DustRadialBlur()
   private cube: DataCube
   private enclosure = new OpticalEnclosure()
   private vikiCube: VikiCube | null = null
@@ -214,6 +216,7 @@ export class ParticleFace {
     this.composer.addPass(this.softClamp)
     this.bloom = new UnrealBloomPass(new THREE.Vector2(1, 1), 0.5, 0.3, 0.75)
     this.composer.addPass(this.bloom)
+    this.composer.addPass(this.dustBlur)
     this.composer.addPass(new OutputPass())
 
     if (opts.debugFace) {
@@ -418,6 +421,7 @@ export class ParticleFace {
     const shape = BLOOM_SHAPE[style]
     this.bloom.radius = shape.radius
     this.bloom.threshold = shape.threshold
+    this.updateDustBlurStrength()
     if (changed) this.resize()
   }
 
@@ -436,8 +440,16 @@ export class ParticleFace {
     this.renderer.setClearColor(this.style === 'viki' ? 0x030607 : cfg.optical ? 0x020405 : 0x02050c, 1)
     // VIKI's glow slider diffuses the cube locally; keep the finished hall exposure stable.
     this.bloom.strength = this.style === 'viki' ? 0.46 : cfg.optical ? Math.min(0.25, cfg.bloom) : cfg.bloom
+    this.updateDustBlurStrength()
     this.portrait?.applyConfig(cfg)
     this.styles?.applyConfig(cfg)
+  }
+
+  private updateDustBlurStrength() {
+    // Follow the visible head, including previews. A connecting session alone has no face yet.
+    const presence = this.style === 'dust' && this.headLoaded
+      ? THREE.MathUtils.smoothstep(this.current.face, 0.15, 1) : 0
+    this.dustBlur.setStrength((this.config.radialBlur ?? STYLE_DEFAULTS.dust.radialBlur ?? 0) * presence)
   }
 
   /** Turn the cube back to the front. */
@@ -546,6 +558,8 @@ export class ParticleFace {
     this.group.rotation.x = FROZEN ? THREE.MathUtils.degToRad(reviewNumber('pitch', isViki ? -4 : 0)) : (isViki ? -0.07 : this.config.optical ? 0 : Math.sin(t * 0.13) * 0.03) + this.pitch
     this.group.scale.setScalar((FROZEN || this.config.optical || isViki ? 1 : 1 + Math.sin(t * 0.9) * 0.006) * (isViki ? this.config.cubeScale * (this.narrow ? 1.3 : 1) : 1))
     this.group.position.set(isViki && !this.narrow ? this.config.cubeX : 0, isViki ? this.config.cubeY : 0, 0)
+    this.updateDustBlurStrength()
+    this.dustBlur.update(hu.uHeadMatrix.value, this.group, this.camera)
 
     const t0 = performance.now()
     this.headLight?.render(this.renderer, isViki)

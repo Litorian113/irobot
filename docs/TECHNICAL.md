@@ -56,6 +56,23 @@ Add `&wide=0.8&round=0.1` to compare lip shapes independently. Deterministic com
 `?preview=neutral&mouth=0&freeze=1`: time and pose settle immediately, natural swaying/blinking pause.
 Add `&blink=1` for closed lids (`0.5` for halfway), `&yaw=35&pitch=0` for rotation in degrees, or `&time=2` for a fixed shimmer time.
 
+## Dust radial filter
+
+**Dust → Configure → Radial blur** keeps the center of the face sharp while stretching the surrounding particles
+and their glow outward, like a radial zoom lens. The default strength is **0.70**; **0** restores the original Dust
+rendering and skips the filter pass entirely. The blur fades in as the head forms and fades out as it dissolves;
+inactive dust bypasses the filter. The focus follows the head's height, size, rotation and viewport framing.
+It affects the rendered Dust scene; HTML controls and captions stay sharp. Saved Dust settings retain their other values.
+
+`DustRadialBlur.ts` runs after bloom and before tone mapping. An elliptical falloff protects the eyes, nose and lips;
+32 weighted samples soften the outer trails, with stable subpixel offsets to avoid repeated-dot banding. The pass reuses
+the composer's existing buffers, adds no render targets, and preserves particle count, drawing resolution and frame cadence.
+Lattice and VIKI bypass it. The pass material is released by the renderer's existing disposal path.
+
+Run `node scripts/review-dust-browser.mjs` against the local server (`VIKI_URL`, optional `PUPPETEER_MODULE` and
+`CHROME_PATH`). It checks the actual GPU output for an unchanged center and a zero-strength bypass, plus head tracking,
+mobile framing, save/discard/reset, style switching and resource disposal without connecting the microphone or API.
+
 ## VIKI mirrored display
 
 The independent **VIKI** tab uses muted silver, green-gray shadows and slightly warm highlights. Six outward-facing
