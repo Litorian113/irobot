@@ -95,13 +95,6 @@ export default function RadialMenu({ style, onSelect, onDocs }: Props) {
                     onClick={() => pick(item)}
                   >
                     <path d={sectorPath(46, 132, a0, a1)} />
-                    <line
-                      className="seg-line"
-                      x1={cos * 134}
-                      y1={Math.sin(mid) * 134}
-                      x2={cos * 144}
-                      y2={Math.sin(mid) * 144}
-                    />
                     <text x={tx} y={ty - 4} textAnchor={anchor} className="seg-index">
                       {item.index}
                     </text>

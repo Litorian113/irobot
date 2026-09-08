@@ -824,11 +824,6 @@ body,
   pointer-events: none;
 }
 
-.wheel-seg .seg-line {
-  stroke: rgba(255, 255, 255, 0.4);
-  stroke-width: 1;
-}
-
 .wheel-seg .seg-index {
   font-size: 9px;
   fill: var(--ink-dim);
