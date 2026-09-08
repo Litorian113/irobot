@@ -39,30 +39,42 @@ const ITEMS: Item[] = [
 
 /** The style wheel: a dark dial in the bottom-right corner fans open around itself. */
 export default function RadialMenu({ style, onSelect, onDocs }: Props) {
-  const [open, setOpen] = useState(false)
+  const [phase, setPhase] = useState<'closed' | 'open' | 'closing'>('closed')
   const [hover, setHover] = useState<Item | null>(null)
+  const open = phase === 'open'
+
+  // The fan folds back before it leaves the DOM.
+  const close = () => {
+    setHover(null)
+    setPhase((p) => (p === 'open' ? 'closing' : p))
+  }
+
+  useEffect(() => {
+    if (phase !== 'closing') return
+    const id = window.setTimeout(() => setPhase('closed'), 400)
+    return () => window.clearTimeout(id)
+  }, [phase])
 
   useEffect(() => {
     if (!open) return
-    const onKey = (e: KeyboardEvent) => e.key === 'Escape' && setOpen(false)
+    const onKey = (e: KeyboardEvent) => e.key === 'Escape' && close()
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
   }, [open])
 
   const pick = (item: Item) => {
-    setOpen(false)
-    setHover(null)
+    close()
     if (item.id === 'docs') onDocs()
     else onSelect(item.id)
   }
 
   return (
     <>
-      {open && <div className="wheel-overlay" onClick={() => setOpen(false)} />}
+      {phase !== 'closed' && <div className={`wheel-overlay${phase === 'closing' ? ' closing' : ''}`} onClick={close} />}
 
       <div className={`wheel-corner${open ? ' open' : ''}`}>
-        {open && (
-          <div className="wheel-fan" role="menu" aria-label="Head environments">
+        {phase !== 'closed' && (
+          <div className={`wheel-fan${phase === 'closing' ? ' closing' : ''}`} role="menu" aria-label="Head environments">
             <svg viewBox="-160 -160 320 320">
               {ITEMS.map((item, i) => {
                 const a0 = item.center - 13.5
@@ -117,7 +129,7 @@ export default function RadialMenu({ style, onSelect, onDocs }: Props) {
         <button
           type="button"
           className={`wheel-knob${open ? ' open' : ''}`}
-          onClick={() => setOpen((v) => !v)}
+          onClick={() => (open ? close() : setPhase('open'))}
           aria-label="Head style menu"
           aria-expanded={open}
           title="Choose an environment"

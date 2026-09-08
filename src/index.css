@@ -758,6 +758,36 @@ body,
   animation-delay: calc(var(--i) * 0.045s);
 }
 
+.wheel-overlay.closing {
+  animation: wheel-fade-out 0.3s ease-out forwards;
+}
+
+@keyframes wheel-fade-out {
+  to { opacity: 0; }
+}
+
+.wheel-fan.closing .wheel-seg {
+  opacity: 1;
+  animation: seg-fold 0.22s ease-in both;
+  animation-delay: calc((3 - var(--i)) * 0.045s);
+  pointer-events: none;
+}
+
+@keyframes seg-fold {
+  from {
+    opacity: 1;
+    transform: none;
+  }
+  to {
+    opacity: 0;
+    transform: rotate(9deg) scale(0.82);
+  }
+}
+
+.wheel-fan.closing .wheel-hint {
+  animation: wheel-fade-out 0.2s ease-out forwards;
+}
+
 @keyframes seg-fan {
   from {
     opacity: 0;
