@@ -811,16 +811,32 @@ body,
 
 .wheel-hint {
   position: absolute;
-  right: calc(50% + 44px);
-  bottom: calc(50% + 170px);
-  width: 210px;
+  right: calc(50% - 34px);
+  bottom: calc(50% + 232px);
+  width: 250px;
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
   text-align: right;
+  padding: 10px 14px;
+  border: 1px solid var(--ink-faint);
+  background: rgba(6, 10, 16, 0.82);
+  clip-path: polygon(9px 0, 100% 0, 100% calc(100% - 9px), calc(100% - 9px) 100%, 0 100%, 0 9px);
+  pointer-events: none;
+}
+
+.wheel-hint-title {
+  font-size: 11px;
+  letter-spacing: 0.3em;
+  color: var(--hot);
+}
+
+.wheel-hint-text {
   font-size: 10px;
-  letter-spacing: 0.08em;
+  letter-spacing: 0.06em;
   line-height: 1.6;
   color: var(--ink-dim);
   text-transform: none;
-  pointer-events: none;
 }
 
 /* ---------- documentation ---------- */

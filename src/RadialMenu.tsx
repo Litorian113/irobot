@@ -100,11 +100,17 @@ export default function RadialMenu({ style, onSelect, onDocs }: Props) {
                 )
               })}
             </svg>
-            {hover && (
-              <div className="wheel-hint" aria-live="polite">
-                {hover.hint}
-              </div>
-            )}
+            {(() => {
+              const shown = hover ?? ITEMS.find((i) => i.id === style) ?? ITEMS[0]
+              return (
+                <div className="wheel-hint" aria-live="polite">
+                  <span className="wheel-hint-title">
+                    {shown.index} · {shown.label.toUpperCase()}
+                  </span>
+                  <span className="wheel-hint-text">{shown.hint}</span>
+                </div>
+              )
+            })()}
           </div>
         )}
 
