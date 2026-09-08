@@ -190,9 +190,9 @@ export const STYLE_DEFAULTS: Record<HeadStyle, HeadConfig> = {
     oval: 0.1,
     headScale: 0.56,
     headY: -0.65,
-    cubeScale: 0.44,
-    cubeX: -1.6,
-    cubeY: 0.64,
+    cubeScale: 0.51,
+    cubeX: -1.2,
+    cubeY: 0.65,
   },
 }
 
