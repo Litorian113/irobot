@@ -198,6 +198,7 @@ body,
   border: 1px solid rgba(230, 240, 248, 0.55);
   padding: 14px 30px;
   cursor: pointer;
+  pointer-events: auto;
   backdrop-filter: blur(6px);
   transition:
     background 0.2s,
