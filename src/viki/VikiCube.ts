@@ -19,12 +19,16 @@ void main() {
 const fragment = /* glsl */ `
 uniform sampler2D uFace;
 uniform vec3 uShadow, uSilver, uHighlight;
-uniform float uFormation, uGain, uField, uDiffusion, uBloom;
+uniform float uFormation, uGain, uField, uDiffusion, uBloom, uFloorHold;
 varying vec2 vUv;
 varying vec3 vCubePosition;
 ${VIKI_ASSEMBLY_GLSL}
 void main() {
   float reveal = assemblyMask(vCubePosition);
+  // The floor closes last: its tiles pour in only at the very end of the build,
+  // so the cube grows cap-first and sheds its floor first on shutdown.
+  float holdSeed = columnSeed(floor(vCubePosition.xz * 38.0));
+  reveal *= mix(1.0, smoothstep(0.80, 0.965, uBuild - holdSeed * 0.08), uFloorHold);
   if (reveal < 0.001) discard;
   // Transmission preserves the perspective of the interior, including its surface-bound tiles.
   vec2 uv = vUv;
@@ -94,6 +98,7 @@ export class VikiCube {
         uniforms: {
           uFace: { value: target.texture }, uFormation: { value: 0 },
           uBuild: { value: 0 }, uPanelMatrix: { value: new THREE.Matrix4() }, uBloom: { value: 0.65 },
+          uFloorHold: { value: faceSide.name === 'bottom' ? 1 : 0 },
           uShadow: { value: new THREE.Color() }, uSilver: { value: new THREE.Color() }, uHighlight: { value: new THREE.Color() },
           uGain: { value: 1.4 }, uField: { value: 0.7 }, uDiffusion: { value: 0.45 },
         },
