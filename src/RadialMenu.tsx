@@ -9,7 +9,7 @@ interface Props {
 
 const DEG = Math.PI / 180
 
-/** Donut sector between radii r0..r1 spanning angles a0..a1 (degrees, 0 = east). */
+/** Donut sector between radii r0..r1 spanning angles a0..a1 (degrees, 0 = east, y down). */
 function sectorPath(r0: number, r1: number, a0: number, a1: number) {
   const p = (r: number, a: number) => `${(Math.cos(a * DEG) * r).toFixed(2)} ${(Math.sin(a * DEG) * r).toFixed(2)}`
   return `M ${p(r1, a0)} A ${r1} ${r1} 0 0 1 ${p(r1, a1)} L ${p(r0, a1)} A ${r0} ${r0} 0 0 0 ${p(r0, a0)} Z`
@@ -23,18 +23,21 @@ interface Item {
   center: number
 }
 
+/** The fan opens around the corner knob, from just below west up to north. */
+const CENTERS = [173, 204, 235, 266]
+
 const ITEMS: Item[] = [
   ...STYLES.map((s, i) => ({
     id: s.id as HeadStyle | 'docs',
     index: String(i + 1).padStart(2, '0'),
     label: s.label,
     hint: s.hint,
-    center: -90 + i * 90,
+    center: CENTERS[i],
   })),
-  { id: 'docs', index: '04', label: 'Docs', hint: 'About this project', center: 180 },
+  { id: 'docs', index: '04', label: 'Docs', hint: 'About this project', center: CENTERS[3] },
 ]
 
-/** The style wheel: a knob on the right edge opens a radial selection menu. */
+/** The style wheel: a dark dial in the bottom-right corner fans open around itself. */
 export default function RadialMenu({ style, onSelect, onDocs }: Props) {
   const [open, setOpen] = useState(false)
   const [hover, setHover] = useState<Item | null>(null)
@@ -53,34 +56,22 @@ export default function RadialMenu({ style, onSelect, onDocs }: Props) {
     else onSelect(item.id)
   }
 
-  const shown = hover ?? ITEMS.find((i) => i.id === style) ?? ITEMS[0]
-
   return (
     <>
-      <button
-        type="button"
-        className={`wheel-knob${open ? ' open' : ''}`}
-        onClick={() => setOpen((v) => !v)}
-        aria-label="Head style menu"
-        aria-expanded={open}
-        title="Choose an environment"
-      >
-        <span className="knob-ring" aria-hidden="true" />
-        <span className="knob-face" aria-hidden="true">
-          <span className="knob-lines" />
-        </span>
-      </button>
+      {open && <div className="wheel-overlay" onClick={() => setOpen(false)} />}
 
-      {open && (
-        <div className="wheel-overlay" onClick={() => setOpen(false)} onPointerDown={(e) => e.stopPropagation()}>
-          <div className="wheel" role="menu" aria-label="Head environments" onClick={(e) => e.stopPropagation()}>
+      <div className={`wheel-corner${open ? ' open' : ''}`}>
+        {open && (
+          <div className="wheel-fan" role="menu" aria-label="Head environments">
             <svg viewBox="-160 -160 320 320">
               {ITEMS.map((item, i) => {
-                const a0 = item.center - 40
-                const a1 = item.center + 40
-                const mid = (item.center * Math.PI) / 180
-                const tx = Math.cos(mid) * 106
-                const ty = Math.sin(mid) * 106
+                const a0 = item.center - 13.5
+                const a1 = item.center + 13.5
+                const mid = item.center * DEG
+                const cos = Math.cos(mid)
+                const tx = cos * 152
+                const ty = Math.sin(mid) * 152
+                const anchor = cos < -0.3 ? 'end' : cos > 0.3 ? 'start' : 'middle'
                 return (
                   <g
                     key={item.id}
@@ -91,24 +82,47 @@ export default function RadialMenu({ style, onSelect, onDocs }: Props) {
                     onMouseLeave={() => setHover(null)}
                     onClick={() => pick(item)}
                   >
-                    <path d={sectorPath(64, 148, a0, a1)} />
-                    <text x={tx} y={ty - 7} textAnchor="middle" className="seg-index">
+                    <path d={sectorPath(46, 132, a0, a1)} />
+                    <line
+                      className="seg-line"
+                      x1={cos * 134}
+                      y1={Math.sin(mid) * 134}
+                      x2={cos * 144}
+                      y2={Math.sin(mid) * 144}
+                    />
+                    <text x={tx} y={ty - 4} textAnchor={anchor} className="seg-index">
                       {item.index}
                     </text>
-                    <text x={tx} y={ty + 12} textAnchor="middle" className="seg-label">
+                    <text x={tx} y={ty + 12} textAnchor={anchor} className="seg-label">
                       {item.label.toUpperCase()}
                     </text>
                   </g>
                 )
               })}
             </svg>
-            <div className="wheel-center" aria-live="polite">
-              <span className="wheel-center-label">{shown.label}</span>
-              <span className="wheel-center-hint">{shown.hint}</span>
-            </div>
+            {hover && (
+              <div className="wheel-hint" aria-live="polite">
+                {hover.hint}
+              </div>
+            )}
           </div>
-        </div>
-      )}
+        )}
+
+        <button
+          type="button"
+          className={`wheel-knob${open ? ' open' : ''}`}
+          onClick={() => setOpen((v) => !v)}
+          aria-label="Head style menu"
+          aria-expanded={open}
+          title="Choose an environment"
+        >
+          <span className="knob-ring" aria-hidden="true" />
+          <svg className="knob-cube" viewBox="0 0 24 24" aria-hidden="true">
+            <path d="M12 2.8 20 7.3v9.4L12 21.2 4 16.7V7.3z" fill="none" />
+            <path d="M4 7.3 12 12l8-4.7M12 12v9.2" fill="none" />
+          </svg>
+        </button>
+      </div>
     </>
   )
 }
