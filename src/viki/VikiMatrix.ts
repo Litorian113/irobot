@@ -26,7 +26,7 @@ export class VikiMatrix extends THREE.InstancedMesh<THREE.PlaneGeometry, THREE.S
           // Invert the head's placement, keeping the matrix on the same tile spacing.
           vec2 point = (vPosition.xy + vec2(0.0, 0.06)) / 1.08;
           float boundary = 1.0 - max(abs(vPosition.x), abs(vPosition.y));
-          float edge = smoothstep(0.0, 0.05, boundary);
+          float edge = smoothstep(0.0, 0.02, boundary);
           float variation = 0.5 + 0.5 * sin(vPosition.x * 3.8 + vPosition.z * 2.0)
             * cos(vPosition.y * 4.6 - vPosition.z);
           float fade = mix(0.5, 1.0, smoothstep(0.1, 0.9, variation));
