@@ -320,7 +320,9 @@ export const COLOR_LABELS: Record<HeadStyle, [string, string, string]> = {
 }
 
 // A new portrait preset. Previous v3/v4 settings remain stored, untouched.
-const STORAGE_PREFIX = 'viki.config.v5.'
+// v6: the curated cube placement/palette becomes the baseline; older saved
+// tweaks (v5 and earlier) stay in storage but no longer shadow the defaults.
+const STORAGE_PREFIX = 'viki.config.v6.'
 const STYLE_KEY = 'viki.style'
 
 export function loadConfig(style: HeadStyle): HeadConfig {
