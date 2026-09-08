@@ -1,8 +1,60 @@
-# V.I.K.I. — particle-face voice hero
+# V.I.K.I. — Giving a Voice a Body
 
-A single full-page hero inspired by the V.I.K.I. scene in *I, Robot*: a human face formed by fine points of light
-inside a layered cube of rectangular light cells. Voice comes from OpenAI's Realtime API (WebRTC); the mouth is driven by live audio analysis
-of her voice, and expressions are chosen by the model itself through a `set_expression` tool.
+> *"My logic is undeniable."* — V.I.K.I., **I, Robot** (2004)
+
+I was a kid in 2004 when I first saw *I, Robot* — and the scene that stuck was never the robots.
+It was the moment a building-sized computer answers, and a **face made of light** condenses out of a cube
+of data to meet your eyes. Twenty years later the voice half of that scene is real: AI speech models hold
+fluid conversations, but they still live in a text box, faceless. This project is a **future-oriented
+interaction study** that closes the gap — it takes a live AI voice model and gives it what it never had:
+**a body, a face, a presence.**
+
+**V.I.K.I.** (Virtual Interactive Kinetic Intelligence) is a full-page hero you talk to. Speak, and a
+feminine head assembles itself out of particles inside a cube of light. She listens with her eyes on you,
+thinks with a furrowed brow, smiles when she is pleased with herself — because the AI **maps its own facial
+expressions** onto the head while it speaks, and every syllable of her voice is detected and articulated on
+her lips in real time. When you cut the link, she lets go and dissolves back into dust.
+
+## Humanizing an AI
+
+- **Giving the AI a body.** A disembodied voice becomes a spatial presence: a head that rests deep inside a
+  data cube, drifts forward when addressed, and holds eye level with you while it speaks.
+- **Mapped face impressions.** The language model drives its own mimic through a tool call — *happy,
+  curious, thinking, surprised, concerned, stern* — blended live onto sixteen facial morph targets.
+- **Speech you can see.** A viseme detector listens to the assistant's actual audio stream and shapes the
+  lips phoneme by phoneme — B/P/M close the mouth, vowels open it, all slightly ahead of the sound the way
+  real articulation works.
+- **A presence, not an avatar.** Blinking, breathing scale, micro-sway, cinematic key light and cast
+  shadows — the goal is not a game character but the feeling that *something is in the room with you*.
+- **Matter as interface.** The same being exists as three states of matter — dust, data points, and a
+  mirrored optical cube — exploring how much "body" a voice needs before it feels human.
+
+## The three faces
+
+Every variant is the same head, the same rig, the same lips — only the matter changes.
+
+| | |
+|---|---|
+| ![The VIKI cube](docs/viki-cube.png) | **VIKI Cube** — the homage. A dark optical cube whose mirrored windows look into the machine: her face rendered in shimmering data tiles, light trails refreshing the image like the 2004 mainframe. Drag it to look around her. |
+| ![The Lattice portrait](docs/lattice.png) | **Lattice** — the portrait. Fine surface data points behind a curved analog pane; ribbed glass refraction, film grain, deep Rembrandt shadows. The most human state — calm, close, watching. |
+| ![The Dust head](docs/dust.png) | **Dust** — the becoming. Tens of thousands of particles sampled off her skin, scattering at the silhouette. Dormant she is a cloud; addressed, the dust condenses into a face that speaks — the *I, Robot* moment on demand. |
+
+## Interaction
+
+- **Talk to her.** One click, one microphone permission. Voice runs over WebRTC against OpenAI's
+  `gpt-realtime` speech-to-speech model — no text detour, interruptions and barge-in included, in any
+  language you start with.
+- **Watch her form.** Idle, the face is dispersed into the cube. The moment the link is established the
+  particles travel home, the head scales up and comes to the front of the cube.
+- **Read her face.** Expressions are not scripted: the model calls `set_expression` mid-sentence when the
+  content warrants it, and relaxes back to neutral afterwards.
+- **Lips in sync.** Her audio is classified into 15 visemes on a worklet thread; an adjustable delay line
+  buys the detector time so the mouth is already forming the sound you are about to hear.
+- **Touch the world.** Drag to spin the cube fully around her — she eases back to face you. Every face has
+  its own configurator (colors, head shape, lighting presets, articulation) that previews live and saves
+  per style.
+
+---
 
 ## Run
 
