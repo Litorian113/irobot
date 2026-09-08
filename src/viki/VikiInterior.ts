@@ -81,7 +81,7 @@ export class VikiInterior {
         void main() {
           float pulse = chainLight(aCell) * 2.0;
           vLight = (0.06 + 0.20 * aSeed * aSeed) * (1.0 + uFlow * pulse);
-          vLight *= mix(0.35, 1.0, smoothstep(-1.7, -0.1, position.z));
+          vLight *= mix(0.5, 1.0, smoothstep(-1.7, -0.1, position.z));
           vec4 mv = modelViewMatrix * vec4(position, 1.0);
           gl_Position = projectionMatrix * mv;
           gl_PointSize = clamp(uSize * 3.0 / -mv.z, 1.0, 6.0);
@@ -129,9 +129,9 @@ export class VikiInterior {
         void main() {
           vec3 n = abs(vNormal);
           vec2 uv = n.x > 0.5 ? vPosition.zy : n.y > 0.5 ? vPosition.xz : vPosition.xy;
-          float fade = 0.35 + 0.65 * pow(0.5 + 0.5 * sin(uv.x * 4.0) * cos(uv.y * 5.0), 2.0);
+          float fade = 0.62 + 0.38 * pow(0.5 + 0.5 * sin(uv.x * 4.0) * cos(uv.y * 5.0), 2.0);
           vec2 point = (uv + vec2(0.0, 0.06)) / 1.08;
-          gl_FragColor = vec4((0.001 + tileLight(point) * 0.045) * fade, 0.0, 0.0, 1.0);
+          gl_FragColor = vec4((0.002 + tileLight(point) * 0.06) * fade, 0.0, 0.0, 1.0);
         }`,
       side: THREE.BackSide,
     }))

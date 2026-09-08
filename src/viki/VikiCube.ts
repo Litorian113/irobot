@@ -34,7 +34,7 @@ void main() {
   // Face brightness is independent of the surrounding matrix (Background tiles).
   vec3 color = (tint * faceLight * 1.65 * uGain + uSilver * field) * edge;
   // Lift the space around the portrait without filling its dark eye sockets.
-  color += uShadow * (0.004 + 0.018 * (1.0 - face.b * uFormation) + field * 0.08) * edge;
+  color += uShadow * (0.016 + 0.022 * (1.0 - face.b * uFormation) + field * 0.10) * edge;
   gl_FragColor = vec4(color, 1.0);
 }
 `
