@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import ConfigPanel from './ConfigPanel'
 import DocsPage from './DocsPage'
+import MicControl from './MicControl'
 import RadialMenu from './RadialMenu'
 import { EXPRESSIONS, ParticleFace, type Expression } from './viki/ParticleFace'
 import {
@@ -319,43 +320,15 @@ export default function App() {
 
         <footer className="hud-bottom">
           {error && <p className="error">{error}</p>}
-          <div className="controls">
-            {!PREVIEW && (
-              <button
-                type="button"
-                ref={orbRef}
-                className={`mic-orb${connected ? ' live' : ''}${busy ? ' busy' : ''}`}
-                onClick={connected || busy ? disconnect : connect}
-                aria-label={connected || busy ? 'Shut her down' : 'Wake her up'}
-                title={connected || busy ? 'Shut her down' : 'Wake her up'}
-              >
-                <span className="ring r1" aria-hidden="true" />
-                <span className="ring r2" aria-hidden="true" />
-                <span className="pulse" aria-hidden="true" />
-                <span className="tick tn" aria-hidden="true" />
-                <span className="tick te" aria-hidden="true" />
-                <span className="tick ts" aria-hidden="true" />
-                <span className="tick tw" aria-hidden="true" />
-                <svg className="mic-glyph" viewBox="0 0 24 24" aria-hidden="true">
-                  <rect x="9" y="3" width="6" height="11" rx="3" />
-                  <path d="M6 11a6 6 0 0 0 12 0" fill="none" />
-                  <line x1="12" y1="17" x2="12" y2="20.5" />
-                </svg>
-              </button>
-            )}
-            {!connected && !busy && !PREVIEW && (
-              <button type="button" className="btn ghost small preview-toggle" aria-pressed={previewSpeech} onClick={() => setPreviewSpeech((v) => !v)}>
-                {previewSpeech ? 'Stop preview' : 'Preview'}
-              </button>
-            )}
-          </div>
-          <p className="hint">
-            {connected
-              ? 'Speak. She is listening. Drag to turn the cube.'
-              : busy
-                ? 'Establishing link…'
-                : 'Tap the mic to wake her. Drag to turn the cube.'}
-          </p>
+          <MicControl
+            connected={connected}
+            busy={busy}
+            hidePreview={Boolean(PREVIEW)}
+            previewSpeech={previewSpeech}
+            orbRef={orbRef}
+            onToggle={connected || busy ? disconnect : connect}
+            onTogglePreview={() => setPreviewSpeech((v) => !v)}
+          />
         </footer>
 
         {configOpen && (
