@@ -812,17 +812,14 @@ body,
 .wheel-hint {
   position: absolute;
   right: calc(50% - 34px);
-  bottom: calc(50% + 232px);
-  width: 250px;
+  bottom: calc(50% + 258px);
+  width: 260px;
   display: flex;
   flex-direction: column;
-  gap: 5px;
+  gap: 6px;
   text-align: right;
-  padding: 10px 14px;
-  border: 1px solid var(--ink-faint);
-  background: rgba(6, 10, 16, 0.82);
-  clip-path: polygon(9px 0, 100% 0, 100% calc(100% - 9px), calc(100% - 9px) 100%, 0 100%, 0 9px);
   pointer-events: none;
+  text-shadow: 0 1px 8px rgba(0, 0, 0, 0.8);
 }
 
 .wheel-hint-title {
