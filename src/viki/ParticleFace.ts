@@ -506,7 +506,7 @@ export class ParticleFace {
     this.cube.update(t, hu.uFormation.value)
     this.styles?.setTime(t)
     this.portrait?.update(t, hu.uFormation.value, this.current.turb)
-    if (this.style === 'viki') this.vikiCube?.update(t, hu.uFormation.value, this.vikiAssembly.cube, this.vikiAssembly.direction)
+    if (this.style === 'viki') this.vikiCube?.update(t, hu.uFormation.value, this.vikiAssembly.cube)
 
     // drag rotation: radians per pixel while dragging, inertia afterwards; fully free
     const perPx = 0.006

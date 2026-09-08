@@ -22,12 +22,12 @@ export class VikiRain extends THREE.Points<THREE.BufferGeometry, THREE.ShaderMat
     geometry.setAttribute('aSegment', new THREE.BufferAttribute(segments, 1))
     const material = new THREE.ShaderMaterial({
       uniforms: {
-        uBuild: { value: 0 }, uDirection: { value: 1 }, uTime: { value: 0 },
+        uBuild: { value: 0 }, uTime: { value: 0 },
         uPixelScale: { value: 500 }, uColor: { value: new THREE.Color() },
       },
       vertexShader: /* glsl */ `
         ${VIKI_ASSEMBLY_GLSL}
-        uniform float uDirection, uTime, uPixelScale;
+        uniform float uTime, uPixelScale;
         attribute float aSegment;
         varying float vLight;
         void main() {
@@ -35,7 +35,9 @@ export class VikiRain extends THREE.Points<THREE.BufferGeometry, THREE.ShaderMat
           float head = assemblyFront(position.xz);
           float phase = fract(uTime * 3.0 + seed * 11.0);
           vec3 p = position;
-          p.y = head + uDirection * (aSegment * 0.072 + phase * 0.07);
+          // Trails always point up: falling in from the ceiling on build,
+          // streaming back out towards it on shutdown.
+          p.y = head + aSegment * 0.072 + phase * 0.07;
           float progress = columnProgress(position.xz);
           float envelope = smoothstep(0.0, 0.09, progress) * (1.0 - smoothstep(0.82, 1.0, progress));
           vLight = envelope * (0.25 + 0.75 * pow(1.0 - aSegment / 10.0, 1.5)) * (0.4 + seed * 0.6);

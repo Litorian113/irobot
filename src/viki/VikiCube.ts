@@ -136,14 +136,13 @@ export class VikiCube {
     }
   }
 
-  update(time: number, formation: number, build = 1, direction = 1) {
+  update(time: number, formation: number, build = 1) {
     this.build = build
     this.interior.update(time)
     this.rain.visible = build > 0.001 && build < 0.999
     const rain = this.rain.material.uniforms
     rain.uTime.value = time
     rain.uBuild.value = build
-    rain.uDirection.value = direction
     for (const view of this.views) view.panel.visible = build > 0.001
     for (const material of this.materials) {
       material.uniforms.uFormation.value = formation
