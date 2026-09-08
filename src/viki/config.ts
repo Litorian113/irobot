@@ -163,8 +163,8 @@ export const STYLE_DEFAULTS: Record<HeadStyle, HeadConfig> = {
     dataFlow: 1,
     flowSpeed: 0.7,
     portraitDepth: 0,
-    headScale: 0.38,
-    headY: -0.46,
+    headScale: 0.5,
+    headY: -0.59,
   },
 }
 
