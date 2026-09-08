@@ -52,8 +52,6 @@ export class VikiInterior {
   private cellMaterial: THREE.ShaderMaterial
   private room: THREE.Mesh
   private matrix: VikiMatrix
-  private rays!: THREE.LineSegments
-  private rayMaterial!: THREE.ShaderMaterial
   private headUniforms: HeadUniforms
   private chains = new PixelChains()
   private tileUniforms = {
@@ -73,17 +71,32 @@ export class VikiInterior {
       depthWrite: true, depthTest: true,
     })
     this.cellMaterial = new THREE.ShaderMaterial({
-      uniforms: { ...this.chains.uniforms, uFlow: { value: 0.55 }, uSize: { value: 3 } },
+      uniforms: { ...this.chains.uniforms, uFlow: { value: 0.55 }, uSize: { value: 3 }, uTime: { value: 0 }, uRays: { value: 0 }, uRaySpeed: { value: 0.7 } },
       vertexShader: /* glsl */ `
-        uniform float uFlow, uSize;
+        uniform float uFlow, uSize, uTime, uRays, uRaySpeed;
         attribute float aSeed;
         attribute vec2 aCell;
         ${PIXEL_CHAINS_GLSL}
         varying float vLight;
+        float rayHash(vec2 p) { return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453); }
         void main() {
           float pulse = chainLight(aCell) * 2.0;
           vLight = (0.06 + 0.20 * aSeed * aSeed) * (1.0 + uFlow * pulse);
           vLight *= mix(0.5, 1.0, smoothstep(-1.7, -0.1, position.z));
+
+          // Radial streams from the rear vanishing point: the existing grid cells
+          // light up one after another along a direction bin, so each stream is a
+          // chain of real pixel tiles with its own length, running through the pattern.
+          vec3 rel = position - vec3(0.0, 0.0, -1.62);
+          float dist = length(rel);
+          vec3 dir = rel / max(dist, 0.001);
+          vec2 bin = floor(vec2(atan(dir.x, dir.z), asin(clamp(dir.y, -1.0, 1.0))) * 20.0);
+          float h = rayHash(bin);
+          float carrier = step(0.80, h);
+          float front = fract(uTime * (0.18 + 0.35 * uRaySpeed) * (0.55 + 0.9 * fract(h * 7.13)) + fract(h * 41.7)) * 3.4;
+          float len = 0.3 + 0.9 * fract(h * 13.7);
+          float chain = carrier * step(dist, front) * step(front - len, dist) * smoothstep(front - len, front, dist);
+          vLight += uRays * chain * (0.5 + 0.4 * aSeed);
           vec4 mv = modelViewMatrix * vec4(position, 1.0);
           gl_Position = projectionMatrix * mv;
           gl_PointSize = clamp(uSize * 3.0 / -mv.z, 1.0, 6.0);
@@ -119,56 +132,6 @@ export class VikiInterior {
 
     this.matrix = new VikiMatrix(this.tileUniforms)
 
-    // Light streams rushing from a single rear point through the matrix towards
-    // the glass: one-point perspective rays, their length acting as motion blur.
-    const RAYS = 420
-    const rayDir = new Float32Array(RAYS * 2 * 3)
-    const raySeed = new Float32Array(RAYS * 2)
-    const rayEnd = new Float32Array(RAYS * 2)
-    const rayPos = new Float32Array(RAYS * 2 * 3)
-    let rayState = 9151
-    const rayRandom = () => ((rayState = (Math.imul(rayState, 1664525) + 1013904223) >>> 0) / 4294967296)
-    for (let i = 0; i < RAYS; i++) {
-      const d = new THREE.Vector3((rayRandom() * 2 - 1) * 0.9, (rayRandom() * 2 - 1) * 0.9, 0.35 + rayRandom() * 0.85).normalize()
-      const seed = rayRandom()
-      for (let v = 0; v < 2; v++) {
-        rayDir.set([d.x, d.y, d.z], (i * 2 + v) * 3)
-        raySeed[i * 2 + v] = seed
-        rayEnd[i * 2 + v] = v
-      }
-    }
-    const rayGeo = new THREE.BufferGeometry()
-    rayGeo.setAttribute('position', new THREE.BufferAttribute(rayPos, 3))
-    rayGeo.setAttribute('aDir', new THREE.BufferAttribute(rayDir, 3))
-    rayGeo.setAttribute('aSeed', new THREE.BufferAttribute(raySeed, 1))
-    rayGeo.setAttribute('aEnd', new THREE.BufferAttribute(rayEnd, 1))
-    this.rayMaterial = new THREE.ShaderMaterial({
-      uniforms: { uTime: { value: 0 }, uFlow: { value: 1 }, uSpeed: { value: 0.7 } },
-      vertexShader: /* glsl */ `
-        uniform float uTime, uFlow, uSpeed;
-        attribute vec3 aDir;
-        attribute float aSeed, aEnd;
-        varying float vLight;
-        void main() {
-          float cycle = 2.4 / (0.4 + uSpeed);
-          float t = fract(uTime / cycle + aSeed * 7.31);
-          float head = t * t * (3.0 - 2.0 * t) * 3.1;
-          float tail = max(head - (0.22 + 0.55 * uSpeed) * (0.4 + 0.6 * aSeed), 0.0);
-          vec3 origin = vec3(0.0, 0.0, -1.62);
-          vec3 p = origin + aDir * mix(tail, head, aEnd);
-          // born after leaving the point, gone just before the glass
-          float life = smoothstep(0.04, 0.30, t) * (1.0 - smoothstep(0.78, 0.98, t));
-          life *= 1.0 - smoothstep(-0.14, -0.02, origin.z + aDir.z * head);
-          vLight = uFlow * life * mix(0.07, 0.55, aEnd) * (0.35 + 0.65 * aSeed);
-          gl_Position = projectionMatrix * modelViewMatrix * vec4(p, 1.0);
-        }`,
-      fragmentShader: /* glsl */ `
-        varying float vLight;
-        void main() { gl_FragColor = vec4(vLight, 0.0, 0.0, 1.0); }`,
-      transparent: true, depthWrite: false, depthTest: true, blending: THREE.AdditiveBlending,
-    })
-    this.rays = new THREE.LineSegments(rayGeo, this.rayMaterial)
-    this.rays.frustumCulled = false
 
     // Walls continue the same tile matrix around the head, into the sides and floor.
     this.room = new THREE.Mesh(new THREE.BoxGeometry(2, 2, 1.8), new THREE.ShaderMaterial({
@@ -189,7 +152,7 @@ export class VikiInterior {
       side: THREE.BackSide,
     }))
     this.room.position.z = -0.9
-    this.scene.add(this.room, this.cells, this.matrix, this.rays)
+    this.scene.add(this.room, this.cells, this.matrix)
   }
 
   setGeometry(geometry: THREE.BufferGeometry, influences: number[]) {
@@ -212,8 +175,7 @@ export class VikiInterior {
     u.uDensity.value = 48 + 70 * cfg.density
     u.uCellSize.value = cfg.cellSize
     this.cellMaterial.uniforms.uFlow.value = cfg.dataFlow ?? 0.55
-    this.rayMaterial.uniforms.uFlow.value = cfg.dataFlow ?? 0.55
-    this.rayMaterial.uniforms.uSpeed.value = cfg.flowSpeed ?? 0.7
+    this.cellMaterial.uniforms.uRaySpeed.value = cfg.flowSpeed ?? 0.7
     this.flow = cfg.dataFlow ?? 0.55
     this.speed = cfg.flowSpeed ?? 0.7
   }
@@ -223,13 +185,12 @@ export class VikiInterior {
     // Skip submitting those invisible vertices while keeping every data particle.
     if (this.head) this.head.visible = this.headUniforms.uFormation.value >= 0.001
     if (this.flow > 0) this.chains.update(time, this.speed)
-    this.rayMaterial.uniforms.uTime.value = time
-    this.rays.visible = this.flow > 0.001
+    this.cellMaterial.uniforms.uTime.value = time
+    // The streams belong to her activity: they die out with the face.
+    this.cellMaterial.uniforms.uRays.value = this.flow * this.headUniforms.uFormation.value
   }
 
   dispose() {
-    this.rayMaterial.dispose()
-    this.rays.geometry.dispose()
     this.headMaterial.dispose()
     this.matrix.dispose()
     this.chains.dispose()
