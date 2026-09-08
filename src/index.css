@@ -1116,3 +1116,37 @@ body,
   fill: currentColor;
   opacity: 0.8;
 }
+
+/* ---------- mobile: centred cube, mid-edge wheel, no configurator ---------- */
+
+@media (max-width: 700px), (max-aspect-ratio: 4/5) {
+  .configure-btn {
+    display: none;
+  }
+
+  .wheel-corner {
+    top: 50%;
+    bottom: auto;
+    right: clamp(14px, 4vw, 28px);
+    transform: translateY(-50%);
+  }
+
+  .wheel-fan {
+    width: 330px;
+    height: 330px;
+  }
+
+  .wheel-hint {
+    bottom: calc(50% + 175px);
+    right: calc(50% - 40px);
+    width: 210px;
+  }
+
+  .brand-name {
+    font-size: 17px;
+  }
+
+  .brand-sub {
+    font-size: 8px;
+  }
+}

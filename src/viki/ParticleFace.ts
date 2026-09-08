@@ -172,6 +172,7 @@ export class ParticleFace {
   private style: HeadStyle = 'lattice'
   private config: HeadConfig = { ...STYLE_DEFAULTS.lattice }
   private headLoaded = false
+  private narrow = false
   private headLight: HeadLight | null = null
 
   private current: FaceState = { face: 0, turb: 0.0, forward: 1, ...EXPRESSIONS.neutral }
@@ -296,6 +297,7 @@ export class ParticleFace {
 
   private resize = () => {
     const w = this.canvas.clientWidth || window.innerWidth
+    this.narrow = w < 700 || w / (this.canvas.clientHeight || window.innerHeight) < 0.8
     const h = this.canvas.clientHeight || window.innerHeight
     const pr = this.renderer.getPixelRatio()
     this.renderer.setSize(w, h, false)
@@ -324,7 +326,9 @@ export class ParticleFace {
     if (backdrop && image?.width && image.height) {
       const cover = (w / h) / (image.width / image.height)
       backdrop.repeat.set(Math.min(1, 1 / cover), Math.min(1, cover))
-      backdrop.offset.set((1 - backdrop.repeat.x) / 2, (1 - backdrop.repeat.y) / 2)
+      // On narrow screens, crop towards the hall's light beam instead of the centre.
+      const focus = this.narrow ? (this.backdropName === 'viki-hall' ? 0.28 : 0.5) : 0.5
+      backdrop.offset.set((1 - backdrop.repeat.x) * focus, (1 - backdrop.repeat.y) / 2)
     }
     this.cube.resize(pr, h)
     this.styles?.setDustBase(pr * 1.4)
@@ -538,7 +542,7 @@ export class ParticleFace {
     this.group.rotation.y = FROZEN ? THREE.MathUtils.degToRad(reviewNumber('yaw', isViki ? 45 : 0)) : (isViki ? Math.PI / 4 : this.config.optical ? 0 : Math.sin(t * 0.18) * 0.08) + this.yaw
     this.group.rotation.x = FROZEN ? THREE.MathUtils.degToRad(reviewNumber('pitch', isViki ? -4 : 0)) : (isViki ? -0.07 : this.config.optical ? 0 : Math.sin(t * 0.13) * 0.03) + this.pitch
     this.group.scale.setScalar((FROZEN || this.config.optical || isViki ? 1 : 1 + Math.sin(t * 0.9) * 0.006) * (isViki ? this.config.cubeScale : 1))
-    this.group.position.set(isViki ? this.config.cubeX : 0, isViki ? this.config.cubeY : 0, 0)
+    this.group.position.set(isViki && !this.narrow ? this.config.cubeX : 0, isViki ? this.config.cubeY : 0, 0)
 
     const t0 = performance.now()
     this.headLight?.render(this.renderer, isViki)

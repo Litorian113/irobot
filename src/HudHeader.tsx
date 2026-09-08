@@ -28,7 +28,7 @@ export default function HudHeader({ title, subtitle, statusClass, statusLabel, c
           </button>
         )}
         {!configOpen && (
-          <button type="button" className="btn ghost small" onClick={onConfigure}>
+          <button type="button" className="btn ghost small configure-btn" onClick={onConfigure}>
             Configure
           </button>
         )}
