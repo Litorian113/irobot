@@ -54,6 +54,12 @@ void main() {
   color += glow * (1.0 - clamp(color, 0.0, 1.0) * 0.35);
   // Lift the space around the portrait without filling its dark eye sockets.
   color += uShadow * (0.028 + 0.024 * (1.0 - face.b * uFormation) + field * 0.12);
+  // A glittering bead rides each strand's growing tip while the cube builds or dissolves.
+  float front = assemblyFront(vCubePosition.xz);
+  float building = smoothstep(0.005, 0.05, uBuild) * (1.0 - smoothstep(0.95, 0.995, uBuild));
+  float tipSeed = columnSeed(floor(vCubePosition.xz * 38.0));
+  float tip = exp(-pow((vCubePosition.y - front) / 0.055, 2.0)) * building * (0.4 + 0.6 * tipSeed);
+  color += uHighlight * tip * (0.6 + 0.9 * uBloom);
   // Adjacent panes meet without an alpha gutter exposing a bright line of the hall.
   gl_FragColor = vec4(color, reveal * 0.94);
 }

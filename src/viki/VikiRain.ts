@@ -4,7 +4,7 @@ import { VIKI_ASSEMBLY_GLSL } from './VikiAssembly'
 /** Short columns of light descend to build the cube, then lift off on deactivation. */
 export class VikiRain extends THREE.Points<THREE.BufferGeometry, THREE.ShaderMaterial> {
   constructor() {
-    const columns = 260, length = 7
+    const columns = 340, length = 10
     const positions = new Float32Array(columns * length * 3)
     const segments = new Float32Array(columns * length)
     let seed = 1721
@@ -38,7 +38,7 @@ export class VikiRain extends THREE.Points<THREE.BufferGeometry, THREE.ShaderMat
           p.y = head + uDirection * (aSegment * 0.072 + phase * 0.07);
           float progress = columnProgress(position.xz);
           float envelope = smoothstep(0.0, 0.09, progress) * (1.0 - smoothstep(0.82, 1.0, progress));
-          vLight = envelope * (0.25 + 0.75 * pow(1.0 - aSegment / 7.0, 1.5)) * (0.4 + seed * 0.6);
+          vLight = envelope * (0.25 + 0.75 * pow(1.0 - aSegment / 10.0, 1.5)) * (0.4 + seed * 0.6);
           vec4 mv = modelViewMatrix * vec4(p, 1.0);
           gl_Position = projectionMatrix * mv;
           float scale = length(modelMatrix[0].xyz);
@@ -51,7 +51,7 @@ export class VikiRain extends THREE.Points<THREE.BufferGeometry, THREE.ShaderMat
           vec2 p = abs(gl_PointCoord - 0.5);
           float core = (1.0 - smoothstep(0.16, 0.29, p.x)) * (1.0 - smoothstep(0.26, 0.46, p.y));
           float glow = exp(-dot(p * vec2(4.5, 3.0), p * vec2(4.5, 3.0))) * 0.22;
-          gl_FragColor = vec4(uColor * vLight * 0.9, core + glow);
+          gl_FragColor = vec4(uColor * vLight * 1.1, core + glow);
         }`,
       transparent: true, depthWrite: false, depthTest: false, blending: THREE.AdditiveBlending,
     })
