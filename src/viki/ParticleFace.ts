@@ -16,6 +16,7 @@ import { HeadRig } from './HeadRig'
 import { HeadLight } from './HeadLight'
 import { OpticalEnclosure } from './OpticalEnclosure'
 import { VikiCube } from './VikiCube'
+import { VikiAssembly } from './VikiAssembly'
 
 export type Expression =
   | 'neutral'
@@ -146,6 +147,7 @@ export class ParticleFace {
   private cube: DataCube
   private enclosure = new OpticalEnclosure()
   private vikiCube: VikiCube | null = null
+  private vikiAssembly = new VikiAssembly()
   private bgTexture: THREE.Texture | null = null
   private headUniforms = createHeadUniforms()
   private facePass = new FacePass(this.headUniforms, 256)
@@ -282,6 +284,17 @@ export class ParticleFace {
     this.camera.position.z = this.style === 'viki'
       ? Math.max(4.9, 1.42 + 2.65 / (2 * Math.tan(halfFov) * this.camera.aspect))
       : Math.max(CAM_DIST, 1.0 + 2.3 / (2 * Math.tan(halfFov) * this.camera.aspect))
+    // Fit the left-side placement only when needed, preserving the established wide-screen shot.
+    if (this.style === 'viki') {
+      const corner = new THREE.Vector3(), rotation = new THREE.Euler(-0.07, Math.PI / 4, 0, 'YXZ')
+      for (const x of [-1, 1]) for (const y of [-1, 1]) for (const z of [-1, 1]) {
+        corner.set(x, y, z * this.config.cubeDepth).multiplyScalar(this.config.cubeScale).applyEuler(rotation)
+        corner.x += this.config.cubeX; corner.y += this.config.cubeY
+        const horizontal = Math.abs(corner.x) / (Math.tan(halfFov) * this.camera.aspect)
+        const vertical = Math.abs(corner.y) / Math.tan(halfFov)
+        this.camera.position.z = Math.max(this.camera.position.z, corner.z + Math.max(horizontal, vertical) + 0.08)
+      }
+    }
     this.camera.updateProjectionMatrix()
     // Cover-fit the hall backdrop: crop instead of stretching.
     const image = this.bgTexture?.image as { width?: number; height?: number } | undefined
@@ -385,7 +398,10 @@ export class ParticleFace {
 
   /** Apply the configurator's settings for the current style. */
   applyConfig(cfg: HeadConfig) {
+    const placementChanged = cfg.cubeScale !== this.config.cubeScale || cfg.cubeX !== this.config.cubeX
+      || cfg.cubeY !== this.config.cubeY || cfg.cubeDepth !== this.config.cubeDepth
     this.config = cfg
+    if (placementChanged && this.style === 'viki') this.resize()
     applyShapeConfig(this.headUniforms, cfg)
     applyPlacement(this.headUniforms, cfg, this.current.forward)
     this.enclosure.applyConfig(cfg)
@@ -393,7 +409,8 @@ export class ParticleFace {
     this.cube.applyConfig(cfg)
     this.vikiCube?.applyConfig(cfg)
     this.renderer.setClearColor(this.style === 'viki' ? 0x030607 : cfg.optical ? 0x020405 : 0x02050c, 1)
-    this.bloom.strength = cfg.optical ? Math.min(0.25, cfg.bloom) : cfg.bloom
+    // VIKI's glow slider diffuses the cube locally; keep the finished hall exposure stable.
+    this.bloom.strength = this.style === 'viki' ? 0.46 : cfg.optical ? Math.min(0.25, cfg.bloom) : cfg.bloom
     this.portrait?.applyConfig(cfg)
     this.styles?.applyConfig(cfg)
   }
@@ -411,7 +428,7 @@ export class ParticleFace {
     this.raf = requestAnimationFrame(this.tick)
 
     const now = performance.now()
-    const transitioning = Math.abs(this.current.face - this.target.face) > 0.002
+    const transitioning = Math.abs(this.current.face - this.target.face) > 0.002 || (this.style === 'viki' && this.vikiAssembly.moving)
     const minInterval = 1000 / (this.active || this.mouthSource || transitioning ? ACTIVE_FPS : IDLE_FPS) - 2
     if (now - this.lastFrame < minInterval) return
     this.lastFrame = now
@@ -453,6 +470,11 @@ export class ParticleFace {
     // shared head uniforms (expression + mouth + placement)
     const hu = this.headUniforms
     hu.uFormation.value = this.current.face < 0.001 ? 0 : this.current.face > 0.999 ? 1 : this.current.face
+    if (this.style === 'viki') {
+      const awake = this.active || this.target.face > 0
+      this.vikiAssembly.update(dt, awake, FROZEN ? reviewNumber('assembly', awake ? 1 : 0) : undefined)
+      hu.uFormation.value *= this.vikiAssembly.face
+    }
     hu.uMouthOpen.value = this.mouth.open
     hu.uMouthWide.value = this.mouth.wide
     hu.uSmile.value = this.current.smile
@@ -465,7 +487,7 @@ export class ParticleFace {
     this.cube.update(t, hu.uFormation.value)
     this.styles?.setTime(t)
     this.portrait?.update(t, hu.uFormation.value, this.current.turb)
-    if (this.style === 'viki') this.vikiCube?.update(t, hu.uFormation.value)
+    if (this.style === 'viki') this.vikiCube?.update(t, hu.uFormation.value, this.vikiAssembly.cube, this.vikiAssembly.direction)
 
     // drag rotation: radians per pixel while dragging, inertia afterwards; fully free
     const perPx = 0.006
@@ -546,6 +568,7 @@ export class ParticleFace {
       passes: this.composer.passes.map((p) => `${p.constructor.name}:${p.enabled ? 1 : 0}`),
       cubeVisible: this.cube.group.visible,
       vikiVisible: this.vikiCube?.group.visible ?? false,
+      assembly: this.style === 'viki' ? { progress: this.vikiAssembly.progress, cube: this.vikiAssembly.cube, face: this.vikiAssembly.face, direction: this.vikiAssembly.direction } : undefined,
       shadows: this.headLight?.debug(),
     }
   }
@@ -562,6 +585,7 @@ export class ParticleFace {
     document.removeEventListener('visibilitychange', this.onVisibility)
     this.enclosure.dispose()
     this.vikiCube?.dispose()
+    this.bgTexture?.dispose()
     this.cube.dispose()
     this.styles?.dispose()
     this.portrait?.dispose()

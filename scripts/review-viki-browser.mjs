@@ -36,7 +36,8 @@ try {
   const shot = (name) => page.screenshot({ path: path.join(output, `${name}.png`) })
   const click = (label) => page.evaluate((text) => [...document.querySelectorAll('button')].find((b) => b.textContent.trim() === text).click(), label)
   const tab = async (style) => {
-    await page.evaluate((style) => [...document.querySelectorAll('.tab')].find((b) => b.textContent.toLowerCase().endsWith(style)).click(), style)
+    await page.click('[aria-label="Head style menu"]')
+    await page.evaluate((style) => [...document.querySelectorAll('[role="menuitem"]')].find((b) => b.querySelector('.seg-label')?.textContent.toLowerCase() === style).dispatchEvent(new MouseEvent('click', { bubbles: true })), style)
     await page.waitForFunction((style) => window.__viki().style === style, {}, style)
     await pause(150)
   }
@@ -65,9 +66,10 @@ try {
   // not merely the screen projection of a flat image on a rotating plane.
   await visit('style=viki&preview=neutral&mouth=0&freeze=1&yaw=0&pitch=0')
   const preset = {
-    gain: 0.4, density: 0.51, cellSize: 0.78, dataFlow: 1, flowSpeed: 0.7,
-    cage: 0.7, cubeDepth: 1, portraitDepth: 0, diffusion: 0.4, bloom: 0.46,
-    lightElevation: 50, lightFill: 0.01, headScale: 0.38, headY: -0.46,
+    gain: 0.66, density: 0.51, cellSize: 0.78, dataFlow: 1, flowSpeed: 0.7,
+    cage: 0.85, cubeDepth: 1, portraitDepth: 0, diffusion: 0.8, bloom: 0.65,
+    lightElevation: 50, lightFill: 0.01, headScale: 0.5, headY: -0.59,
+    cubeScale: 0.44, cubeX: -1.6, cubeY: 0.64,
     oval: 0, jawWidth: 0, chin: 0, cheek: 0, browRidge: 0, noseSize: 0,
   }
   const config = await page.evaluate(() => window.__vikiFace.config)
@@ -183,5 +185,5 @@ try {
   await shot('mobile')
   assert.deepEqual(errors, [])
   assert.deepEqual(external, [])
-  console.log('PASS: six 3D windows, head parallax, transparent matrix preserving head light, screenshot defaults, shared lip poses, moving/stopped pixels, dissolve, persistence, style isolation, drag and mobile framing.')
+  console.log('PASS: six 3D windows, head parallax, transparent matrix preserving head light, film defaults, shared lip poses, moving/stopped pixels, dissolve, persistence, style isolation, drag and mobile framing.')
 } finally { await browser.close() }

@@ -35,6 +35,21 @@ void main() {
   if (headCoverage(vLocal) < 0.5) discard;
   float cavity, maskv;
   float light = paintLum(vLocal, normalize(vNormal), vHeadPosition, vHair, vFeature, cavity, maskv);
+  if (uLighting > 1.5 && vFeature < 0.5) {
+    // VIKI-only exposure pools on anatomical landmarks. Multiplying the lit surface
+    // preserves the actual socket, nostril and outer-cheek shadows underneath.
+    vec3 l = vLocal;
+    float forehead = exp(-dot(vec2((l.x + 0.018) / 0.17, (l.y - uBrowY - 0.115) / 0.075),
+      vec2((l.x + 0.018) / 0.17, (l.y - uBrowY - 0.115) / 0.075)));
+    float bridge = exp(-dot(vec2(l.x / 0.043, (l.y - uEyeY + 0.115) / 0.135),
+      vec2(l.x / 0.043, (l.y - uEyeY + 0.115) / 0.135)));
+    float cheeks = exp(-dot(vec2((abs(l.x) - 0.19) / 0.082, (l.y - uEyeY + 0.12) / 0.067),
+      vec2((abs(l.x) - 0.19) / 0.082, (l.y - uEyeY + 0.12) / 0.067)));
+    float lip = exp(-dot(vec2(l.x / 0.11, (l.y - uMouthY + 0.035) / 0.026),
+      vec2(l.x / 0.11, (l.y - uMouthY + 0.035) / 0.026)));
+    float uneven = 0.88 + 0.12 * sin(l.x * 37.0 + l.y * 19.0) * cos(l.y * 31.0);
+    light *= 1.0 + (forehead * 1.9 + bridge * 1.25 + cheeks * 1.7 + lip * 0.75) * uneven;
+  }
   maskv *= smoothstep(-0.24, -0.02, vLocal.y);
   if (maskv < 0.005) discard;
   // R = spatial data field, G = head luminance, B = head coverage.
@@ -56,7 +71,7 @@ export class VikiInterior {
   private chains = new PixelChains()
   private tileUniforms = {
     ...this.chains.uniforms,
-    uFlow: { value: 1 }, uDensity: { value: 83.7 }, uCellSize: { value: 0.78 },
+    uFlow: { value: 1 }, uDensity: { value: 83.7 }, uCellSize: { value: 0.78 }, uTileTime: { value: 0 },
   }
   private flow = 0.55
   private speed = 0.7
@@ -71,32 +86,18 @@ export class VikiInterior {
       depthWrite: true, depthTest: true,
     })
     this.cellMaterial = new THREE.ShaderMaterial({
-      uniforms: { ...this.chains.uniforms, uFlow: { value: 0.55 }, uSize: { value: 3 }, uTime: { value: 0 }, uRays: { value: 0 }, uRaySpeed: { value: 0.7 } },
+      uniforms: { ...this.chains.uniforms, uFlow: { value: 0.55 }, uSize: { value: 3 } },
       vertexShader: /* glsl */ `
-        uniform float uFlow, uSize, uTime, uRays, uRaySpeed;
+        uniform float uFlow, uSize;
         attribute float aSeed;
         attribute vec2 aCell;
         ${PIXEL_CHAINS_GLSL}
         varying float vLight;
-        float rayHash(vec2 p) { return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453); }
         void main() {
           float pulse = chainLight(aCell) * 2.0;
           vLight = (0.06 + 0.20 * aSeed * aSeed) * (1.0 + uFlow * pulse);
           vLight *= mix(0.5, 1.0, smoothstep(-1.7, -0.1, position.z));
 
-          // Radial streams from the rear vanishing point: the existing grid cells
-          // light up one after another along a direction bin, so each stream is a
-          // chain of real pixel tiles with its own length, running through the pattern.
-          vec3 rel = position - vec3(0.0, 0.0, -1.62);
-          float dist = length(rel);
-          vec3 dir = rel / max(dist, 0.001);
-          vec2 bin = floor(vec2(atan(dir.x, dir.z), asin(clamp(dir.y, -1.0, 1.0))) * 20.0);
-          float h = rayHash(bin);
-          float carrier = step(0.80, h);
-          float front = fract(uTime * (0.18 + 0.35 * uRaySpeed) * (0.55 + 0.9 * fract(h * 7.13)) + fract(h * 41.7)) * 3.4;
-          float len = 0.3 + 0.9 * fract(h * 13.7);
-          float chain = carrier * step(dist, front) * step(front - len, dist) * smoothstep(front - len, front, dist);
-          vLight += uRays * chain * (0.5 + 0.4 * aSeed);
           vec4 mv = modelViewMatrix * vec4(position, 1.0);
           gl_Position = projectionMatrix * mv;
           gl_PointSize = clamp(uSize * 3.0 / -mv.z, 1.0, 6.0);
@@ -175,7 +176,6 @@ export class VikiInterior {
     u.uDensity.value = 48 + 70 * cfg.density
     u.uCellSize.value = cfg.cellSize
     this.cellMaterial.uniforms.uFlow.value = cfg.dataFlow ?? 0.55
-    this.cellMaterial.uniforms.uRaySpeed.value = cfg.flowSpeed ?? 0.7
     this.flow = cfg.dataFlow ?? 0.55
     this.speed = cfg.flowSpeed ?? 0.7
   }
@@ -185,9 +185,7 @@ export class VikiInterior {
     // Skip submitting those invisible vertices while keeping every data particle.
     if (this.head) this.head.visible = this.headUniforms.uFormation.value >= 0.001
     if (this.flow > 0) this.chains.update(time, this.speed)
-    this.cellMaterial.uniforms.uTime.value = time
-    // The streams belong to her activity: they die out with the face.
-    this.cellMaterial.uniforms.uRays.value = this.flow * this.headUniforms.uFormation.value
+    this.tileUniforms.uTileTime.value = time * this.speed
   }
 
   dispose() {

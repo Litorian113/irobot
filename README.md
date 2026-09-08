@@ -82,6 +82,7 @@ npm run dev
 | `?preview=happy` | any expression + fake speech, no API |
 | `?style=viki` | open a tab directly (`lattice` / `dust` / `viki`) |
 | `?preview=neutral&viseme=aa&freeze=1` | a frozen lip pose for comparisons |
+| `?style=viki&preview=neutral&freeze=1&assembly=0.35` | inspect the top-down hologram assembly (0–1) |
 | `?facepass=1` | the raw head textures the lattice samples |
 | `window.__viki()` | live animation state in the console |
 

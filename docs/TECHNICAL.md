@@ -71,17 +71,39 @@ The tiles are attached to the head's 3D surface, so they follow its contours and
 Four transparent matrix layers share that same tile spacing, fill and moving light pattern, extending it in front of
 and behind the head. Their different depths produce parallax, while the inner walls continue the grid around the sides
 and floor. Feathered edges and uneven brightness let parts of the enclosure disappear into darkness.
-Local transmission diffusion and restrained bloom soften the light without bending the face. Background
-cells remain visible after the face dissolves; the eye sockets stay dark while it is present. The background is a dark
-blue-gray, with a small lift in the space around the face instead of a completely black surround.
+Local transmission diffusion and halation soften the light without bending the face. Slightly translucent windows
+let the hall show through, while the eye sockets retain their shadows. VIKI's Bloom control changes the local optical
+glow; the hall's existing bloom strength remains fixed at 0.46, so adjusting the hologram does not relight the backdrop.
+
+Activation takes about **3.2 seconds**: columns of seven tiles descend from the top and assemble the cube.
+Each column has its own start delay and travel duration, so some are settling while others have not yet arrived.
+The face emerges during the final part of the sequence. Deactivation takes about **2.2 seconds**: the face fades,
+the remaining tiles retract from bottom to top and the columns lift away at their individual timings. A disconnect or reconnect during the
+sequence reverses from its current progress. When dormant the cube is fully absent and its interior captures stop.
+The same sequence runs through the mic/session state and the **Preview** button, including connection setup.
+
+Adjacent windows meet without transparent edge gutters, eliminating the bright hall-colored seams. A normalized
+3×3 Gaussian kernel blends the visible tile layer with the matrix behind it; a wider highlight halo gives a soft
+optical glow. Its radius varies slightly across the pane without displacing the underlying geometry.
+The **VIKI shadows** lighting mode adds localized exposure pools over the forehead, nose bridge, upper cheeks and
+lower lip. These multiply the existing lit skin, preserving socket and cavity shadows, and apply only to the VIKI
+display. Sparse tiles glitter with smoothly pulsing, independently timed brightness; Pixel movement zero removes
+their animation too. Existing saved colours, lighting and shape settings remain intact.
+
+Inside the formed cube, **140 independent streams of 5–7 tiles** travel from a small rear-center region toward the
+front window. These are moving 3D quads with depth occlusion and parallax, alongside the existing surface refresh
+chains. Each tile is softened and stretched along its projected velocity to suggest a short exposure; no frame-history
+blur is applied to the face, hall or UI. Pixel movement controls both layers; Flow speed controls their travel rate.
 
 **Configure → VIKI display** offers **Pixel movement**, **Flow speed**, **Tile density**, **Tile fill**, **Background tiles**,
 **Cube depth**, **Head recess**, **Tile diffusion**, brightness and bloom. Head recess moves the whole head farther
 behind the window; Cube depth changes the outer enclosure's proportions. Set Pixel movement to zero to remove the animated light layer.
 **Background tiles** controls the surrounding matrix independently of **Face brightness**, so a dimmer head does not
-erase the cube. Defaults match the selected reference settings: face brightness **0.40**, density **0.51**, tile fill
-**0.78**, pixel movement **1.00**, flow speed **0.70**, background tiles **0.70**, cube depth **1.00**, head recess **0.00**,
-diffusion **0.40**, bloom **0.46**, key elevation **50°**, shadow fill **0.01**, head size **0.380** and height **−0.46**.
+erase the cube. The film-inspired preset uses face brightness **0.66**, density **0.51**, tile fill
+**0.78**, pixel movement **1.00**, flow speed **0.70**, background tiles **0.85**, cube depth **1.00**, head recess **0.00**,
+diffusion **0.80**, local bloom **0.65**, key elevation **50°** and shadow fill **0.01**. The finalized head size **0.50**,
+height **−0.59**, cube scale **0.44** and hall placement **(−1.60, 0.64)** are preserved. Narrow screens pull the
+camera back only enough to keep that left-side placement visible; the established wide-screen framing stays the same.
 Shape adjustments remain zero. Existing saved settings are preserved; use **Reset to standard** to adopt the new preset.
 Save/Reset apply only to VIKI (`viki.config.v5.viki`). Dust and Lattice retain their existing defaults and materials.
 The extra scene is allocated only when VIKI is first selected. It shares the original geometry and pose array.
@@ -89,7 +111,11 @@ Only windows facing the viewer render their interiors (up to three passes), into
 skip rendering. This costs more GPU work than the previous flat portraits. No extra portrait passes run in Dust or Lattice.
 The four matrix layers use one instanced draw per visible window (eight triangles), sharing the existing pixel-chain
 texture and render targets. They add no new full-scene passes or render targets, and do not reduce existing particle counts.
+Travelling depth tiles add one instanced draw per visible window; assembly columns add one point draw only during
+the transition. All buffers are allocated once and disposed with the renderer. The additional glow uses thirteen local
+texture samples per window pixel; it does add GPU work, without reducing particles, resolution or frame-rate targets.
 Preview without connecting: `?style=viki&preview=neutral`; use `&mouth=0` to inspect only the moving tiles.
+For a frozen assembly stage, append `&freeze=1&assembly=0.35` (0 = dormant, 1 = complete).
 
 The VIKI shadow pass reuses its 1024² map when its exact geometry, pose and light inputs are unchanged. Speaking,
 blinking, shape edits and light movement invalidate it; viewing-camera movement and pixel flow do not. The invisible
@@ -220,6 +246,9 @@ browser environment variables, blocks external requests and saves screenshots to
 `scripts/review-viki-performance.mjs` checks cached/full shadow image equivalence, invalidation on pose/shape/light
 changes, unchanged particle count, stable GPU resource counts across style switches, pass disposal and render-loop
 shutdown. It uses the same browser environment variables and makes no API calls.
+`scripts/review-viki-hologram.mjs` checks top-down shader coverage, cube-before-face timing, travelling 5–7-tile
+streams, the empty dormant hall, and Preview activation/cancellation/reconnection/shutdown. It saves staged screenshots
+to `/tmp/viki-hologram-review`. `scripts/viki-assembly.test.mjs` checks the reversible clock and frame-rate independence.
 
 ## Layout
 
@@ -233,6 +262,8 @@ shutdown. It uses the same browser environment variables and makes no API calls.
 - `src/viki/VikiCube.ts` — six mirrored portrait displays with local tile diffusion and travelling pixel light
 - `src/viki/VikiInterior.ts` — shared 3D head, surface tiles and spatial data layers viewed through the cube windows
 - `src/viki/VikiMatrix.ts` / `VikiTiles.ts` — transparent matrix depth layers and tile pattern shared with the head
+- `src/viki/VikiAssembly.ts` / `VikiRain.ts` — reversible assembly clock, shared reveal front and descending/lifting columns
+- `src/viki/VikiStreams.ts` — instanced 5–7-tile depth streams with directional exposure trails
 - `src/viki/PixelChains.ts` — deterministic turning cell trails and their shared two-frame texture
 - `src/viki/sampleSurface.ts` — surface sampling that preserves the morphs for Dust
 - `src/viki/styles.ts` — contour / dots / plasma / dust materials and their post passes

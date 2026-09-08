@@ -58,7 +58,8 @@ try {
   })
   const cycle = async () => {
     for (const style of ['dust', 'lattice', 'viki']) {
-      await page.evaluate((style) => [...document.querySelectorAll('.tab')].find((b) => b.textContent.toLowerCase().endsWith(style)).click(), style)
+      await page.evaluate(() => document.querySelector('[aria-label="Head style menu"]').click())
+      await page.evaluate((style) => [...document.querySelectorAll('[role="menuitem"]')].find((b) => b.querySelector('.seg-label')?.textContent.toLowerCase() === style).dispatchEvent(new MouseEvent('click', { bubbles: true })), style)
       await pause(250)
     }
   }
@@ -73,7 +74,7 @@ try {
 
   const disposal = await page.evaluate(async () => {
     const f = window.__vikiFace, passes = f.composer.passes
-    let disposedPasses = 0, bloomTargets = 0, chainTexture = 0, matrixResources = 0, subsequentRenders = 0
+    let disposedPasses = 0, bloomTargets = 0, chainTexture = 0, matrixResources = 0, hologramResources = 0, subsequentRenders = 0
     for (const pass of passes) {
       const dispose = pass.dispose.bind(pass)
       pass.dispose = () => { disposedPasses++; dispose() }
@@ -86,16 +87,21 @@ try {
     for (const resource of [matrix, matrix.geometry, matrix.material]) {
       resource.addEventListener('dispose', () => matrixResources++)
     }
+    for (const resource of [f.vikiCube.rain.geometry, f.vikiCube.rain.material,
+      f.vikiCube.interior.streams.geometry, f.vikiCube.interior.streams.material, f.bgTexture]) {
+      resource.addEventListener('dispose', () => hologramResources++)
+    }
     const render = f.renderer.render.bind(f.renderer)
     f.renderer.render = (...args) => { subsequentRenders++; return render(...args) }
     f.dispose(); f.dispose()
     await new Promise((resolve) => setTimeout(resolve, 250))
-    return { disposedPasses, expected: passes.length, bloomTargets, chainTexture, matrixResources, subsequentRenders }
+    return { disposedPasses, expected: passes.length, bloomTargets, chainTexture, matrixResources, hologramResources, subsequentRenders }
   })
   assert.equal(disposal.disposedPasses, disposal.expected)
   assert.equal(disposal.bloomTargets, 11)
   assert.equal(disposal.chainTexture, 1)
   assert.equal(disposal.matrixResources, 3, 'Matrix instance buffer, geometry and material are disposed once')
+  assert.equal(disposal.hologramResources, 5, 'Rain, depth streams and hall texture are disposed once')
   assert.equal(disposal.subsequentRenders, 0, 'Disposal stops the render loop')
   assert.deepEqual(errors, [])
   console.log('PASS: identical cached shadows, invalidation, unchanged particle count, stable resources, disposed passes and stopped render loop.', { warm, disposal })

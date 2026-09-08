@@ -2,7 +2,7 @@ import { PIXEL_CHAINS_GLSL } from './PixelChains'
 
 /** The same cell pitch, aperture and refresh pattern on the head and in its enclosing matrix. */
 export const VIKI_TILES_GLSL = /* glsl */ `
-uniform float uFlow, uDensity, uCellSize;
+uniform float uFlow, uDensity, uCellSize, uTileTime;
 ${PIXEL_CHAINS_GLSL}
 float tileHash(vec3 p) {
   p = fract(p * 0.3183099 + 0.1);
@@ -18,6 +18,12 @@ float tileLight(vec2 point) {
   vec2 aa = max(fwidth(grid) * 0.6, vec2(0.035));
   vec2 tile = 1.0 - smoothstep(radius - aa, radius + aa, p);
   float aperture = mix(tile.x * tile.y, 4.0 * radius.x * radius.y, smoothstep(0.8, 1.5, footprint));
-  return (0.10 + 0.9 * aperture) * (0.3 + 1.25 * grain * grain + uFlow * chainLight(id) * 1.25);
+  // Sparse, independently timed glints: smooth pulses, never random frame-to-frame flashing.
+  float seed = tileHash(vec3(id, 31.7));
+  float phase = fract(uTileTime * (0.42 + seed * 0.58) + seed * 17.3);
+  float glitter = smoothstep(0.72, 0.97, seed) * exp(-pow((phase - 0.5) / 0.085, 2.0));
+  glitter *= uFlow * (1.0 - smoothstep(1.3, 2.6, footprint));
+  float light = (0.10 + 0.9 * aperture) * (0.3 + 1.25 * grain * grain + uFlow * chainLight(id) * 1.25);
+  return light * (1.0 + glitter * 1.8) + aperture * glitter * 0.65;
 }
 `

@@ -2,11 +2,16 @@ import * as THREE from 'three'
 import type { HeadConfig } from './config'
 import type { HeadUniforms } from './headShader'
 import { VikiInterior } from './VikiInterior'
+import { VikiRain } from './VikiRain'
+import { VIKI_ASSEMBLY_GLSL } from './VikiAssembly'
 
 const vertex = /* glsl */ `
 varying vec2 vUv;
+varying vec3 vCubePosition;
+uniform mat4 uPanelMatrix;
 void main() {
   vUv = uv;
+  vCubePosition = (uPanelMatrix * vec4(position, 1.0)).xyz;
   gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
 }
 `
@@ -14,26 +19,43 @@ void main() {
 const fragment = /* glsl */ `
 uniform sampler2D uFace;
 uniform vec3 uShadow, uSilver, uHighlight;
-uniform float uFormation, uGain, uField, uDiffusion;
+uniform float uFormation, uGain, uField, uDiffusion, uBloom;
 varying vec2 vUv;
+varying vec3 vCubePosition;
+${VIKI_ASSEMBLY_GLSL}
 void main() {
+  float reveal = assemblyMask(vCubePosition);
+  if (reveal < 0.001) discard;
   // Transmission preserves the perspective of the interior, including its surface-bound tiles.
   vec2 uv = vUv;
-  float spread = 0.0003 + uDiffusion * 0.0015;
+  float unevenGlass = 0.9 + 0.1 * sin(uv.x * 23.0) * cos(uv.y * 17.0);
+  float spread = (0.0012 + uDiffusion * 0.0038) * unevenGlass;
   vec4 face = texture2D(uFace, uv);
-  float light = face.g * 0.6;
-  light += (texture2D(uFace, uv + vec2(spread, 0)).g + texture2D(uFace, uv - vec2(spread, 0)).g) * 0.2;
-  float faceLight = pow(max(light, 0.0), 1.12) * uFormation;
+  // Normalized 3x3 Gaussian kernel over the projected front layer AND its interior matrix.
+  vec4 soft = face * 0.25;
+  soft += (texture2D(uFace, uv + vec2(spread, 0)) + texture2D(uFace, uv - vec2(spread, 0))
+    + texture2D(uFace, uv + vec2(0, spread)) + texture2D(uFace, uv - vec2(0, spread))) * 0.125;
+  soft += (texture2D(uFace, uv + vec2(spread)) + texture2D(uFace, uv - vec2(spread))
+    + texture2D(uFace, uv + vec2(spread, -spread)) + texture2D(uFace, uv + vec2(-spread, spread))) * 0.0625;
+  vec2 haloStep = vec2(spread * 2.4);
+  vec4 halo = (texture2D(uFace, uv + haloStep) + texture2D(uFace, uv - haloStep)
+    + texture2D(uFace, uv + vec2(haloStep.x, -haloStep.y)) + texture2D(uFace, uv + vec2(-haloStep.x, haloStep.y))) * 0.25;
+  float light = mix(face.g, soft.g, min(0.82, 0.4 + uDiffusion * 0.4));
+  float faceLight = pow(max(light, 0.0), 1.02) * uFormation;
   // Keep the sockets dark: moving data there stays much weaker than on the lit face.
-  float field = uField * (face.r * mix(1.0, 0.12, face.b * uFormation) + 0.002);
+  float field = uField * (mix(face.r, soft.r, 0.68) * mix(1.0, 0.26, face.b * uFormation) * 1.45 + 0.006);
 
   // Silvery green-gray phosphor on a nearly black optical substrate.
   vec3 tint = mix(uSilver, uHighlight, smoothstep(0.25, 0.75, faceLight) * 0.65);
   // Face brightness is independent of the surrounding matrix (Background tiles).
   vec3 color = tint * faceLight * 1.65 * uGain + uSilver * field;
+  // Diffusion and halation belong to this optical volume, not the hall or UI.
+  vec3 glow = uSilver * (halo.g * uFormation * uGain * 0.6 + halo.r * uField * 0.65) * uBloom;
+  color += glow * (1.0 - clamp(color, 0.0, 1.0) * 0.35);
   // Lift the space around the portrait without filling its dark eye sockets.
-  color += uShadow * (0.016 + 0.022 * (1.0 - face.b * uFormation) + field * 0.10);
-  gl_FragColor = vec4(color, 1.0);
+  color += uShadow * (0.028 + 0.024 * (1.0 - face.b * uFormation) + field * 0.12);
+  // Adjacent panes meet without an alpha gutter exposing a bright line of the hall.
+  gl_FragColor = vec4(color, reveal * 0.94);
 }
 `
 
@@ -46,6 +68,8 @@ export class VikiCube {
   private views: { panel: THREE.Mesh; camera: THREE.PerspectiveCamera; target: THREE.WebGLRenderTarget; mirror: boolean }[] = []
   private eye = new THREE.Vector3()
   private clearColor = new THREE.Color()
+  private rain = new VikiRain()
+  private build = 0
 
   constructor(head: HeadUniforms) {
     this.interior = new VikiInterior(head)
@@ -63,27 +87,32 @@ export class VikiCube {
         vertexShader: vertex, fragmentShader: fragment,
         uniforms: {
           uFace: { value: target.texture }, uFormation: { value: 0 },
+          uBuild: { value: 0 }, uPanelMatrix: { value: new THREE.Matrix4() }, uBloom: { value: 0.65 },
           uShadow: { value: new THREE.Color() }, uSilver: { value: new THREE.Color() }, uHighlight: { value: new THREE.Color() },
           uGain: { value: 1.4 }, uField: { value: 0.7 }, uDiffusion: { value: 0.45 },
         },
         // Each window captures its own interior; far windows cannot leak through it.
-        side: THREE.FrontSide, depthWrite: true,
+        side: THREE.FrontSide, depthWrite: true, transparent: true,
       })
       const panel = new THREE.Mesh(this.geometry, material)
       panel.name = `VIKI-${faceSide.name}`
       panel.position.fromArray(faceSide.position)
       panel.rotation.set(faceSide.rotation[0], faceSide.rotation[1], faceSide.rotation[2])
+      panel.updateMatrix()
+      material.uniforms.uPanelMatrix.value = panel.matrix
       panel.frustumCulled = false
       this.materials.push(material)
       this.views.push({ panel, camera: new THREE.PerspectiveCamera(), target, mirror: Boolean(faceSide.mirror) })
       this.group.add(panel)
     }
+    this.group.add(this.rain)
     this.group.visible = false
   }
 
   applyConfig(cfg: HeadConfig) {
     this.interior.applyConfig(cfg)
     this.group.scale.set(1, 1, cfg.cubeDepth)
+    this.rain.material.uniforms.uColor.value.set(cfg.colorB)
     for (const material of this.materials) {
       const u = material.uniforms
       u.uShadow.value.set(cfg.colorA)
@@ -92,13 +121,22 @@ export class VikiCube {
       u.uGain.value = cfg.gain
       u.uField.value = cfg.cage
       u.uDiffusion.value = cfg.diffusion
+      u.uBloom.value = cfg.bloom
     }
   }
 
-  update(time: number, formation: number) {
+  update(time: number, formation: number, build = 1, direction = 1) {
+    this.build = build
     this.interior.update(time)
+    this.rain.visible = build > 0.001 && build < 0.999
+    const rain = this.rain.material.uniforms
+    rain.uTime.value = time
+    rain.uBuild.value = build
+    rain.uDirection.value = direction
+    for (const view of this.views) view.panel.visible = build > 0.001
     for (const material of this.materials) {
       material.uniforms.uFormation.value = formation
+      material.uniforms.uBuild.value = build
     }
   }
 
@@ -106,7 +144,8 @@ export class VikiCube {
 
   /** Off-axis frusta make the pane a window: foreground, face and rear cells have different parallax. */
   capture(renderer: THREE.WebGLRenderer, camera: THREE.Camera) {
-    if (!this.group.visible) return
+    if (!this.group.visible || this.build < 0.001) return
+    this.rain.material.uniforms.uPixelScale.value = renderer.domElement.height
     this.group.updateWorldMatrix(true, true)
     camera.updateWorldMatrix(true, false)
     const previousTarget = renderer.getRenderTarget()
@@ -147,6 +186,7 @@ export class VikiCube {
     for (const material of this.materials) material.dispose()
     for (const view of this.views) view.target.dispose()
     this.interior.dispose()
+    this.rain.dispose()
     this.geometry.dispose()
   }
 }
