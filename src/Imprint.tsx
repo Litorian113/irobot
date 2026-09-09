@@ -22,7 +22,7 @@ export default function Imprint() {
             <h2>Imprint</h2>
             <p>
               <strong>V.I.K.I. — Giving a Voice a Body</strong>
-              <br />A private, non-commercial project — not affiliated with HfG Schwäbisch Gmünd.
+              <br />A private, non-commercial project.
             </p>
             <p>
               Franz Anhäupl
