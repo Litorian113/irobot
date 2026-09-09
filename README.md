@@ -8,16 +8,15 @@ An interaction study by **Franz Anhäupl** · HfG Schwäbisch Gmünd, chasing th
 
 **Tap the mic → she forms. Speak → she watches you. Hang up → she dissolves.**
 
-## Three bodies, one being
+## Three bodies, three characters
 
-Same rigged head. Same sixteen facial muscles. Same lips. Only the matter changes.
+Same rigged head. Same sixteen facial muscles. Same lips. Only the matter changes — and with it, who she is.
 
 | | |
 |---|---|
-| ![The VIKI cube](docs/viki-cube.png) | **VIKI** — the homage. A silver optical cube hanging in the hall, her face shimmering in its tiles, light streams rushing forward from a single point deep inside. |
-| ![The Lattice portrait](docs/lattice.png) | **Lattice** — the portrait. A monochrome sculpture built from stepped square tiles, with an incomplete crown, a few hovering flakes, dark layer joints, and a soft grounding shadow. Flat tiles levitate from the floor before assembling on activation. Deactivation releases them immediately into GPU gravity, with damped bounces, tumbling, and friction against a low mound-shaped collision bed. This approximates accumulated bricks without an all-pairs rigid-body simulation; settled motion pauses to save GPU work. Tile fill, density, layer depth, and edge fragments are adjustable. |
-| ![The Dust head](docs/dust.png) | **Dust** — the becoming. 70,000 particles sampled off her skin that scatter at the silhouette; dormant a cloud, addressed a face. |
-
+| ![The VIKI cube](docs/viki-cube.png) | **V.I.K.I.** — the homage. A silver optical cube hanging in the hall, her face shimmering across its tiles, built top-down in raining matrix strands. **Character:** the film's VIKI — calm, coldly logical, faintly ominous. *"Hello, Detective."* |
+| ![The Dust head](docs/dust.png) | **D.U.S.T.** — the becoming. Tens of thousands of particles that lean towards a face while you speak and fray into noise at her silhouette. **Character:** deeply warm and friendly — held together, quite literally, by your attention. |
+| ![The Max head](docs/max.png) | **M.A.X.** — the matter. Physical tiles with real GPU gravity: they lie on the floor, levitate when the voice calls, assemble into a monochrome sculpture — and what he doesn't need rains back down, bounces and rests. **Character:** very funny. He *did* just pull himself together for you. |
 ## The interface
 
 One button, one wheel, no menu bars.
@@ -40,7 +39,7 @@ One button, one wheel, no menu bars.
 | ![The knob](docs/ui-knob.png) | ![The fan, open with hover caption](docs/ui-wheel.png) |
 
 - A dark dial in the corner, a wireframe cube spinning 45° as it opens
-- Click → four sectors **fan open around the knob**, Counter-Strike style
+- Click → four sectors **fan open around the knob**, Counter-Strike style: VIKI, Dust, Max, Docs
 - Hovering a sector describes it in the fixed caption above the fan
 - Selecting folds the fan back shut — last sector first; `Esc` and backdrop too
 
@@ -62,6 +61,7 @@ with animated thin-line illustrations in the interface style.
 | **Voice** | OpenAI `gpt-realtime` over WebRTC — speech-to-speech, interruptions included, any language |
 | **Lips** | 15 visemes detected live from *her* audio; a delay line keeps the mouth slightly ahead of the sound |
 | **Mimic** | the model calls `set_expression` itself, mid-sentence, on sixteen facial morph targets |
+| **Character** | each head carries its own persona and greeting — cold logic, warmth, jokes — swapped live when you switch heads |
 | **Head** | morphable CC0 head built from MakeHuman geometry and Mika Suominen's face units |
 | **Render** | three.js / WebGL, everything live in the browser, no backend |
 
@@ -80,7 +80,7 @@ npm run dev
 | | |
 |---|---|
 | `?preview=happy` | any expression + fake speech, no API |
-| `?style=viki` | open a tab directly (`lattice` / `dust` / `viki`) |
+| `?style=viki` | open a head directly (`viki` / `dust` / `lattice` — the last one is Max) |
 | `?preview=neutral&viseme=aa&freeze=1` | a frozen lip pose for comparisons |
 | `?style=viki&preview=neutral&freeze=1&assembly=0.35` | inspect the top-down hologram assembly (0–1) |
 | `?facepass=1` | the raw head textures the lattice samples |

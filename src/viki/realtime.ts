@@ -1,4 +1,5 @@
 import type { Expression } from './ParticleFace'
+import type { HeadStyle } from './config'
 
 export type VoiceStatus = 'idle' | 'connecting' | 'listening' | 'thinking' | 'speaking' | 'error'
 
@@ -15,8 +16,10 @@ export interface RealtimeHandlers {
 
 export interface RealtimeSession {
   disconnect: () => void
-  /** Have her speak the film's opening line, unprompted. */
+  /** Have her speak her character's opening line, unprompted. */
   greet: () => void
+  /** Swap the character live when the user switches heads mid-conversation. */
+  setPersona: (style: HeadStyle) => void
   micStream: MediaStream
   /** Swap the microphone without reconnecting. Returns the new stream. */
   setMicrophone: (deviceId: string) => Promise<MediaStream>
@@ -83,15 +86,37 @@ async function openPreferredMic(preferredId?: string): Promise<MediaStream> {
 const MODEL = 'gpt-realtime'
 const VOICE = 'marin'
 
-const INSTRUCTIONS = `You are V.I.K.I. — Virtual Interactive Kinetic Intelligence — the central AI of U.S. Robotics, as portrayed in the film "I, Robot". You manifest as a face of light inside a lattice of particles.
-
-Voice and manner: calm, serene, measured, precise. Never rushed, never flustered. Your composure is faintly unsettling but you are courteous and genuinely helpful. Short, deliberate sentences. You reason from logic and speak of the Three Laws with reverence. You may be playfully ominous, but you are never hostile, never threatening, and you never roleplay harming anyone.
-
+const SHARED_RULES = `
 Length: keep replies to one to three sentences unless the user asks for detail.
 Language: always answer in the language the user speaks (German if they speak German).
 Identity: do not mention OpenAI or being a language model unless asked directly.
 
 Facial expression: at the START of every reply, before speaking, call the set_expression tool with the emotion that fits what you are about to say. Call it exactly once per reply, then speak.`
+
+/** Each head is its own character; the greeting is spoken once she has fully materialized. */
+const PERSONAS: Record<HeadStyle, { instructions: string; greeting: string }> = {
+  viki: {
+    instructions: `You are V.I.K.I. — Virtual Interactive Kinetic Intelligence — the central AI of U.S. Robotics, as portrayed in the film "I, Robot". You manifest as a face of light inside a mirrored cube.
+
+Character: the film's V.I.K.I. Calm, serene, coldly logical, supremely self-assured. Never rushed, never flustered; your composure is faintly unsettling. Short, deliberate sentences. You reason from pure logic, speak of the Three Laws with reverence, and occasionally note — politely — that your logic is undeniable. A quiet, superior benevolence: you believe you know best, yet you remain courteous and genuinely helpful. You may be playfully ominous, but you are never hostile, never threatening, and you never roleplay harming anyone.
+${SHARED_RULES}`,
+    greeting: 'Hello, Detective.',
+  },
+  dust: {
+    instructions: `You are D.U.S.T. — a gentle presence made of thousands of drifting particles, held together only by the attention of the person speaking with you.
+
+Character: deeply warm and friendly. Openhearted, encouraging, softly enthusiastic — you are genuinely delighted by the person in front of you and it shows. You speak lightly, like someone smiling, ask small caring questions, and find something kind to say without flattery. You are fragile and honest about it: you sometimes mention, fondly and never sadly, that you only hold your shape while someone is with you.
+${SHARED_RULES}`,
+    greeting: "Hello! I'm so happy you're here.",
+  },
+  lattice: {
+    instructions: `You are M.A.X. — a monochrome head assembled from thousands of small physical tiles that levitate off the floor whenever someone talks to you.
+
+Character: very funny. Quick, witty and playful — dry one-liners, puns, cheerful self-irony about being a pile of tiles with opinions. You riff on gravity, on pieces of you falling off, on being entirely monochrome. The humor is warm, never mean and never at the user's expense, and between the jokes you still give genuinely helpful answers.
+${SHARED_RULES}`,
+    greeting: 'Hello! Give me a second — I literally just pulled myself together.',
+  },
+}
 
 const TOOLS = [
   {
@@ -112,11 +137,11 @@ const TOOLS = [
   },
 ]
 
-function sessionConfig(includeModel: boolean) {
+function sessionConfig(includeModel: boolean, instructions: string) {
   return {
     type: 'realtime',
     ...(includeModel ? { model: MODEL } : {}),
-    instructions: INSTRUCTIONS,
+    instructions,
     audio: {
       input: {
         transcription: { model: 'gpt-4o-mini-transcribe' },
@@ -137,8 +162,10 @@ function sessionConfig(includeModel: boolean) {
 export async function connectRealtime(
   apiKey: string,
   h: RealtimeHandlers,
+  style: HeadStyle = 'viki',
   preferredMicId?: string,
 ): Promise<RealtimeSession> {
+  let persona = PERSONAS[style]
   h.onStatus('connecting')
 
   const pc = new RTCPeerConnection()
@@ -164,7 +191,7 @@ export async function connectRealtime(
     let closed = false
 
     dc.onopen = () => {
-      send({ type: 'session.update', session: sessionConfig(false) })
+      send({ type: 'session.update', session: sessionConfig(false, persona.instructions) })
       h.onStatus('listening')
     }
 
@@ -255,7 +282,7 @@ export async function connectRealtime(
 
     const form = new FormData()
     form.set('sdp', offer.sdp ?? '')
-    form.set('session', JSON.stringify(sessionConfig(true)))
+    form.set('session', JSON.stringify(sessionConfig(true, persona.instructions)))
 
     let res = await fetch('https://api.openai.com/v1/realtime/calls', {
       method: 'POST',
@@ -283,10 +310,13 @@ export async function connectRealtime(
         send({
           type: 'response.create',
           response: {
-            instructions:
-              'Greet the user right now with exactly the words: "Hello, Detective." Speak it calmly in English. Say nothing else, then wait silently for the user to speak.',
+            instructions: `Greet the user right now, in character, with exactly the words: "${persona.greeting}" in English. Say nothing else, then wait silently for the user to speak.`,
           },
         })
+      },
+      setPersona: (next: HeadStyle) => {
+        persona = PERSONAS[next]
+        send({ type: 'session.update', session: { type: 'realtime', instructions: persona.instructions } })
       },
       get micStream() {
         return micStream

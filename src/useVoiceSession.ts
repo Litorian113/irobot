@@ -3,6 +3,7 @@ import type { Expression, ParticleFace } from './viki/ParticleFace'
 import { LipSync } from './viki/lipsync'
 import { SpeechOutput } from './viki/SpeechOutput'
 import { connectRealtime, type RealtimeSession, type VoiceStatus } from './viki/realtime'
+import type { HeadStyle } from './viki/config'
 
 const API_KEY = import.meta.env.VITE_OPENAI_API_KEY as string | undefined
 
@@ -11,7 +12,7 @@ const API_KEY = import.meta.env.VITE_OPENAI_API_KEY as string | undefined
  * viseme detection, microphone level, connection epochs and teardown.
  * The face only receives expressions and (through `lipRef`) mouth poses.
  */
-export function useVoiceSession(faceRef: RefObject<ParticleFace | null>, speechDelay: number) {
+export function useVoiceSession(faceRef: RefObject<ParticleFace | null>, speechDelay: number, style: HeadStyle) {
   const sessionRef = useRef<RealtimeSession | null>(null)
   const audioCtxRef = useRef<AudioContext | null>(null)
   const lipRef = useRef<SpeechOutput | null>(null)
@@ -19,6 +20,10 @@ export function useVoiceSession(faceRef: RefObject<ParticleFace | null>, speechD
   const connectionEpoch = useRef(0)
   const relaxTimer = useRef<number | undefined>(undefined)
   const orbRef = useRef<HTMLButtonElement>(null)
+  const styleRef = useRef(style)
+  useEffect(() => {
+    styleRef.current = style
+  }, [style])
 
   const [status, setStatus] = useState<VoiceStatus>('idle')
   const [assistantText, setAssistantText] = useState('')
@@ -103,6 +108,7 @@ export function useVoiceSession(faceRef: RefObject<ParticleFace | null>, speechD
             setStatus('error')
           },
         },
+        styleRef.current,
       )
       if (epoch !== connectionEpoch.current) { session.disconnect(); speech.dispose(); return }
       sessionRef.current = session
@@ -128,6 +134,11 @@ export function useVoiceSession(faceRef: RefObject<ParticleFace | null>, speechD
       audioCtxRef.current = null
     }
   }, [speechDelay, disconnect, faceRef])
+
+  // Switching heads mid-conversation swaps the character live.
+  useEffect(() => {
+    sessionRef.current?.setPersona(style)
+  }, [style])
 
   useEffect(() => () => disconnect(), [disconnect])
 

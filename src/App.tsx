@@ -50,10 +50,12 @@ export default function App() {
   })
 
   const backdropRef = useRef('viki-hall-main')
-  backdropRef.current = backdrop
+  useEffect(() => {
+    backdropRef.current = backdrop
+  }, [backdrop])
 
   const cfg = useHeadConfig(faceRef)
-  const voice = useVoiceSession(faceRef, cfg.draft.speechDelay)
+  const voice = useVoiceSession(faceRef, cfg.draft.speechDelay, cfg.style)
   const { status } = voice
 
   // Renderer lifecycle
