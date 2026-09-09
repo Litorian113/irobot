@@ -136,6 +136,7 @@ body,
 
 .captions {
   align-self: center;
+  transition: opacity 1.4s ease;
   width: min(760px, 100%);
   text-align: center;
   text-transform: none;
@@ -149,11 +150,20 @@ body,
 
 .caption {
   margin: 0;
-  line-height: 1.5;
+  line-height: 1.55;
+  /* A quiet dark plate keeps the words legible over the bright tile carpet. */
+  width: fit-content;
+  max-width: 100%;
+  align-self: center;
+  padding: 5px 14px;
+  background: rgba(2, 5, 12, 0.55);
+  backdrop-filter: blur(3px);
+  clip-path: polygon(7px 0, 100% 0, 100% calc(100% - 7px), calc(100% - 7px) 100%, 0 100%, 0 7px);
+  text-shadow: 0 1px 4px rgba(0, 0, 0, 0.9);
 }
 
 .caption.user {
-  font-size: 13px;
+  font-size: 11px;
   color: var(--ink-dim);
 }
 
@@ -162,9 +172,12 @@ body,
 }
 
 .caption.viki {
-  font-size: clamp(15px, 1.6vw, 19px);
+  font-size: clamp(12px, 1.15vw, 14px);
   color: var(--hot);
-  text-shadow: 0 0 14px rgba(230, 240, 248, 0.5);
+}
+
+.captions.faded {
+  opacity: 0;
 }
 
 .hud-bottom {

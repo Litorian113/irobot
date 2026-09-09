@@ -141,7 +141,7 @@ export default function App() {
 
         <RadialMenu style={cfg.style} onSelect={cfg.chooseStyle} onDocs={() => setDocsOpen(true)} />
 
-        <Captions userText={voice.userText} assistantText={voice.assistantText} />
+        <Captions userText={voice.userText} assistantText={voice.assistantText} hold={status === 'thinking' || status === 'speaking'} />
 
         <footer className="hud-bottom">
           {voice.error && <p className="error">{voice.error}</p>}
