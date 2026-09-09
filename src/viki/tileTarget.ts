@@ -43,10 +43,16 @@ TileTarget tileTarget(vec2 aCell, float aBack) {
   // The 0.06..0.35 mask band stays hidden - speech only wobbles the silhouette
   // there, and those cells must never flip between head and floor.
   float mask = aBack > 0.5 ? rear.b : face.b;
-  float dweller = max(step(mask, 0.06), 1.0 - step(-0.11, localY));
-  vec3 planeRest = vec3((hash(aCell + 31.7 + aBack) - 0.5) * uExtent * 4.8,
-    uFloor + 0.02 + hash(aCell + 25.0) * 0.05,
-    (hash(aCell.yx + 57.1 + aBack) - 0.5) * uExtent * 1.7);
+  // Only a sparse handful of the outside cells become dwellers, and their
+  // spread varies per tile so the scatter reads as random debris, not a block.
+  float keep = step(0.85, hash(aCell + 63.3 + aBack));
+  float dweller = max(step(mask, 0.06), 1.0 - step(-0.11, localY)) * keep;
+  float u1 = hash(aCell + 31.7 + aBack);
+  float u2 = hash(aCell.yx + 57.1 + aBack);
+  float u3 = hash(aCell * 1.7 + 9.1 + aBack);
+  vec3 planeRest = vec3((u1 - 0.5) * uExtent * (4.2 + u3 * 1.8),
+    uFloor + 0.02 + u3 * 0.05,
+    (u2 - 0.5) * uExtent * (1.0 + u1 * 1.6));
   resting = mix(resting, planeRest, dweller);
   assembled = mix(assembled, planeRest, dweller);
   valid = max(valid, dweller);
