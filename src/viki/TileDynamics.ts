@@ -17,7 +17,7 @@ void fallStep(inout vec4 v, vec4 p, float seed, float r2) {
   // A tile already lying on the ground stays put at any step size. Without
   // this, one large frame step accumulates enough fall speed to cross the
   // bounce threshold every frame - endless skittering on the floor.
-  if (p.y <= floorY + 0.002 && v.y <= 0.0 && -v.y <= 9.8*uDt*1.25 && length(v.xz) < 0.02) {
+  if (p.y <= floorY + 0.002 && v.y <= 0.0 && -v.y <= 9.8*uDt*1.25 && length(v.xz) < 0.03) {
     v.xyz = vec3(0.0);
     v.w *= exp(-uDt*8.0);
     return;
@@ -25,9 +25,11 @@ void fallStep(inout vec4 v, vec4 p, float seed, float r2) {
   v.y -= 9.8*uDt;
   if (p.y+v.y*uDt <= floorY && v.y < 0.0) {
     float impact = -v.y;
-    // Restitution varies per tile; subsequent impacts die out naturally.
-    v.y = impact > 0.24 ? impact*(0.24+seed*0.17) : 0.0;
-    if (impact > 0.24) {
+    // A real impact must exceed one step of accumulated gravity, otherwise a
+    // coarse step re-triggers the bounce kick every frame and a tile hops forever.
+    float threshold = max(0.24, 9.8*uDt*1.6);
+    v.y = impact > threshold ? impact*(0.24+seed*0.17) : 0.0;
+    if (impact > threshold) {
       v.xz += vec2(seed-0.5,r2-0.5)*impact*0.18;
       v.w += impact*(r2-0.5)*0.35;
     }
