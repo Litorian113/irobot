@@ -1195,3 +1195,18 @@ body,
   text-transform: uppercase;
   color: var(--ink-dim);
 }
+
+.fig-rise rect {
+  fill: currentColor;
+  opacity: 0.85;
+  transform-box: fill-box;
+  animation: rise-bob 3.6s ease-in-out infinite;
+}
+
+.fig-rise rect:nth-child(2n) { animation-delay: 0.9s; }
+.fig-rise rect:nth-child(3n) { animation-delay: 1.8s; }
+
+@keyframes rise-bob {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-7px); }
+}

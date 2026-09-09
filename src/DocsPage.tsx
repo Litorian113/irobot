@@ -64,37 +64,46 @@ function FigVoiceFace() {
   )
 }
 
-function FigStates() {
-  const cells = []
-  for (let r = 0; r < 5; r++) for (let c = 0; c < 4; c++) cells.push([26 + c * 12, 20 + r * 13])
+function FigDust() {
   return (
-    <svg className="docs-figure wide" viewBox="0 0 360 120" aria-hidden="true">
-      <g>
-        <rect x="12" y="8" width="88" height="88" className="fig-line dim" fill="none" />
-        {cells.map(([x, y], i) => (
-          <rect key={i} x={x} y={y} width="6" height="4" className={`fig-cell${i % 7 === 0 ? ' bright' : ''}`} style={{ ['--d' as string]: `${(i % 5) * 0.6}s` }} />
-        ))}
-        <text x="56" y="112" textAnchor="middle" className="fig-label">01 MAX</text>
-      </g>
+    <svg className="docs-figure" viewBox="0 0 320 130" aria-hidden="true">
       <g className="fig-dust">
-        <rect x="136" y="8" width="88" height="88" className="fig-line dim" fill="none" />
-        {[...Array(26)].map((_, i) => {
+        {[...Array(42)].map((_, i) => {
           const a = i * 2.399963
-          const rad = 12 + ((i * 37) % 30)
-          return <circle key={i} cx={180 + Math.cos(a) * rad * 0.9} cy={50 + Math.sin(a) * rad * 0.75} r={i % 4 ? 1.1 : 1.7} style={{ ['--d' as string]: `${(i % 6) * 0.5}s` }} />
+          const rad = 14 + ((i * 37) % 46)
+          return (
+            <circle
+              key={i}
+              cx={160 + Math.cos(a) * rad * 1.5}
+              cy={62 + Math.sin(a) * rad * 0.85}
+              r={i % 4 ? 1.2 : 1.9}
+              style={{ ['--d' as string]: `${(i % 6) * 0.5}s` }}
+            />
+          )
         })}
-        <text x="180" y="112" textAnchor="middle" className="fig-label">02 DUST</text>
       </g>
-      <g>
-        <rect x="260" y="8" width="88" height="88" className="fig-line dim" fill="none" />
-        <polygon points="304,22 336,32 336,68 304,82 272,68 272,32" className="fig-line" fill="none" />
-        <polyline points="272,32 304,42 336,32" className="fig-line" fill="none" />
-        <line x1="304" y1="42" x2="304" y2="82" className="fig-line" />
-        <g className="fig-dots">
-          <circle cx="288" cy="52" r="1.3" /><circle cx="296" cy="60" r="1.3" /><circle cx="286" cy="68" r="1.3" />
-          <circle cx="318" cy="52" r="1.3" /><circle cx="312" cy="62" r="1.3" /><circle cx="322" cy="68" r="1.3" />
-        </g>
-        <text x="304" y="112" textAnchor="middle" className="fig-label">03 VIKI</text>
+      <g className="fig-dots">
+        <circle cx="34" cy="26" r="1.1" /><circle cx="290" cy="100" r="1.1" />
+        <circle cx="302" cy="24" r="1.3" /><circle cx="22" cy="106" r="1.3" />
+      </g>
+    </svg>
+  )
+}
+
+function FigMax() {
+  const rest = [26, 41, 57, 78, 96, 121, 149, 176, 201, 226, 249, 272, 291]
+  return (
+    <svg className="docs-figure" viewBox="0 0 320 130" aria-hidden="true">
+      <line x1="12" y1="112" x2="308" y2="112" className="fig-line dim" />
+      {rest.map((x, i) => (
+        <rect key={i} x={x} y={105 - (i % 3) * 3} width="7" height="5" className={`fig-cell${i % 5 === 0 ? ' bright' : ''}`} style={{ ['--d' as string]: `${(i % 4) * 0.7}s` }} />
+      ))}
+      <g className="fig-rise">
+        <rect x="120" y="70" width="7" height="5" />
+        <rect x="150" y="46" width="7" height="5" />
+        <rect x="182" y="60" width="7" height="5" />
+        <rect x="165" y="26" width="7" height="5" />
+        <rect x="138" y="14" width="7" height="5" />
       </g>
     </svg>
   )
@@ -135,58 +144,103 @@ function FigLoop() {
   )
 }
 
-const HEADS = [
+const HEADS: {
+  id: string
+  label: string
+  sections: { title: string; text: string; fig?: 'cube' | 'dust' | 'max' }[]
+}[] = [
   {
     id: 'viki',
     label: 'V.I.K.I.',
-    title: 'V.I.K.I. — the homage',
-    what: `The direct quote. A mirrored optical cube hanging in a dark hall, her face shimmering across
-thousands of tiles, light pouring through the matrix. Scale is the thought here - you are not talking to a
-device, you are talking to an institution. She answers from above, unhurried, and the room belongs to her.
-Presence as architecture.`,
-    oriented: `Built against the server-room scene of I, Robot (2004): the hanging mainframe cube, the hall
-with its single shaft of light, the crowd of machines below. The palette - silver-blue phosphor on black
-optical glass - is pulled from film frames; the two hall backdrops restage that room, and the assembly quotes
-the shot where the cube materialises from the ceiling in raining strands.`,
-    motion: `The cube builds top-down: the cap first, then matrix strands with glittering tips, the floor
+    sections: [
+      {
+        title: '2004',
+        text: `I was a kid when I, Robot came out. The robots were fine. What never let go of me was a quieter
+shot: someone asks a building a question - and the building answers. A cube of light hangs in the dark, a face
+condenses out of pure data, looks down, and speaks. For a few seconds the machine wasn't an interface. It was
+a presence. V.I.K.I. is this project's direct quote of that shot.`,
+        fig: 'cube',
+      },
+      {
+        title: 'The homage',
+        text: `A mirrored optical cube hanging in a dark hall, her face shimmering across thousands of tiles,
+light pouring through the matrix. Scale is the thought here - you are not talking to a device, you are talking
+to an institution. She answers from above, unhurried, and the room belongs to her. Presence as architecture.`,
+      },
+      {
+        title: 'Oriented on',
+        text: `Built against the film's server-room scene: the hanging mainframe cube, the hall with its single
+shaft of light, the crowd of machines below. The palette - silver-blue phosphor on black optical glass - is
+pulled from film frames; the two hall backdrops restage that room, and the assembly quotes the shot where the
+cube materialises from the ceiling in raining strands.`,
+      },
+      {
+        title: 'In motion',
+        text: `The cube builds top-down: the cap first, then matrix strands with glittering tips, the floor
 closing last - and it dissolves in reverse, leaving through the ceiling. Every visible window renders its own
-perspective of the head inside; pixel chains crawl across the tiles like local refreshes. When the link is
-up and the cube stands, she opens with the film line: "Hello, Detective."`,
+perspective of the head inside; pixel chains crawl across the tiles like local refreshes. When the link is up
+and the cube stands, she opens with the film line: "Hello, Detective."`,
+      },
+    ],
   },
   {
     id: 'dust',
     label: 'D.U.S.T.',
-    title: 'D.U.S.T. — the becoming',
-    what: `Dust asks how little body a presence needs. There is no surface here, only tendency: tens of
+    sections: [
+      {
+        title: 'Held together by attention',
+        text: `Dust asks how little body a presence needs. There is no surface here, only tendency: tens of
 thousands of particles that lean towards a face while you speak to her, and fray into noise at her
 silhouette - the visible edge between being and static. She exists only while she is addressed; hang up and
 she lets go of the shape entirely. Fragility as honesty: attention is the only thing holding her together.`,
-    oriented: `Oriented on particle portraits and point-cloud aesthetics - faces that exist only as density,
-the way a 3D scan or a swarm suggests a person without ever closing the surface. And on the film's quietest
-horror: a face dissolving into static. The violet-on-grey palette comes from an early moodboard frame that
-never left the project.`,
-    motion: `Every particle is sampled off her actual skin and carries the full facial rig, so the cloud
-speaks and blinks like the others. Scatter grows at the silhouette and with distance from attention: dormant
-she is a drifting cloud, addressed she condenses. The edges never close - that is the point.`,
+        fig: 'dust',
+      },
+      {
+        title: 'Oriented on',
+        text: `Particle portraits and point-cloud aesthetics - faces that exist only as density, the way a 3D
+scan or a swarm suggests a person without ever closing the surface. And the film's quietest horror: a face
+dissolving into static. The violet-on-grey palette comes from an early moodboard frame that never left the
+project.`,
+      },
+      {
+        title: 'In motion',
+        text: `Every particle is sampled off her actual skin and carries the full facial rig, so the cloud
+speaks and blinks like the other heads. Scatter grows at the silhouette and with distance from attention:
+dormant she is a drifting cloud, addressed she condenses. The edges never close - that is the point.`,
+      },
+    ],
   },
   {
     id: 'max',
     label: 'M.A.X.',
-    title: 'M.A.X. — the matter',
-    what: `Max is the physical answer. His tiles have weight: they lie scattered on the floor until the voice
-calls, levitate, and assemble into a monochrome sculpture - and what the head does not need simply falls back
-down, bounces and comes to rest. When you leave, nothing fades out; it drops. The carpet of tiles on the
+    sections: [
+      {
+        title: 'Matter that remembers',
+        text: `Max is the physical answer. His tiles have weight: they lie scattered on the floor until the
+voice calls, levitate, and assemble into a monochrome sculpture - and what the head does not need simply falls
+back down, bounces and comes to rest. When you leave, nothing fades out; it drops. The carpet of tiles on the
 ground is not debris but potential: everything she could become, waiting on the floor.`,
-    oriented: `Oriented on mechanical mirror installations and kinetic tile walls - portraits assembled from
-physical modules that tilt and catch light - and on monochrome clay-render sculpture: one material, one light,
-no colour to hide behind. Where VIKI is cinema and Dust is a phenomenon, Max wants to feel like an object in
-the room with you.`,
-    motion: `A GPU simulation owns every tile: levitation with per-tile delays, spring assembly into the
+        fig: 'max',
+      },
+      {
+        title: 'Oriented on',
+        text: `Mechanical mirror installations and kinetic tile walls - portraits assembled from physical
+modules that tilt and catch light - and monochrome clay-render sculpture: one material, one light, no colour
+to hide behind. Where VIKI is cinema and Dust is a phenomenon, Max wants to feel like an object in the room
+with you.`,
+      },
+      {
+        title: 'In motion',
+        text: `A GPU simulation owns every tile: levitation with per-tile delays, spring assembly into the
 speaking face, and honest gravity for everything else - real bounces, friction, tumbling, and a floor-wide
 plane of tiles that rides up with each awakening and rains back down. Depth is quantised into strata, so the
 portrait reads as stacked material rather than a screen.`,
+      },
+    ],
   },
 ]
+
+const FIGURES = { cube: FigCube, dust: FigDust, max: FigMax }
 
 /** The project documentation: a short essay, readable like a leaflet in the exhibition. */
 export default function DocsPage({ onClose }: { onClose: () => void }) {
@@ -231,25 +285,18 @@ export default function DocsPage({ onClose }: { onClose: () => void }) {
           </div>
         </header>
 
-        <Reveal>
-          <h2 className="docs-head-title">{active.title}</h2>
-          <p>{active.what}</p>
-          <h3 className="docs-sub">Oriented on</h3>
-          <p>{active.oriented}</p>
-          <h3 className="docs-sub">In motion</h3>
-          <p>{active.motion}</p>
-        </Reveal>
-
-        <Reveal>
-          <h2>2004</h2>
-          <p>
-            I was a kid when <em>I, Robot</em> came out. The robots were fine. What never let go of me was a
-            quieter shot: someone asks a building a question — and the building answers. A cube of light hangs
-            in the dark, a face condenses out of pure data, looks down, and speaks. For a few seconds the machine
-            wasn't an interface. It was a <em>presence</em>.
-          </p>
-          <FigCube />
-        </Reveal>
+        <div key={active.id}>
+          {active.sections.map((section) => {
+            const Fig = section.fig ? FIGURES[section.fig] : null
+            return (
+              <Reveal key={section.title}>
+                <h2>{section.title}</h2>
+                <p>{section.text}</p>
+                {Fig && <Fig />}
+              </Reveal>
+            )
+          })}
+        </div>
 
         <Reveal>
           <h2>The idea</h2>
@@ -261,15 +308,6 @@ export default function DocsPage({ onClose }: { onClose: () => void }) {
             watches you while you speak, thinks with its brow, and dissolves when you hang up?
           </p>
           <FigVoiceFace />
-        </Reveal>
-
-        <Reveal>
-          <h2>Three states of matter</h2>
-          <p>
-            The same being exists here in three bodies — the same rig, the same lips, a different answer each
-            time to the question of what a presence is made of.
-          </p>
-          <FigStates />
         </Reveal>
 
         <Reveal>
