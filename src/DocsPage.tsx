@@ -140,28 +140,51 @@ const HEADS = [
     id: 'viki',
     label: 'V.I.K.I.',
     title: 'V.I.K.I. — the homage',
-    text: `The direct quote. The 2004 mainframe rebuilt as faithfully as the browser allows: a mirrored optical
-cube hanging in a dark hall, her face shimmering across thousands of tiles, light pouring through the matrix.
-Scale is the thought here - you are not talking to a device, you are talking to an institution. She answers
-from above, unhurried, and the room belongs to her. Presence as architecture.`,
+    what: `The direct quote. A mirrored optical cube hanging in a dark hall, her face shimmering across
+thousands of tiles, light pouring through the matrix. Scale is the thought here - you are not talking to a
+device, you are talking to an institution. She answers from above, unhurried, and the room belongs to her.
+Presence as architecture.`,
+    oriented: `Built against the server-room scene of I, Robot (2004): the hanging mainframe cube, the hall
+with its single shaft of light, the crowd of machines below. The palette - silver-blue phosphor on black
+optical glass - is pulled from film frames; the two hall backdrops restage that room, and the assembly quotes
+the shot where the cube materialises from the ceiling in raining strands.`,
+    motion: `The cube builds top-down: the cap first, then matrix strands with glittering tips, the floor
+closing last - and it dissolves in reverse, leaving through the ceiling. Every visible window renders its own
+perspective of the head inside; pixel chains crawl across the tiles like local refreshes. When the link is
+up and the cube stands, she opens with the film line: "Hello, Detective."`,
   },
   {
     id: 'dust',
     label: 'D.U.S.T.',
     title: 'D.U.S.T. — the becoming',
-    text: `Dust asks how little body a presence needs. There is no surface here, only tendency: tens of
-thousands of particles that lean towards a face while you speak to her, and fray into noise at her silhouette -
-the visible edge between being and static. She exists only while she is addressed; hang up and she lets go of
-the shape entirely. Fragility as honesty: attention is the only thing holding her together.`,
+    what: `Dust asks how little body a presence needs. There is no surface here, only tendency: tens of
+thousands of particles that lean towards a face while you speak to her, and fray into noise at her
+silhouette - the visible edge between being and static. She exists only while she is addressed; hang up and
+she lets go of the shape entirely. Fragility as honesty: attention is the only thing holding her together.`,
+    oriented: `Oriented on particle portraits and point-cloud aesthetics - faces that exist only as density,
+the way a 3D scan or a swarm suggests a person without ever closing the surface. And on the film's quietest
+horror: a face dissolving into static. The violet-on-grey palette comes from an early moodboard frame that
+never left the project.`,
+    motion: `Every particle is sampled off her actual skin and carries the full facial rig, so the cloud
+speaks and blinks like the others. Scatter grows at the silhouette and with distance from attention: dormant
+she is a drifting cloud, addressed she condenses. The edges never close - that is the point.`,
   },
   {
     id: 'max',
     label: 'M.A.X.',
     title: 'M.A.X. — the matter',
-    text: `Max is the physical answer. His tiles have weight: they lie scattered on the floor until the voice
+    what: `Max is the physical answer. His tiles have weight: they lie scattered on the floor until the voice
 calls, levitate, and assemble into a monochrome sculpture - and what the head does not need simply falls back
-down, bounces and comes to rest. When you leave, nothing fades out; it drops. The carpet of tiles on the ground
-is not debris but potential: everything she could become, waiting on the floor.`,
+down, bounces and comes to rest. When you leave, nothing fades out; it drops. The carpet of tiles on the
+ground is not debris but potential: everything she could become, waiting on the floor.`,
+    oriented: `Oriented on mechanical mirror installations and kinetic tile walls - portraits assembled from
+physical modules that tilt and catch light - and on monochrome clay-render sculpture: one material, one light,
+no colour to hide behind. Where VIKI is cinema and Dust is a phenomenon, Max wants to feel like an object in
+the room with you.`,
+    motion: `A GPU simulation owns every tile: levitation with per-tile delays, spring assembly into the
+speaking face, and honest gravity for everything else - real bounces, friction, tumbling, and a floor-wide
+plane of tiles that rides up with each awakening and rains back down. Depth is quantised into strata, so the
+portrait reads as stacked material rather than a screen.`,
   },
 ]
 
@@ -238,7 +261,11 @@ export default function DocsPage({ onClose }: { onClose: () => void }) {
             ))}
           </div>
           <h2 className="docs-head-title">{active.title}</h2>
-          <p>{active.text}</p>
+          <p>{active.what}</p>
+          <h3 className="docs-sub">Oriented on</h3>
+          <p>{active.oriented}</p>
+          <h3 className="docs-sub">In motion</h3>
+          <p>{active.motion}</p>
         </Reveal>
 
         <Reveal>

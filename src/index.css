@@ -1187,3 +1187,11 @@ body,
 .docs-head-title {
   text-align: center;
 }
+
+.docs-sub {
+  margin: 26px 0 10px;
+  font-size: 10px;
+  letter-spacing: 0.35em;
+  text-transform: uppercase;
+  color: var(--ink-dim);
+}
