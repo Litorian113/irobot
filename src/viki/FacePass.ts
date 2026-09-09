@@ -95,18 +95,28 @@ export class FacePass {
     this.scene.add(head)
   }
 
+  setFraming(extent: number, centerY: number) {
+    for (const { camera } of Object.values(this.views)) {
+      camera.left = camera.bottom = -extent
+      camera.right = camera.top = extent
+      camera.position.y = centerY
+      camera.lookAt(0, centerY, 0)
+      camera.updateProjectionMatrix()
+      camera.updateMatrixWorld()
+    }
+  }
+
   /**
-   * Renders the head textures. The front view updates every call; the back and
-   * side views only when `full` is set — they are invisible while the cube
-   * faces forward, so most frames can skip three of the four passes.
+   * Renders the head textures. The layered portrait needs front and back depth (`includeBack`);
+   * debug views can request all four cameras with `full`.
    */
-  render(renderer: THREE.WebGLRenderer, full = true) {
+  render(renderer: THREE.WebGLRenderer, full = true, includeBack = false) {
     if (!this.head) return
     const prevTarget = renderer.getRenderTarget()
     const prevColor = renderer.getClearColor(this.tmpColor)
     const prevAlpha = renderer.getClearAlpha()
     renderer.setClearColor(0x000000, 0)
-    const views = full ? Object.values(this.views) : [this.views.front]
+    const views = full ? Object.values(this.views) : includeBack ? [this.views.front, this.views.back] : [this.views.front]
     for (const view of views) {
       renderer.setRenderTarget(view.target)
       renderer.clear(true, true, false)

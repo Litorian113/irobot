@@ -11,7 +11,7 @@ import { STYLE_DEFAULTS, type HeadConfig, type HeadStyle } from './config'
 import { applyPlacement, applyShapeConfig, createHeadUniforms } from './headShader'
 import { DataCube } from './DataCube'
 import { createStyles, type StyleSet } from './styles'
-import { SurfacePortrait } from './SurfacePortrait'
+import { LayeredPortrait } from './LayeredPortrait'
 import { HeadRig } from './HeadRig'
 import { HeadLight } from './HeadLight'
 import { OpticalEnclosure } from './OpticalEnclosure'
@@ -156,7 +156,7 @@ export class ParticleFace {
   private headUniforms = createHeadUniforms()
   private facePass = new FacePass(this.headUniforms, 256)
   private styles: StyleSet | null = null
-  private portrait: SurfacePortrait | null = null
+  private portrait: LayeredPortrait | null = null
   private rig: HeadRig | null = null
   private debugQuad: THREE.Mesh | null = null
   private debugCamera = new THREE.OrthographicCamera(-1, 1, 1, -1, 0, 1)
@@ -266,7 +266,7 @@ export class ParticleFace {
     this.facePass.setGeometry(geometry, rig.influences)
     this.vikiCube?.setGeometry(geometry, rig.influences)
     this.headLight = new HeadLight(this.headUniforms, geometry, rig.influences)
-    this.portrait = new SurfacePortrait(this.headUniforms, geometry)
+    this.portrait = new LayeredPortrait(this.headUniforms, this.facePass.views.front.target.texture, this.facePass.views.back.target.texture)
     this.group.add(this.portrait.group)
     const styles = createStyles(this.headUniforms, geometry, CAM_DIST)
     this.styles = styles
@@ -411,15 +411,17 @@ export class ParticleFace {
     this.scene.background = style === 'viki' ? this.backdropTexture() : null
     if (this.vikiCube) this.vikiCube.group.visible = style === 'viki'
     const s = this.styles
-    this.cube.group.visible = style === 'lattice' && !new URLSearchParams(window.location.search).has('inspect')
+    this.cube.group.visible = false
     if (this.portrait) this.portrait.group.visible = style === 'lattice'
     if (s) {
       s.setTransition(style === 'lattice')
       s.dust.visible = style === 'dust'
       s.cage.visible = style === 'dust'
     }
-    this.enclosure.mesh.visible = style === 'lattice' && this.config.optical && !new URLSearchParams(window.location.search).has('inspect')
+    this.enclosure.mesh.visible = false
     const shape = BLOOM_SHAPE[style]
+    this.softClamp.enabled = style !== 'lattice'
+    this.bloom.enabled = style !== 'lattice'
     this.bloom.radius = shape.radius
     this.bloom.threshold = shape.threshold
     this.updateDustBlurStrength()
@@ -435,14 +437,15 @@ export class ParticleFace {
     applyShapeConfig(this.headUniforms, cfg)
     applyPlacement(this.headUniforms, cfg, this.current.forward)
     this.enclosure.applyConfig(cfg)
-    this.enclosure.mesh.visible = this.style === 'lattice' && cfg.optical && !new URLSearchParams(window.location.search).has('inspect')
+    this.enclosure.mesh.visible = false
     this.cube.applyConfig(cfg)
     this.vikiCube?.applyConfig(cfg)
-    this.renderer.setClearColor(this.style === 'viki' ? 0x030607 : cfg.optical ? 0x020405 : 0x02050c, 1)
+    this.renderer.setClearColor(this.style === 'lattice' ? 0x414141 : this.style === 'viki' ? 0x030607 : cfg.optical ? 0x020405 : 0x02050c, 1)
     // VIKI's glow slider diffuses the cube locally; keep the finished hall exposure stable.
-    this.bloom.strength = this.style === 'viki' ? 0.46 : cfg.optical ? Math.min(0.25, cfg.bloom) : cfg.bloom
+    this.bloom.strength = this.style === 'lattice' ? 0 : this.style === 'viki' ? 0.46 : cfg.optical ? Math.min(0.25, cfg.bloom) : cfg.bloom
     this.updateDustBlurStrength()
     this.portrait?.applyConfig(cfg)
+    if (this.portrait) this.facePass.setFraming(this.portrait.extent, this.portrait.centerY)
     this.styles?.applyConfig(cfg)
   }
 
@@ -522,10 +525,10 @@ export class ParticleFace {
     this.rig?.update(this.mouth.open, this.mouth.wide, this.mouth.round, this.current.smile, this.current.brow, this.current.eyeOpen * blink, this.visemes, this.config.speechStrength)
     applyPlacement(hu, this.config, this.current.forward)
 
-    if (this.styles) this.styles.dust.visible = this.style === 'dust' || (this.style === 'lattice' && hu.uFormation.value > 0 && hu.uFormation.value < 1)
+    if (this.styles) this.styles.dust.visible = this.style === 'dust'
     this.cube.update(t, hu.uFormation.value)
     this.styles?.setTime(t)
-    this.portrait?.update(t, hu.uFormation.value, this.current.turb)
+    this.portrait?.update(t, this.target.face > 0, dt, FROZEN)
     if (this.style === 'viki') this.vikiCube?.update(t, hu.uFormation.value, this.vikiAssembly.cube)
 
     // drag rotation: radians per pixel while dragging, inertia afterwards; fully free
@@ -555,16 +558,22 @@ export class ParticleFace {
     }
     this.group.rotation.order = 'YXZ'
     const isViki = this.style === 'viki'
-    this.group.rotation.y = FROZEN ? THREE.MathUtils.degToRad(reviewNumber('yaw', isViki ? 45 : 0)) : (isViki ? Math.PI / 4 : this.config.optical ? 0 : Math.sin(t * 0.18) * 0.08) + this.yaw
-    this.group.rotation.x = FROZEN ? THREE.MathUtils.degToRad(reviewNumber('pitch', isViki ? -4 : 0)) : (isViki ? -0.07 : this.config.optical ? 0 : Math.sin(t * 0.13) * 0.03) + this.pitch
-    this.group.scale.setScalar((FROZEN || this.config.optical || isViki ? 1 : 1 + Math.sin(t * 0.9) * 0.006) * (isViki ? this.config.cubeScale * (this.narrow ? 1.3 : 1) : 1))
+    this.group.rotation.y = FROZEN ? THREE.MathUtils.degToRad(reviewNumber('yaw', isViki ? 45 : 0)) : (isViki ? Math.PI / 4 : this.style === 'lattice' ? 0 : this.config.optical ? 0 : Math.sin(t * 0.18) * 0.08) + this.yaw
+    this.group.rotation.x = FROZEN ? THREE.MathUtils.degToRad(reviewNumber('pitch', isViki ? -4 : 0)) : (isViki ? -0.07 : this.style === 'lattice' || this.config.optical ? 0 : Math.sin(t * 0.13) * 0.03) + this.pitch
+    this.group.scale.setScalar((FROZEN || this.config.optical || isViki || this.style === 'lattice' ? 1 : 1 + Math.sin(t * 0.9) * 0.006) * (isViki ? this.config.cubeScale * (this.narrow ? 1.3 : 1) : 1))
     this.group.position.set(isViki && !this.narrow ? this.config.cubeX : 0, isViki ? this.config.cubeY : 0, 0)
     this.updateDustBlurStrength()
     this.dustBlur.update(hu.uHeadMatrix.value, this.group, this.camera)
 
     const t0 = performance.now()
     this.headLight?.render(this.renderer, isViki)
-    if (this.style === 'lattice' || this.debugQuad) this.facePass.render(this.renderer, Boolean(this.debugQuad))
+    if (this.style === 'lattice' || this.debugQuad) {
+      // Keep the complete depth map while tiles travel to and from the floor.
+      const formation = hu.uFormation.value
+      if (this.style === 'lattice') hu.uFormation.value = 1
+      try { this.facePass.render(this.renderer, Boolean(this.debugQuad), true) }
+      finally { hu.uFormation.value = formation }
+    }
     if (isViki && !this.debugQuad) this.vikiCube?.capture(this.renderer, this.camera)
     this.fpsCount++
     if (now - this.fpsSince > 1000) {

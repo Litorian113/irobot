@@ -7,9 +7,9 @@ export const STYLES: { id: HeadStyle; label: string; hint: string; title: string
   {
     id: 'lattice',
     label: 'Lattice',
-    hint: 'A human presence inside a layered cube of light',
+    hint: 'A monochrome portrait sculpted from stacked tiles',
     title: 'L.A.T.T.I.C.E.',
-    subtitle: 'A human presence inside a layered cube of light',
+    subtitle: 'A monochrome portrait sculpted from stacked tiles',
   },
   {
     id: 'dust',
@@ -142,20 +142,21 @@ export const STYLE_DEFAULTS: Record<HeadStyle, HeadConfig> = {
   lattice: {
     ...APPEARANCE_BASE,
     ...SHAPE_DEFAULTS,
-    optical: true,
-    lighting: 'viki',
-    lightElevation: 50,
-    lightFill: 0.008,
-    // Soft silver-blue surface points, with a quiet data field around them.
-    colorA: '#829ba8',
-    colorB: '#b6d8e5',
-    colorC: '#edf3f3',
+    optical: false,
+    lighting: 'cinema',
+    lightElevation: 40,
+    lightFill: 0.06,
+    headScale: 0.38,
+    headY: -0.39,
+    colorA: '#999999',
+    colorB: '#eeeeee',
+    colorC: '#ffffff',
     gain: 1.15,
-    bloom: 0.18,
-    density: 0.85,
+    bloom: 0,
+    density: 0.65,
     cellSize: 1.0,
-    cage: 0.65,
-    flicker: 0.2,
+    cage: 0,
+    flicker: 0.35,
   },
   dust: {
     ...APPEARANCE_BASE,
@@ -292,14 +293,10 @@ export const STYLE_GROUPS: Record<HeadStyle, SliderGroup> = {
     title: 'Lattice',
     sliders: [
       { key: 'gain', label: 'Face brightness', min: 0.4, max: 2, step: 0.02 },
-      { key: 'cellSize', label: 'Point size', min: 0.5, max: 1.8, step: 0.02 },
-      { key: 'density', label: 'Point density', min: 0.1, max: 1, step: 0.01 },
-      { key: 'bloom', label: 'Bloom', min: 0, max: 1.5, step: 0.02 },
-      { key: 'flicker', label: 'Shimmer', min: 0, max: 1, step: 0.01 },
-      { key: 'cage', label: 'Cube brightness', min: 0, max: 1, step: 0.01 },
-      { key: 'cubeDensity', label: 'Cube cells', min: 0, max: 1, step: 0.02 },
-      { key: 'cubeDepth', label: 'Cube depth', min: 0.6, max: 1.3, step: 0.02 },
-      { key: 'cubeGap', label: 'Cube spacing', min: 0, max: 0.25, step: 0.01 },
+      { key: 'cellSize', label: 'Tile fill', min: 0.7, max: 1.06, step: 0.02 },
+      { key: 'density', label: 'Tile density', min: 0.1, max: 1, step: 0.01 },
+      { key: 'cubeDepth', label: 'Layer depth', min: 0.3, max: 1.8, step: 0.02 },
+      { key: 'flicker', label: 'Edge fragments', min: 0, max: 1, step: 0.01 },
     ],
   },
   dust: {
@@ -317,7 +314,7 @@ export const STYLE_GROUPS: Record<HeadStyle, SliderGroup> = {
 }
 
 export const COLOR_LABELS: Record<HeadStyle, [string, string, string]> = {
-  lattice: ['Cube', 'Face', 'Highlights'],
+  lattice: ['Tile sides', 'Tile faces', 'Highlights'],
   dust: ['Shadow', 'Light', 'Sparkle'],
   viki: ['Shadow', 'Silver', 'Highlights'],
 }
@@ -331,7 +328,7 @@ const STYLE_KEY = 'viki.style'
 export function loadConfig(style: HeadStyle): HeadConfig {
   const defaults = STYLE_DEFAULTS[style]
   try {
-    const raw = localStorage.getItem(STORAGE_PREFIX + style)
+    const raw = localStorage.getItem((style === 'lattice' ? 'viki.config.layered.v1.' : STORAGE_PREFIX) + style)
     if (!raw) return { ...defaults }
     return { ...defaults, ...(JSON.parse(raw) as Partial<HeadConfig>) }
   } catch {
@@ -341,7 +338,7 @@ export function loadConfig(style: HeadStyle): HeadConfig {
 
 export function saveConfig(style: HeadStyle, cfg: HeadConfig) {
   try {
-    localStorage.setItem(STORAGE_PREFIX + style, JSON.stringify(cfg))
+    localStorage.setItem((style === 'lattice' ? 'viki.config.layered.v1.' : STORAGE_PREFIX) + style, JSON.stringify(cfg))
   } catch {
     /* storage unavailable */
   }
@@ -349,7 +346,7 @@ export function saveConfig(style: HeadStyle, cfg: HeadConfig) {
 
 export function clearConfig(style: HeadStyle) {
   try {
-    localStorage.removeItem(STORAGE_PREFIX + style)
+    localStorage.removeItem((style === 'lattice' ? 'viki.config.layered.v1.' : STORAGE_PREFIX) + style)
   } catch {
     /* ignore */
   }
