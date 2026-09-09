@@ -38,7 +38,20 @@ TileTarget tileTarget(vec2 aCell, float aBack) {
   float hovering = step(0.84, hash(aCell + 42.9 + aBack));
   assembled = mix(assembled, mix(resting, floating, hovering), loose);
 
-  return TileTarget(assembled, resting, valid, loose * hovering, seed);
+  // Cells far outside the head carpet the whole scene width instead: they ride
+  // the levitation up and rain back down, so the ground reads as one plane.
+  // The 0.06..0.35 mask band stays hidden - speech only wobbles the silhouette
+  // there, and those cells must never flip between head and floor.
+  float mask = aBack > 0.5 ? rear.b : face.b;
+  float dweller = max(step(mask, 0.06), 1.0 - step(-0.11, localY));
+  vec3 planeRest = vec3((hash(aCell + 31.7 + aBack) - 0.5) * uExtent * 4.8,
+    uFloor + 0.02 + hash(aCell + 25.0) * 0.05,
+    (hash(aCell.yx + 57.1 + aBack) - 0.5) * uExtent * 1.7);
+  resting = mix(resting, planeRest, dweller);
+  assembled = mix(assembled, planeRest, dweller);
+  valid = max(valid, dweller);
+
+  return TileTarget(assembled, resting, valid, loose * hovering * (1.0 - dweller), seed);
 }
 // A flat collision bed: tiles land and stay wherever they hit the ground,
 // so the carpet spreads evenly instead of forming mounds or craters.
