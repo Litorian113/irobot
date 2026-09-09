@@ -28,27 +28,21 @@ TileTarget tileTarget(vec2 aCell, float aBack) {
     uCenterY + sin(orbit) * uExtent * 0.72, (r3 - 0.5) * 0.7);
   floating += vec3(sin(uTime * 0.32 + r2 * 30.0),
     sin(uTime * 0.5 + r3 * 20.0), cos(uTime * 0.3 + r2 * 10.0)) * 0.025;
-  // Three reproducible low mounds. Every tile keeps its resting place.
-  float mound = floor(r3 * 3.0);
-  float radius = sqrt(seed) * uExtent * (0.35 + 0.07 * mound);
+  // One wide, flat carpet of tiles. Every tile keeps its resting place.
+  float radius = sqrt(seed) * uExtent * 0.92;
   float angle = r2 * 6.283185;
-  vec3 resting = vec3((mound - 1.0) * uExtent * 0.63 + cos(angle) * radius,
-    uFloor + 0.025 + (1.0 - seed) * (0.08 + 0.12 * hash(aCell + 25.0)),
-    sin(angle) * radius * 0.6 + (mound - 1.0) * 0.09);
+  vec3 resting = vec3(cos(angle) * radius,
+    uFloor + 0.02 + hash(aCell + 25.0) * 0.05,
+    sin(angle) * radius * 0.55);
   // Most missing crown pieces stay on the floor; only a few hover nearby.
   float hovering = step(0.84, hash(aCell + 42.9 + aBack));
   assembled = mix(assembled, mix(resting, floating, hovering), loose);
 
   return TileTarget(assembled, resting, valid, loose * hovering, seed);
 }
-// A low collision bed represents accumulated tiles, rather than tile-pair collisions.
+// A flat collision bed: tiles land and stay wherever they hit the ground,
+// so the carpet spreads evenly instead of forming mounds or craters.
 float tileFloor(vec2 p) {
-  float height = 0.0;
-  for (int i=0; i<3; i++) {
-    vec2 center = vec2(float(i-1)*uExtent*0.56, float(i-1)*0.09);
-    vec2 q = (p-center) / (uExtent * vec2(0.36,0.24));
-    height = max(height, exp(-dot(q,q)*1.7) * (0.11 + float(i)*0.025));
-  }
-  return uFloor + height + uCell * 0.75;
+  return uFloor + uCell * 0.75;
 }
 `;

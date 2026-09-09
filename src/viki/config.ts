@@ -6,9 +6,9 @@ export type HeadStyle = 'lattice' | 'dust' | 'viki'
 export const STYLES: { id: HeadStyle; label: string; hint: string; title: string; subtitle: string }[] = [
   {
     id: 'lattice',
-    label: 'Lattice',
+    label: 'Max',
     hint: 'A monochrome portrait sculpted from stacked tiles',
-    title: 'L.A.T.T.I.C.E.',
+    title: 'M.A.X.',
     subtitle: 'A monochrome portrait sculpted from stacked tiles',
   },
   {
@@ -290,7 +290,7 @@ export const STYLE_GROUPS: Record<HeadStyle, SliderGroup> = {
     ],
   },
   lattice: {
-    title: 'Lattice',
+    title: 'Max',
     sliders: [
       { key: 'gain', label: 'Face brightness', min: 0.4, max: 2, step: 0.02 },
       { key: 'cellSize', label: 'Tile fill', min: 0.7, max: 1.06, step: 0.02 },
