@@ -143,7 +143,9 @@ export class TileDynamics {
       u.uReset.value=0
       this.first=false
     }
-    const steps = awake && elapsed > 3.2 ? 1 : Math.max(1,Math.ceil(Math.min(dt,0.1)/(1/90)))
+    // Fine substeps until every straggler has landed (~8s); the coarse
+    // single-step mode afterwards is safe because resting tiles are clamped.
+    const steps = awake && elapsed > 8 ? 1 : Math.max(1,Math.ceil(Math.min(dt,0.1)/(1/90)))
     u.uDt.value = Math.min(dt,0.1)/steps
     for (let i=0;i<steps;i++) {
       u.uRelease.value=release && i===0 ? 1 : 0
