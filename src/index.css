@@ -1149,6 +1149,13 @@ body,
   .brand-sub {
     font-size: 8px;
   }
+
+  /* The corner would collide with the centred hint text on phones. */
+  .imprint-link {
+    left: 50%;
+    transform: translateX(-50%);
+    bottom: 2px;
+  }
 }
 
 /* ---------- docs head toggle ---------- */
@@ -1209,4 +1216,151 @@ body,
 @keyframes rise-bob {
   0%, 100% { transform: translateY(0); }
   50% { transform: translateY(-7px); }
+}
+
+/* ---------- imprint ---------- */
+
+.imprint-link {
+  position: fixed;
+  left: clamp(18px, 4vw, 48px);
+  bottom: clamp(14px, 2.4vh, 26px);
+  font: inherit;
+  font-size: 9px;
+  letter-spacing: 0.3em;
+  text-transform: uppercase;
+  color: var(--ink-faint);
+  background: none;
+  border: none;
+  padding: 4px;
+  cursor: pointer;
+  pointer-events: auto;
+  z-index: 20;
+  transition: color 0.2s;
+}
+
+.imprint-link:hover {
+  color: var(--ink);
+}
+
+.imprint-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 50;
+  background: rgba(2, 5, 12, 0.7);
+  backdrop-filter: blur(4px);
+  display: grid;
+  place-items: center;
+  pointer-events: auto;
+  animation: wheel-fade 0.2s ease-out;
+}
+
+.imprint-panel {
+  width: min(480px, calc(100% - 40px));
+  padding: 28px 30px 24px;
+  background: rgba(6, 10, 16, 0.92);
+  border: 1px solid var(--ink-faint);
+  clip-path: polygon(12px 0, 100% 0, 100% calc(100% - 12px), calc(100% - 12px) 100%, 0 100%, 0 12px);
+  text-transform: none;
+  letter-spacing: 0.03em;
+  font-size: 12px;
+  line-height: 1.8;
+}
+
+.imprint-panel h2 {
+  margin: 0 0 14px;
+  font-size: 12px;
+  letter-spacing: 0.35em;
+  text-transform: uppercase;
+  color: var(--hot);
+}
+
+.imprint-panel p {
+  margin: 0 0 14px;
+  color: rgba(226, 233, 239, 0.85);
+}
+
+.imprint-panel a {
+  color: var(--hot);
+}
+
+.imprint-fine {
+  font-size: 10.5px;
+  color: var(--ink-dim);
+}
+
+/* ---------- light studio (Max photo backdrop) ---------- */
+
+.hero.light-set {
+  --ink: #23282d;
+  --ink-dim: rgba(35, 40, 45, 0.6);
+  --ink-faint: rgba(35, 40, 45, 0.28);
+  --hot: #101418;
+}
+
+.hero.light-set .hint {
+  color: rgba(35, 40, 45, 0.72);
+  text-shadow: none;
+}
+
+.hero.light-set .mic-orb {
+  border-color: rgba(16, 20, 24, 0.75);
+  background: radial-gradient(circle at 50% 42%, rgba(16, 20, 24, 0.08), rgba(16, 20, 24, 0.02) 60%, transparent 75%);
+  box-shadow:
+    0 0 22px rgba(16, 20, 24, 0.14),
+    inset 0 0 14px rgba(16, 20, 24, 0.07);
+}
+
+.hero.light-set .mic-orb:hover {
+  box-shadow:
+    0 0 30px rgba(16, 20, 24, 0.24),
+    inset 0 0 18px rgba(16, 20, 24, 0.1);
+}
+
+.hero.light-set .mic-glyph {
+  filter: none;
+}
+
+.hero.light-set .mic-orb .r1 {
+  border-color: rgba(16, 20, 24, 0.4);
+  border-left-color: transparent;
+  border-right-color: transparent;
+}
+
+.hero.light-set .mic-orb .r2 {
+  border-color: rgba(16, 20, 24, 0.24);
+}
+
+.hero.light-set .mic-orb .pulse {
+  border-color: rgba(16, 20, 24, 0.55);
+}
+
+.hero.light-set .mic-orb .tick {
+  background: rgba(16, 20, 24, 0.85);
+}
+
+.hero.light-set .mic-orb.live {
+  box-shadow:
+    0 0 34px rgba(16, 20, 24, 0.3),
+    inset 0 0 20px rgba(16, 20, 24, 0.12);
+}
+
+.hero.light-set .mic-orb.busy .r1 {
+  border-color: transparent;
+  border-top-color: rgba(16, 20, 24, 0.9);
+}
+
+@keyframes orb-breathe-light {
+  50% { box-shadow: 0 0 46px rgba(16, 20, 24, 0.38), inset 0 0 24px rgba(16, 20, 24, 0.16); }
+}
+
+.hero.light-set .mic-orb.live {
+  animation-name: orb-breathe-light;
+}
+
+@media (max-width: 700px), (max-aspect-ratio: 4/5) {
+  .imprint-link {
+    left: 50%;
+    transform: translateX(-50%);
+    bottom: 2px;
+  }
 }

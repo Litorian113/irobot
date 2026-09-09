@@ -7,6 +7,7 @@ import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js'
 import { OutputPass } from 'three/addons/postprocessing/OutputPass.js'
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js'
 import { FacePass } from './FacePass'
+import { SceneBackdrop } from './SceneBackdrop'
 import { STYLE_DEFAULTS, type HeadConfig, type HeadStyle } from './config'
 import { applyPlacement, applyShapeConfig, createHeadUniforms } from './headShader'
 import { DataCube } from './DataCube'
@@ -153,6 +154,7 @@ export class ParticleFace {
   private vikiAssembly = new VikiAssembly()
   private backdropName = 'viki-hall-main'
   private backdrops = new Map<string, THREE.Texture>()
+  private sceneBackdrop = new SceneBackdrop()
   private headUniforms = createHeadUniforms()
   private facePass = new FacePass(this.headUniforms, 256)
   private styles: StyleSet | null = null
@@ -209,6 +211,7 @@ export class ParticleFace {
     this.cube = new DataCube(v.front.target.texture)
     this.group.add(this.cube.group, this.enclosure.mesh)
     this.scene.add(this.group)
+    this.scene.add(this.sceneBackdrop.mesh)
 
     this.composer = new EffectComposer(this.renderer)
     this.composer.addPass(new RenderPass(this.scene, this.camera))
@@ -278,9 +281,12 @@ export class ParticleFace {
     this.setStyle(this.style)
   }
 
+  /** Photo backdrop per style: the VIKI hall or the white cube frame for Max. */
   private backdropTexture(): THREE.Texture {
-    // Phones get the portrait cut of the hall, whichever desktop hall is chosen.
-    const name = this.narrow ? 'mobile-bg' : this.backdropName
+    // Phones get the portrait cut, whichever desktop backdrop is chosen.
+    const name = this.style === 'lattice'
+      ? (this.narrow ? 'Max-Mobile-BG' : 'MAX-Desktop-BG')
+      : (this.narrow ? 'mobile-bg' : this.backdropName)
     let texture = this.backdrops.get(name)
     if (!texture) {
       texture = new THREE.TextureLoader().load(`${import.meta.env.BASE_URL}images/${name}.png`, () => this.resize())
@@ -335,7 +341,7 @@ export class ParticleFace {
       const focus = backdrop === this.backdrops.get('viki-hall') && this.narrow ? 0.28 : 0.5
       backdrop.offset.set((1 - backdrop.repeat.x) * focus, (1 - backdrop.repeat.y) / 2)
     }
-    if (this.style === 'viki') this.scene.background = this.backdropTexture()
+    if (this.style === 'viki' || this.style === 'lattice') this.scene.background = this.backdropTexture()
     this.cube.resize(pr, h)
     this.styles?.setDustBase(pr * 1.4)
     this.styles?.setFieldView(this.camera)
@@ -408,7 +414,8 @@ export class ParticleFace {
       this.group.add(this.vikiCube.group)
     }
     // The hall backdrop belongs to the VIKI scene only.
-    this.scene.background = style === 'viki' ? this.backdropTexture() : null
+    this.scene.background = style === 'viki' || style === 'lattice' ? this.backdropTexture() : null
+    this.sceneBackdrop.setStyle(style)
     if (this.vikiCube) this.vikiCube.group.visible = style === 'viki'
     const s = this.styles
     this.cube.group.visible = false
@@ -528,6 +535,7 @@ export class ParticleFace {
     if (this.styles) this.styles.dust.visible = this.style === 'dust'
     this.cube.update(t, hu.uFormation.value)
     this.styles?.setTime(t)
+    this.sceneBackdrop.update(t)
     this.portrait?.update(t, this.target.face > 0, dt, FROZEN)
     if (this.style === 'viki') this.vikiCube?.update(t, hu.uFormation.value, this.vikiAssembly.cube)
 
@@ -648,6 +656,7 @@ export class ParticleFace {
     this.portrait?.dispose()
     this.rig?.dispose()
     this.headLight?.dispose()
+    this.sceneBackdrop.dispose()
     this.facePass.dispose()
     // EffectComposer disposes its own targets, not the passes it contains.
     for (const pass of this.composer.passes) pass.dispose()
