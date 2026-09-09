@@ -60,7 +60,7 @@ export function useVoiceSession(faceRef: RefObject<ParticleFace | null>, speechD
   const connect = useCallback(async () => {
     disconnect()
     if (!API_KEY) {
-      setError('The voice AI is offline right now — no key is connected. Live today from 22:00 to tomorrow 22:00 (German time).')
+      setError('The voice AI is offline right now — no key is connected. Live today from 22:00 to tomorrow 22:00 CEST.')
       setStatus('error')
       return
     }
