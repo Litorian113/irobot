@@ -15,7 +15,7 @@ Same rigged head. Same sixteen facial muscles. Same lips. Only the matter change
 | | |
 |---|---|
 | ![The VIKI cube](docs/viki-cube.png) | **VIKI** — the homage. A silver optical cube hanging in the hall, her face shimmering in its tiles, light streams rushing forward from a single point deep inside. |
-| ![The Lattice portrait](docs/lattice.png) | **Lattice** — the portrait. A monochrome sculpture built from stepped square tiles, with an incomplete crown, a few hovering flakes, dark layer joints, and a soft grounding shadow. Flat tiles rise from small floor piles on activation and tumble back down on deactivation. Tile fill, density, layer depth, and edge fragments are adjustable. |
+| ![The Lattice portrait](docs/lattice.png) | **Lattice** — the portrait. A monochrome sculpture built from stepped square tiles, with an incomplete crown, a few hovering flakes, dark layer joints, and a soft grounding shadow. Flat tiles levitate from the floor before assembling on activation. Deactivation releases them immediately into GPU gravity, with damped bounces, tumbling, and friction against a low mound-shaped collision bed. This approximates accumulated bricks without an all-pairs rigid-body simulation; settled motion pauses to save GPU work. Tile fill, density, layer depth, and edge fragments are adjustable. |
 | ![The Dust head](docs/dust.png) | **Dust** — the becoming. 70,000 particles sampled off her skin that scatter at the silhouette; dormant a cloud, addressed a face. |
 
 ## The interface

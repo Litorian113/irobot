@@ -1,6 +1,8 @@
 import * as THREE from 'three'
 import type { HeadConfig } from './config'
 import type { HeadUniforms } from './headShader'
+import { TILE_TARGET_GLSL } from './tileTarget'
+import { TileDynamics } from './TileDynamics'
 
 /** Live depth maps drive thin stepped tiles, including the speaking mouth and eyelids. */
 export class LayeredPortrait {
@@ -10,6 +12,12 @@ export class LayeredPortrait {
   private shadow: THREE.Mesh
   private resolution = 0
   private assembly = 0
+  private dynamics: TileDynamics | null = null
+  private awake = false
+  private frozen = false
+  private elapsed = 0
+  private release = false
+  private clearColor = new THREE.Color()
   extent = 1
   centerY = 0
 
@@ -24,22 +32,22 @@ export class LayeredPortrait {
         uCell: { value: 0.02 }, uFill: { value: 0.92 }, uStep: { value: 0.045 },
         uColor: { value: new THREE.Color('#eeeeee') }, uSide: { value: new THREE.Color('#888888') },
         uGain: { value: 1 }, uTime: { value: 0 }, uVariation: { value: 0.2 },
-        uAssembly: { value: 0 }, uFloor: { value: -0.8 },
+        uMotionPosition: { value: null }, uMotionVelocity: { value: null },
+        uSimulated: { value: false }, uAwake: { value: 0 }, uFloor: { value: -0.8 },
         uExtent: { value: 1 }, uCenterY: { value: 0 },
         uHeadOffset: head.uHeadOffset, uHeadScale: head.uHeadScale,
         uHighlight: { value: new THREE.Color('#ffffff') },
         uKeyDirection: head.uKeyDirection,
       },
       vertexShader: /* glsl */ `
-        uniform sampler2D uFront, uBack;
-        uniform float uCell, uFill, uStep, uTime, uVariation;
-        uniform float uExtent, uCenterY, uAssembly, uFloor;
-        uniform vec3 uHeadOffset, uHeadScale;
+        ${TILE_TARGET_GLSL}
+        uniform sampler2D uMotionPosition, uMotionVelocity;
+        uniform bool uSimulated;
+        uniform float uAwake;
         attribute vec2 aCell;
         attribute float aBack;
         varying float vValid, vLight, vShade, vSeed, vCap, vLift;
         varying vec3 vNormal, vPosition;
-        float hash(vec2 p) { return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453); }
         mat3 rotateTile(float a, float b) {
           float c=cos(a), s=sin(a), d=cos(b), t=sin(b);
           return mat3(d,0.0,-t, 0.0,1.0,0.0, t,0.0,d) * mat3(1.0,0.0,0.0, 0.0,c,s, 0.0,-s,c);
@@ -47,48 +55,24 @@ export class LayeredPortrait {
         void main() {
           vec2 uv = aCell * 0.5 + 0.5;
           vec4 face = texture2D(uFront, uv);
-          vec4 rear = texture2D(uBack, vec2(1.0 - uv.x, uv.y));
-          vec2 cellPosition = aCell * uExtent + vec2(0.0, uCenterY);
-          float localY = (cellPosition.y - uHeadOffset.y) * 0.29 / uHeadScale.y;
-          vValid = step(0.08, face.b) * step(-0.11, localY);
-          vSeed = hash(aCell + aBack * 3.1);
+          vec4 rear = texture2D(uBack, vec2(1.0-uv.x,uv.y));
+          TileTarget tile = tileTarget(aCell, aBack);
+          vValid = tile.valid;
+          vSeed = tile.seed;
+          vec2 motionUv = vec2(uv.x, (uv.y + aBack) * 0.5);
+          vec4 state = uSimulated ? texture2D(uMotionPosition, motionUv) : vec4(mix(tile.rest,tile.head,uAwake),uAwake);
+          vec4 velocity = uSimulated ? texture2D(uMotionVelocity, motionUv) : vec4(0.0);
           float r2 = hash(aCell.yx + 4.7 + aBack);
           float r3 = hash(aCell + 11.3 + aBack);
-          float zFront = floor(face.r / uStep) * uStep;
-          float zBack = floor(rear.r / uStep) * uStep;
-          if (aBack > 0.5) vValid *= step(0.08, rear.b);
-          float thickness = uCell * 0.32;
-          vec3 assembled = vec3(cellPosition, mix(zFront, zBack, aBack));
-          // The crown opens into scattered flakes; the facial landmarks stay intact.
-          float crown = smoothstep(0.85, 1.15, localY);
-          float loose = step(vSeed, crown * (0.65 + uVariation * 0.45));
-          loose = max(loose, step(0.996, r3));
-          float orbit = r2 * 6.283185;
-          vec3 floating = vec3(cos(orbit) * uExtent * (0.70 + r3 * 0.22),
-            uCenterY + sin(orbit) * uExtent * 0.72, (r3 - 0.5) * 0.7);
-          floating += vec3(sin(uTime * 0.32 + r2 * 30.0),
-            sin(uTime * 0.5 + r3 * 20.0), cos(uTime * 0.3 + r2 * 10.0)) * 0.025;
-          // Three reproducible low mounds. Every tile keeps its resting place.
-          float mound = floor(r3 * 3.0);
-          float radius = sqrt(vSeed) * uExtent * (0.35 + 0.07 * mound);
-          float angle = r2 * 6.283185;
-          vec3 resting = vec3((mound - 1.0) * uExtent * 0.63 + cos(angle) * radius,
-            uFloor + 0.025 + (1.0 - vSeed) * (0.08 + 0.12 * hash(aCell + 25.0)),
-            sin(angle) * radius * 0.6 + (mound - 1.0) * 0.09);
-          // Most missing crown pieces stay on the floor; only a few hover nearby.
-          float hovering = step(0.84, hash(aCell + 42.9 + aBack));
-          assembled = mix(assembled, mix(resting, floating, hovering), loose);
-          float flight = clamp((uAssembly - r2 * 0.22) / 0.78, 0.0, 1.0);
-          // Reversing this trajectory accelerates the tiles downward like gravity.
-          vLift = 1.0 - (1.0 - flight) * (1.0 - flight);
-          vec3 center = mix(resting, assembled, vLift);
-          center.x += sin(flight * 3.141593) * sin(r3 * 40.0) * 0.12;
-          float settle = 1.0 - smoothstep(0.0, 0.14, flight);
-          center.y += sin(flight * 55.0) * flight * settle * 0.18;
-          float orientationLift = vLift * (1.0 - loose * (1.0 - hovering));
-          mat3 turn = rotateTile((1.0-orientationLift) * (1.45 + r3 * 0.25) + loose * orientationLift * sin(uTime * 0.22 + r2),
-            (1.0-orientationLift) * r2 * 6.283185 + loose * orientationLift * r3);
-          vec3 p = center + turn * (position * vec3(uCell * uFill, uCell * uFill, thickness));
+          // Exact target tracking once assembled preserves crisp mouth/eyelid motion.
+          vec3 center = mix(state.xyz, tile.head, smoothstep(0.97,1.0,state.w));
+          float lift = state.w;
+          float floorPiece = step(length(tile.head-tile.rest),0.001);
+          float orientationLift = lift * (1.0-floorPiece);
+          mat3 turn = rotateTile((1.0-orientationLift)*(1.45+r3*0.25+velocity.w) + tile.free*lift*sin(uTime*0.22+r2),
+            (1.0-orientationLift)*(r2*6.283185+velocity.w*(r3-0.5)) + tile.free*lift*r3);
+          vec3 p = center + turn * (position * vec3(uCell*uFill, uCell*uFill, uCell*0.32));
+          float zFront = floor(face.r/uStep)*uStep;
           vec4 neighbor = texture2D(uFront, uv + vec2(uCell / (2.0 * uExtent), 0.0));
           vec4 above = texture2D(uFront, uv + vec2(0.0, uCell / (2.0 * uExtent)));
           vLift = orientationLift;
@@ -153,6 +137,9 @@ export class LayeredPortrait {
         cells[i] = (x + 0.5) * 2 / count - 1
         cells[i + 1] = (y + 0.5) * 2 / count - 1
       }
+      this.dynamics?.dispose()
+      this.dynamics = null
+      this.material.uniforms.uSimulated.value = false
       this.geometry.dispose() // Release the previous instance buffer when density changes.
       this.geometry.setAttribute('aCell', new THREE.InstancedBufferAttribute(cells, 2))
       this.geometry.setAttribute('aBack', new THREE.InstancedBufferAttribute(backs, 1))
@@ -175,14 +162,41 @@ export class LayeredPortrait {
   }
 
   update(time: number, awake: boolean, dt: number, frozen = false) {
+    if (awake !== this.awake) {
+      this.release = !awake
+      this.elapsed = 0
+      this.awake = awake
+    }
+    this.elapsed += dt
+    this.frozen = frozen
     this.assembly = frozen ? (awake ? 1 : 0) : THREE.MathUtils.clamp(
-      this.assembly + (awake ? dt / 2.2 : -dt / 1.5), 0, 1)
-    this.material.uniforms.uAssembly.value = this.assembly
+      this.assembly + (awake ? dt / 3.2 : -dt / 0.65), 0, 1)
     this.material.uniforms.uTime.value = time
+    this.material.uniforms.uAwake.value = awake ? 1 : 0
     ;(this.shadow.material as THREE.ShaderMaterial).uniforms.uOpacity.value = 0.30 + this.assembly * 0.05
   }
 
+  /** Called after depth capture so the simulation sees the current animated face. */
+  simulate(renderer: THREE.WebGLRenderer, dt: number) {
+    const u = this.material.uniforms
+    if (this.frozen) { u.uSimulated.value = false; return }
+    renderer.getClearColor(this.clearColor)
+    const alpha = renderer.getClearAlpha()
+    try {
+      this.dynamics ??= new TileDynamics(renderer, this.resolution, u)
+      this.dynamics.step(dt, this.awake, this.elapsed, this.release)
+    } finally {
+      // Compute passes leave a linear clear color in GL; restore it for the scene.
+      renderer.setClearColor(this.clearColor, alpha)
+    }
+    this.release = false
+    u.uMotionPosition.value = this.dynamics.position
+    u.uMotionVelocity.value = this.dynamics.velocity
+    u.uSimulated.value = true
+  }
+
   dispose() {
+    this.dynamics?.dispose()
     this.geometry.dispose()
     this.material.dispose()
     this.shadow.geometry.dispose()

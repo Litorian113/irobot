@@ -574,6 +574,7 @@ export class ParticleFace {
       try { this.facePass.render(this.renderer, Boolean(this.debugQuad), true) }
       finally { hu.uFormation.value = formation }
     }
+    if (this.style === 'lattice') this.portrait?.simulate(this.renderer, dt)
     if (isViki && !this.debugQuad) this.vikiCube?.capture(this.renderer, this.camera)
     this.fpsCount++
     if (now - this.fpsSince > 1000) {
