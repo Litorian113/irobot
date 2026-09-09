@@ -338,6 +338,7 @@ export class ParticleFace {
     if (this.style === 'viki') this.scene.background = this.backdropTexture()
     this.cube.resize(pr, h)
     this.styles?.setDustBase(pr * 1.4)
+    this.styles?.setFieldView(this.camera)
   }
 
   private onPointerDown = (e: PointerEvent) => {

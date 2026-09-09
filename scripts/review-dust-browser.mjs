@@ -146,6 +146,48 @@ try {
   await page.goto(`${base}/?style=dust`)
   await page.waitForFunction(() => window.__viki?.().headLoaded)
   assert.equal((await blurState()).enabled, false, 'Inactive dust stays sharp')
+  for (const viewport of [{ width: 1600, height: 900 }, { width: 390, height: 844 }]) {
+    await page.setViewport(viewport)
+    await pause(200)
+    const field = await page.evaluate(() => {
+      const f = window.__vikiFace, gl = f.renderer.getContext()
+      const w = gl.drawingBufferWidth, h = gl.drawingBufferHeight
+      const read = () => {
+        f.composer.render(0)
+        const p = new Uint8Array(w * h * 4)
+        gl.readPixels(0, 0, w, h, gl.RGBA, gl.UNSIGNED_BYTE, p)
+        return p
+      }
+      const time = f.styles.dust.material.uniforms.uTime.value, a = read()
+      let empty, moved
+      try {
+        f.styles.dust.visible = false; f.styles.cage.visible = false
+        empty = read()
+        f.styles.dust.visible = true; f.styles.cage.visible = true
+        f.styles.setTime(time + 8)
+        moved = read()
+      } finally {
+        f.styles.dust.visible = true; f.styles.cage.visible = true
+        f.styles.setTime(time)
+      }
+      const edges = [0, 0, 0, 0]
+      let motion = 0
+      for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) {
+        const i = (y * w + x) * 4
+        if (Math.abs(a[i] - moved[i]) + Math.abs(a[i + 2] - moved[i + 2]) > 6) motion++
+        if (Math.abs(a[i] - empty[i]) + Math.abs(a[i + 2] - empty[i + 2]) < 8) continue
+        if (x < w * 0.12) edges[0]++
+        if (x > w * 0.88) edges[1]++
+        if (y < h * 0.12) edges[2]++
+        if (y > h * 0.88) edges[3]++
+      }
+      return { edges, motion }
+    })
+    assert.ok(field.edges.every((count) => count > 250), 'The inactive field reaches all four viewport edges')
+    assert.ok(field.motion > 2000, 'Cloud currents visibly drift over time')
+    assert.equal((await blurState()).enabled, false, 'Cloud glow does not enable the radial blur')
+  }
+  await page.setViewport({ width: 1000, height: 1000 })
   await page.evaluate(() => {
     const f = window.__vikiFace
     f.setActive(true)
@@ -180,5 +222,5 @@ try {
   assert.equal(disposed, true, 'Unmount disposes the filter material with the other passes')
   assert.deepEqual(errors, [])
   assert.deepEqual(external, [])
-  console.log('PASS: unchanged central pixels, blurred edges, exact zero-strength bypass, unchanged particle count, no added render targets, head tracking, mobile framing, saved settings, style isolation, inactive bypass, formation/dissolve fading and disposal.')
+  console.log('PASS: unchanged central pixels, blurred edges, exact zero-strength bypass, unchanged particle count, no added render targets, head tracking, mobile framing, saved settings, style isolation, full-screen moving clouds, inactive blur bypass, formation/dissolve fading and disposal.')
 } finally { await browser.close() }

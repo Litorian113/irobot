@@ -56,7 +56,19 @@ Add `&wide=0.8&round=0.1` to compare lip shapes independently. Deterministic com
 `?preview=neutral&mouth=0&freeze=1`: time and pose settle immediately, natural swaying/blinking pause.
 Add `&blink=1` for closed lids (`0.5` for halfway), `&yaw=35&pitch=0` for rotation in degrees, or `&time=2` for a fixed shimmer time.
 
-## Dust radial filter
+## Dust particle clouds and radial filter
+
+While inactive, Dust expands into a full-screen particle volume: slow violet/blue cloud currents, small eddies,
+sparse twinkling points and soft Gaussian haze. The field fits the camera frustum on wide and narrow screens,
+independently of the head's size. Activation gathers those same particles into the existing head; disconnecting
+releases them into the clouds again. The fully formed head keeps its original placement, point sizes and shading.
+A quiet fringe of background dust remains at the left and right while active, softened by the existing radial filter.
+**Dust → Configure → Cloud glow** adjusts the surrounding haze (using the existing saved Cage value).
+
+The flow runs in the vertex shaders, using the existing head particles and 3,500 cage points. It needs no extra
+particles, draw calls, textures or render targets. Some cage points become larger, faint haze sprites while idle,
+so there is additional fragment work for their soft glow. The wide resting field is exclusive to Dust; Lattice's
+transition keeps its original cube positions.
 
 **Dust → Configure → Radial blur** keeps the center of the face sharp while stretching the surrounding particles
 and their glow outward, like a radial zoom lens. The default strength is **0.70**; **0** restores the original Dust

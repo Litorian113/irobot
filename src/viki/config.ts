@@ -311,7 +311,7 @@ export const STYLE_GROUPS: Record<HeadStyle, SliderGroup> = {
       { key: 'gain', label: 'Brightness', min: 0.4, max: 2, step: 0.02 },
       { key: 'bloom', label: 'Glow', min: 0, max: 1.5, step: 0.02 },
       { key: 'radialBlur', label: 'Radial blur', min: 0, max: 1, step: 0.02 },
-      { key: 'cage', label: 'Cage', min: 0, max: 1, step: 0.01 },
+      { key: 'cage', label: 'Cloud glow', min: 0, max: 1, step: 0.01 },
     ],
   },
 }
