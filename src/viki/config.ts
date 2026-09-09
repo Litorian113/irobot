@@ -5,11 +5,11 @@ export type HeadStyle = 'lattice' | 'dust' | 'viki'
 
 export const STYLES: { id: HeadStyle; label: string; hint: string; title: string; subtitle: string }[] = [
   {
-    id: 'lattice',
-    label: 'Max',
-    hint: 'A monochrome portrait sculpted from stacked tiles',
-    title: 'M.A.X.',
-    subtitle: 'A monochrome portrait sculpted from stacked tiles',
+    id: 'viki',
+    label: 'VIKI',
+    hint: 'A silver-green tiled portrait mirrored around an optical cube',
+    title: 'V.I.K.I.',
+    subtitle: 'Virtual Interactive Kinetic Intelligence',
   },
   {
     id: 'dust',
@@ -19,11 +19,11 @@ export const STYLES: { id: HeadStyle; label: string; hint: string; title: string
     subtitle: 'Fine particles that scatter at the edges',
   },
   {
-    id: 'viki',
-    label: 'VIKI',
-    hint: 'A silver-green tiled portrait mirrored around an optical cube',
-    title: 'V.I.K.I.',
-    subtitle: 'Virtual Interactive Kinetic Intelligence',
+    id: 'lattice',
+    label: 'Max',
+    hint: 'A monochrome portrait sculpted from stacked tiles',
+    title: 'M.A.X.',
+    subtitle: 'A monochrome portrait sculpted from stacked tiles',
   },
 ]
 

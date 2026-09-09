@@ -42,7 +42,16 @@ TileTarget tileTarget(vec2 aCell, float aBack) {
   // the levitation up and rain back down, so the ground reads as one plane.
   // The 0.06..0.35 mask band stays hidden - speech only wobbles the silhouette
   // there, and those cells must never flip between head and floor.
-  float mask = aBack > 0.5 ? rear.b : face.b;
+  // The outside test is dilated by three cells in every direction on both
+  // depth maps: speech moves the jaw silhouette a little, and a dweller whose
+  // classification flickered with the mouth would leap between floor and face.
+  float e = 3.0 * uCell / (2.0 * uExtent);
+  float mask = max(face.b, rear.b);
+  mask = max(mask, max(texture2D(uFront, uv + vec2(e, 0.0)).b, texture2D(uFront, uv - vec2(e, 0.0)).b));
+  mask = max(mask, max(texture2D(uFront, uv + vec2(0.0, e)).b, texture2D(uFront, uv - vec2(0.0, e)).b));
+  vec2 ruv = vec2(1.0 - uv.x, uv.y);
+  mask = max(mask, max(texture2D(uBack, ruv + vec2(e, 0.0)).b, texture2D(uBack, ruv - vec2(e, 0.0)).b));
+  mask = max(mask, max(texture2D(uBack, ruv + vec2(0.0, e)).b, texture2D(uBack, ruv - vec2(0.0, e)).b));
   // Only a sparse handful of the outside cells become dwellers, and their
   // spread varies per tile so the scatter reads as random debris, not a block.
   float keep = step(0.85, hash(aCell + 63.3 + aBack));
