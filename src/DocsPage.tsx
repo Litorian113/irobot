@@ -208,13 +208,37 @@ export default function DocsPage({ onClose }: { onClose: () => void }) {
         <header className="docs-hero">
           <div className="docs-cube" aria-hidden="true" />
           <h1>
-            V.I.K.I.<span className="caret" />
+            {active.label}
+            <span className="caret" />
           </h1>
           <p className="docs-tagline">Giving a voice a body</p>
           <p className="docs-byline">
             An interaction study by <strong>Franz Anhäupl</strong> · HfG Schwäbisch Gmünd
           </p>
+          <div className="docs-toggle" role="tablist" aria-label="The three heads">
+            {HEADS.map((h) => (
+              <button
+                key={h.id}
+                type="button"
+                role="tab"
+                aria-selected={head === h.id}
+                className={`docs-toggle-btn${head === h.id ? ' active' : ''}`}
+                onClick={() => setHead(h.id)}
+              >
+                {h.label}
+              </button>
+            ))}
+          </div>
         </header>
+
+        <Reveal>
+          <h2 className="docs-head-title">{active.title}</h2>
+          <p>{active.what}</p>
+          <h3 className="docs-sub">Oriented on</h3>
+          <p>{active.oriented}</p>
+          <h3 className="docs-sub">In motion</h3>
+          <p>{active.motion}</p>
+        </Reveal>
 
         <Reveal>
           <h2>2004</h2>
@@ -246,26 +270,6 @@ export default function DocsPage({ onClose }: { onClose: () => void }) {
             time to the question of what a presence is made of.
           </p>
           <FigStates />
-          <div className="docs-toggle" role="tablist" aria-label="The three heads">
-            {HEADS.map((h) => (
-              <button
-                key={h.id}
-                type="button"
-                role="tab"
-                aria-selected={head === h.id}
-                className={`docs-toggle-btn${head === h.id ? ' active' : ''}`}
-                onClick={() => setHead(h.id)}
-              >
-                {h.label}
-              </button>
-            ))}
-          </div>
-          <h2 className="docs-head-title">{active.title}</h2>
-          <p>{active.what}</p>
-          <h3 className="docs-sub">Oriented on</h3>
-          <p>{active.oriented}</p>
-          <h3 className="docs-sub">In motion</h3>
-          <p>{active.motion}</p>
         </Reveal>
 
         <Reveal>
