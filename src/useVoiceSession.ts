@@ -60,7 +60,7 @@ export function useVoiceSession(faceRef: RefObject<ParticleFace | null>, speechD
   const connect = useCallback(async () => {
     disconnect()
     if (!API_KEY) {
-      setError('VITE_OPENAI_API_KEY is not set in .env')
+      setError('The voice AI is offline right now — no key is connected. Live today from 22:00 to tomorrow 22:00 (German time).')
       setStatus('error')
       return
     }
