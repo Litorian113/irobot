@@ -125,7 +125,7 @@ export default function App() {
   }, [cfg.draft.speechDelay, voice.lipRef])
 
   return (
-    <div className={`hero${cfg.style === 'lattice' && cfg.draft.optical ? ' film-look' : ''}${cfg.style === 'lattice' ? ' light-set' : ''}${cfg.configOpen ? ' configuring' : ''}${status === 'idle' && !PREVIEW && !previewSpeech ? ' dormant' : ''}`}>
+    <div className={`hero${cfg.style === 'lattice' && cfg.draft.optical ? ' film-look' : ''}${cfg.configOpen ? ' configuring' : ''}${status === 'idle' && !PREVIEW && !previewSpeech ? ' dormant' : ''}`}>
       <canvas ref={canvasRef} />
 
       <div className={`hud${cfg.configOpen ? ' config-open' : ''}`}>
