@@ -10,6 +10,27 @@ void inputs(out vec2 uv, out vec2 cell, out float back) {
   back = floor(uv.y * 2.0);
   cell = vec2(uv.x, fract(uv.y * 2.0)) * 2.0 - 1.0;
 }
+// Gravity, bounce, ground friction and tumbling - shared by the shutdown fall
+// and by unused tiles dropping out of the levitation once the head gathers.
+void fallStep(inout vec4 v, vec4 p, float seed, float r2) {
+  v.y -= 9.8*uDt;
+  float floorY = tileFloor(p.xz);
+  if (p.y+v.y*uDt <= floorY && v.y < 0.0) {
+    float impact = -v.y;
+    // Restitution varies per tile; subsequent impacts die out naturally.
+    v.y = impact > 0.24 ? impact*(0.24+seed*0.17) : 0.0;
+    if (impact > 0.24) {
+      v.xz += vec2(seed-0.5,r2-0.5)*impact*0.18;
+      v.w += impact*(r2-0.5)*0.35;
+    }
+  }
+  if (p.y < floorY+uCell*1.6) {
+    v.xz *= exp(-uDt*5.0);
+    if (length(v.xz)<0.012) v.xz=vec2(0.0);
+  } else v.xz *= exp(-uDt*0.25);
+  // Integrated tumbling continues through bounces and comes to rest with speed.
+  v.w += (length(v.xyz)*2.8)*(r2<0.5 ? -1.0 : 1.0)*uDt;
+}
 `;
 
 const POSITION = /* glsl */ `
@@ -28,7 +49,10 @@ void main() {
   p.y = max(p.y,tileFloor(p.xz));
   // The face releases immediately; no per-tile delay on the way down.
   if (uAwake < 0.5) p.w = max(0.0,p.w-uDt*5.0);
-  else {
+  else if (length(tile.head-tile.rest) < 0.001) {
+    // Unused tiles never assemble: they drop back and must not snap anywhere.
+    p.w = 0.0;
+  } else {
     float gathered = smoothstep(1.6,3.1,uElapsed);
     p.w = min(gathered, p.w + uDt*1.8);
     if (p.w > 0.999) p.xyz = tile.head;
@@ -52,6 +76,12 @@ void main() {
     float delay = seed*0.42;
     float age = max(0.0,uElapsed-delay);
     float gather = smoothstep(0.5,2.25,age);
+    if (length(tile.head-tile.rest) < 0.001 && age > 0.85) {
+      // This tile is not part of the head: after riding the levitation up,
+      // it simply falls - same gravity and bounces as the shutdown.
+      fallStep(v, p, seed, r2);
+      gl_FragColor=v; return;
+    }
     vec3 lifted = vec3(p.x, max(tile.rest.y+0.38,tile.head.y*0.5), p.z);
     vec3 goal = mix(lifted,tile.head,gather);
     float magic = sin(clamp(age/2.6,0.0,1.0)*3.141593);
@@ -66,28 +96,7 @@ void main() {
     if (uRelease > 0.5) {
       v.xyz += vec3((seed-0.5)*0.13,-0.35,(r2-0.5)*0.12);
     }
-    v.y -= 9.8*uDt;
-    float floorY = tileFloor(p.xz);
-    if (p.y+v.y*uDt <= floorY && v.y < 0.0) {
-      float impact = -v.y;
-      // Restitution varies per tile; subsequent impacts die out naturally.
-      v.y = impact > 0.24 ? impact*(0.24+seed*0.17) : 0.0;
-      if (impact > 0.24) {
-        v.xz += vec2(seed-0.5,r2-0.5)*impact*0.18;
-        v.w += impact*(r2-0.5)*0.35;
-      }
-    }
-    if (p.y < floorY+uCell*1.6) {
-      // Roll/slide away from mound slopes, then lose energy to ground friction.
-      float e = uCell;
-      vec2 slope = vec2(tileFloor(p.xz+vec2(e,0.0))-tileFloor(p.xz-vec2(e,0.0)),
-        tileFloor(p.xz+vec2(0.0,e))-tileFloor(p.xz-vec2(0.0,e)))/(2.0*e);
-      if (length(v.xz)>0.02 || abs(v.y)>0.12) v.xz -= slope*uDt*1.5;
-      v.xz *= exp(-uDt*5.0);
-      if (length(v.xz)<0.012) v.xz=vec2(0.0);
-    } else v.xz *= exp(-uDt*0.25);
-    // Integrated tumbling continues through bounces and comes to rest with speed.
-    v.w += (length(v.xyz)*2.8)*(r2<0.5 ? -1.0 : 1.0)*uDt;
+    fallStep(v, p, seed, r2);
   }
   gl_FragColor=v;
 }

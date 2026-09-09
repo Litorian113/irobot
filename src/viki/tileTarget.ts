@@ -11,13 +11,13 @@ TileTarget tileTarget(vec2 aCell, float aBack) {
   vec4 rear = texture2D(uBack, vec2(1.0 - uv.x, uv.y));
   vec2 cellPosition = aCell * uExtent + vec2(0.0, uCenterY);
   float localY = (cellPosition.y - uHeadOffset.y) * 0.29 / uHeadScale.y;
-  float valid = step(0.08, face.b) * step(-0.11, localY);
+  float valid = step(0.35, face.b) * step(-0.11, localY);
   float seed = hash(aCell + aBack * 3.1);
   float r2 = hash(aCell.yx + 4.7 + aBack);
   float r3 = hash(aCell + 11.3 + aBack);
   float zFront = floor(face.r / uStep) * uStep;
   float zBack = floor(rear.r / uStep) * uStep;
-  if (aBack > 0.5) valid *= step(0.08, rear.b);
+  if (aBack > 0.5) valid *= step(0.35, rear.b);
   vec3 assembled = vec3(cellPosition, mix(zFront, zBack, aBack));
   // The crown opens into scattered flakes; the facial landmarks stay intact.
   float crown = smoothstep(0.85, 1.15, localY);

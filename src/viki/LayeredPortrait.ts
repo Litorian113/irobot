@@ -76,8 +76,9 @@ export class LayeredPortrait {
           vec4 neighbor = texture2D(uFront, uv + vec2(uCell / (2.0 * uExtent), 0.0));
           vec4 above = texture2D(uFront, uv + vec2(0.0, uCell / (2.0 * uExtent)));
           vLift = orientationLift;
-          vLight = aBack > 0.5 ? rear.g : face.g;
-          float raised = max(neighbor.b > 0.08 ? neighbor.r : zFront, above.b > 0.08 ? above.r : zFront);
+          // Unpremultiply against the head mask: rim texels otherwise render as dark chains.
+          vLight = aBack > 0.5 ? rear.g / max(rear.b, 0.05) : face.g / max(face.b, 0.05);
+          float raised = max(neighbor.b > 0.35 ? neighbor.r : zFront, above.b > 0.35 ? above.r : zFront);
           vShade = 1.0 - 0.48 * vLift * smoothstep(uStep * 0.3, uStep * 1.4, raised - zFront);
           vPosition = p;
           vCap = abs(normal.z);
