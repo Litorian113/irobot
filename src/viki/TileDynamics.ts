@@ -13,8 +13,16 @@ void inputs(out vec2 uv, out vec2 cell, out float back) {
 // Gravity, bounce, ground friction and tumbling - shared by the shutdown fall
 // and by unused tiles dropping out of the levitation once the head gathers.
 void fallStep(inout vec4 v, vec4 p, float seed, float r2) {
-  v.y -= 9.8*uDt;
   float floorY = tileFloor(p.xz);
+  // A tile already lying on the ground stays put at any step size. Without
+  // this, one large frame step accumulates enough fall speed to cross the
+  // bounce threshold every frame - endless skittering on the floor.
+  if (p.y <= floorY + 0.002 && v.y <= 0.0 && -v.y <= 9.8*uDt*1.25 && length(v.xz) < 0.02) {
+    v.xyz = vec3(0.0);
+    v.w *= exp(-uDt*8.0);
+    return;
+  }
+  v.y -= 9.8*uDt;
   if (p.y+v.y*uDt <= floorY && v.y < 0.0) {
     float impact = -v.y;
     // Restitution varies per tile; subsequent impacts die out naturally.

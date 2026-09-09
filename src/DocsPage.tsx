@@ -1,4 +1,4 @@
-import { useEffect, useRef, type ReactNode } from 'react'
+import { useEffect, useRef, useState, type ReactNode } from 'react'
 
 /** Fades its content up once it scrolls into view. */
 function Reveal({ children, className = '' }: { children: ReactNode; className?: string }) {
@@ -74,7 +74,7 @@ function FigStates() {
         {cells.map(([x, y], i) => (
           <rect key={i} x={x} y={y} width="6" height="4" className={`fig-cell${i % 7 === 0 ? ' bright' : ''}`} style={{ ['--d' as string]: `${(i % 5) * 0.6}s` }} />
         ))}
-        <text x="56" y="112" textAnchor="middle" className="fig-label">01 LATTICE</text>
+        <text x="56" y="112" textAnchor="middle" className="fig-label">01 MAX</text>
       </g>
       <g className="fig-dust">
         <rect x="136" y="8" width="88" height="88" className="fig-line dim" fill="none" />
@@ -135,8 +135,40 @@ function FigLoop() {
   )
 }
 
+const HEADS = [
+  {
+    id: 'viki',
+    label: 'V.I.K.I.',
+    title: 'V.I.K.I. — the homage',
+    text: `The direct quote. The 2004 mainframe rebuilt as faithfully as the browser allows: a mirrored optical
+cube hanging in a dark hall, her face shimmering across thousands of tiles, light pouring through the matrix.
+Scale is the thought here - you are not talking to a device, you are talking to an institution. She answers
+from above, unhurried, and the room belongs to her. Presence as architecture.`,
+  },
+  {
+    id: 'dust',
+    label: 'D.U.S.T.',
+    title: 'D.U.S.T. — the becoming',
+    text: `Dust asks how little body a presence needs. There is no surface here, only tendency: tens of
+thousands of particles that lean towards a face while you speak to her, and fray into noise at her silhouette -
+the visible edge between being and static. She exists only while she is addressed; hang up and she lets go of
+the shape entirely. Fragility as honesty: attention is the only thing holding her together.`,
+  },
+  {
+    id: 'max',
+    label: 'M.A.X.',
+    title: 'M.A.X. — the matter',
+    text: `Max is the physical answer. His tiles have weight: they lie scattered on the floor until the voice
+calls, levitate, and assemble into a monochrome sculpture - and what the head does not need simply falls back
+down, bounces and comes to rest. When you leave, nothing fades out; it drops. The carpet of tiles on the ground
+is not debris but potential: everything she could become, waiting on the floor.`,
+  },
+]
+
 /** The project documentation: a short essay, readable like a leaflet in the exhibition. */
 export default function DocsPage({ onClose }: { onClose: () => void }) {
+  const [head, setHead] = useState('viki')
+  const active = HEADS.find((h) => h.id === head) ?? HEADS[0]
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => e.key === 'Escape' && onClose()
     window.addEventListener('keydown', onKey)
@@ -187,13 +219,26 @@ export default function DocsPage({ onClose }: { onClose: () => void }) {
         <Reveal>
           <h2>Three states of matter</h2>
           <p>
-            The same being exists here in three bodies. <strong>Lattice</strong> — fine data points on her skin,
-            a portrait behind curved glass, the most human state. <strong>Dust</strong> — tens of thousands of
-            particles that scatter at her silhouette; dormant she is a cloud, addressed she condenses.{' '}
-            <strong>VIKI</strong> — the homage: a mirrored optical cube in the dark, her face shimmering in its
-            tiles, light rushing through the matrix from a single point deep inside.
+            The same being exists here in three bodies — the same rig, the same lips, a different answer each
+            time to the question of what a presence is made of.
           </p>
           <FigStates />
+          <div className="docs-toggle" role="tablist" aria-label="The three heads">
+            {HEADS.map((h) => (
+              <button
+                key={h.id}
+                type="button"
+                role="tab"
+                aria-selected={head === h.id}
+                className={`docs-toggle-btn${head === h.id ? ' active' : ''}`}
+                onClick={() => setHead(h.id)}
+              >
+                {h.label}
+              </button>
+            ))}
+          </div>
+          <h2 className="docs-head-title">{active.title}</h2>
+          <p>{active.text}</p>
         </Reveal>
 
         <Reveal>
