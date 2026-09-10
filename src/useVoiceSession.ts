@@ -7,6 +7,25 @@ import type { HeadStyle } from './viki/config'
 
 const API_KEY = import.meta.env.VITE_OPENAI_API_KEY as string | undefined
 
+const OFFLINE_MESSAGE = 'The voice AI is offline right now — no key is connected. Live today from 22:00 to tomorrow 22:00 CEST.'
+
+/**
+ * Local development uses the .env key directly. The deployed site instead asks
+ * our serverless endpoint for a short-lived client secret (ek_...), so the
+ * real API key never reaches the browser.
+ */
+async function obtainKey(): Promise<string | null> {
+  if (API_KEY) return API_KEY
+  try {
+    const res = await fetch('/api/token', { method: 'POST' })
+    if (!res.ok) return null
+    const data = (await res.json()) as { value?: string }
+    return data.value ?? null
+  } catch {
+    return null
+  }
+}
+
 /**
  * Owns the whole voice link: WebRTC session, audio context, speech output with
  * viseme detection, microphone level, connection epochs and teardown.
@@ -59,11 +78,6 @@ export function useVoiceSession(faceRef: RefObject<ParticleFace | null>, speechD
 
   const connect = useCallback(async () => {
     disconnect()
-    if (!API_KEY) {
-      setError('The voice AI is offline right now — no key is connected. Live today from 22:00 to tomorrow 22:00 CEST.')
-      setStatus('error')
-      return
-    }
     setError(null)
     setStatus('connecting')
     setAssistantText('')
@@ -74,6 +88,9 @@ export function useVoiceSession(faceRef: RefObject<ParticleFace | null>, speechD
 
     try {
       await ctx.resume()
+      const key = await obtainKey()
+      if (!key) throw new Error(OFFLINE_MESSAGE)
+      if (epoch !== connectionEpoch.current) return
       const speech = await SpeechOutput.create(ctx, speechDelay, (message) => {
         if (epoch === connectionEpoch.current) setError(message)
       })
@@ -82,7 +99,7 @@ export function useVoiceSession(faceRef: RefObject<ParticleFace | null>, speechD
       ;(window as unknown as { __vikiSpeech?: () => unknown }).__vikiSpeech = () => speech.debug()
       let latestStatus: VoiceStatus = 'connecting'
       const session = await connectRealtime(
-        API_KEY,
+        key,
         {
           onStatus: (s) => {
             latestStatus = s
