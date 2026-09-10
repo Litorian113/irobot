@@ -139,6 +139,25 @@ export function useVoiceSession(faceRef: RefObject<ParticleFace | null>, speechD
       if (epoch !== connectionEpoch.current) { session.disconnect(); speech.dispose(); return }
       sessionRef.current = session
       micLipRef.current = new LipSync(ctx, session.micStream)
+      if (DUET) {
+        // Echo cancellation is off in duet mode, so the mic must close while
+        // our own head is audibly speaking - otherwise it hears itself. A short
+        // hangover covers the gap between viseme frames and the audio tail.
+        ;(window as unknown as { __vikiMicOpen?: () => boolean }).__vikiMicOpen = () =>
+          session.micStream.getAudioTracks()[0]?.enabled ?? false
+        let lastAudible = 0
+        const gate = window.setInterval(() => {
+          if (epoch !== connectionEpoch.current) {
+            window.clearInterval(gate)
+            return
+          }
+          const s = speech.sample()
+          const audible = s.open > 0.03 || (s.visemes?.some((w) => w > 0.05) ?? false)
+          if (audible) lastAudible = performance.now()
+          const track = session.micStream.getAudioTracks()[0]
+          if (track) track.enabled = performance.now() - lastAudible > 400
+        }, 80)
+      }
       // The film moment: once she has fully materialized and nothing else is
       // happening yet, she opens the conversation herself - then waits.
       const greetTimer = window.setInterval(() => {

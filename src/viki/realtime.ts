@@ -31,6 +31,10 @@ export interface MicInfo {
 }
 
 const MIC_CONSTRAINTS: MediaTrackConstraints = { echoCancellation: true, noiseSuppression: true, autoGainControl: true }
+// Duet on one machine: Chrome's echo cancellation removes ALL tab audio from
+// the mic - the other head's voice included. So the duet keeps AEC off and
+// instead gates its own mic shut while its own head is audibly speaking.
+const DUET_MIC_CONSTRAINTS: MediaTrackConstraints = { echoCancellation: false, noiseSuppression: true, autoGainControl: true }
 const PHONE_RE = /iphone|ipad|continuity/i
 const BUILTIN_RE = /macbook|built-in|builtin|internal|intern|integriert|eingebaut/i
 
@@ -41,9 +45,10 @@ export async function listMicrophones(): Promise<MicInfo[]> {
     .map((d) => ({ deviceId: d.deviceId, label: d.label || 'Microphone' }))
 }
 
-async function openMic(deviceId?: string): Promise<MediaStream> {
+async function openMic(deviceId?: string, duet = false): Promise<MediaStream> {
+  const base = duet ? DUET_MIC_CONSTRAINTS : MIC_CONSTRAINTS
   return navigator.mediaDevices.getUserMedia({
-    audio: deviceId ? { ...MIC_CONSTRAINTS, deviceId: { exact: deviceId } } : MIC_CONSTRAINTS,
+    audio: deviceId ? { ...base, deviceId: { exact: deviceId } } : base,
   })
 }
 
@@ -53,10 +58,10 @@ async function openMic(deviceId?: string): Promise<MediaStream> {
  * known, the built-in mic is selected by id up front and the phone is never touched.
  * Only on a first-ever run (no labels yet) does the default open + switch fallback run.
  */
-async function openPreferredMic(preferredId?: string): Promise<MediaStream> {
+async function openPreferredMic(preferredId?: string, duet = false): Promise<MediaStream> {
   if (preferredId) {
     try {
-      return await openMic(preferredId)
+      return await openMic(preferredId, duet)
     } catch {
       /* device gone — fall through to auto */
     }
@@ -64,18 +69,18 @@ async function openPreferredMic(preferredId?: string): Promise<MediaStream> {
   try {
     const labeled = (await listMicrophones()).filter((m) => m.label)
     const builtin = labeled.find((m) => BUILTIN_RE.test(m.label)) ?? labeled.find((m) => !PHONE_RE.test(m.label))
-    if (builtin) return await openMic(builtin.deviceId)
+    if (builtin) return await openMic(builtin.deviceId, duet)
   } catch {
     /* enumeration unavailable — fall through */
   }
-  const stream = await openMic()
+  const stream = await openMic(undefined, duet)
   const label = stream.getAudioTracks()[0]?.label ?? ''
   if (!PHONE_RE.test(label)) return stream
   const mics = await listMicrophones()
   const builtin = mics.find((m) => BUILTIN_RE.test(m.label)) ?? mics.find((m) => !PHONE_RE.test(m.label))
   if (!builtin) return stream
   try {
-    const better = await openMic(builtin.deviceId)
+    const better = await openMic(builtin.deviceId, duet)
     stream.getTracks().forEach((t) => t.stop())
     return better
   } catch {
@@ -193,7 +198,7 @@ export async function connectRealtime(
     if (e.track.kind === 'audio') h.onRemoteStream(e.streams[0] ?? new MediaStream([e.track]))
   }
 
-  let micStream = await openPreferredMic(preferredMicId).catch((error) => {
+  let micStream = await openPreferredMic(preferredMicId, Boolean(duet)).catch((error) => {
     pc.close()
     throw error
   })
