@@ -77,6 +77,14 @@ export default function App() {
     }
   }, [])
 
+  // A scene switch shuts the previous head down: preview off, session closed.
+  // Each head is woken in its own scene and never inherits a running one.
+  const chooseStyle = (next: Parameters<typeof cfg.chooseStyle>[0]) => {
+    setPreviewSpeech(false)
+    voice.disconnect()
+    cfg.chooseStyle(next)
+  }
+
   // Map voice status → formation of the lattice + mouth source.
   // While the configurator is open the face is forced into its active look.
   useEffect(() => {
@@ -139,7 +147,7 @@ export default function App() {
           onBackdrop={cfg.style === 'viki' ? toggleBackdrop : undefined}
         />
 
-        <RadialMenu style={cfg.style} onSelect={cfg.chooseStyle} onDocs={() => setDocsOpen(true)} />
+        <RadialMenu style={cfg.style} onSelect={chooseStyle} onDocs={() => setDocsOpen(true)} />
 
         <Captions userText={voice.userText} assistantText={voice.assistantText} hold={status === 'thinking' || status === 'speaking'} />
 

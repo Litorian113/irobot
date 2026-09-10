@@ -152,11 +152,6 @@ export function useVoiceSession(faceRef: RefObject<ParticleFace | null>, speechD
     }
   }, [speechDelay, disconnect, faceRef])
 
-  // Switching heads mid-conversation swaps the character live.
-  useEffect(() => {
-    sessionRef.current?.setPersona(style)
-  }, [style])
-
   useEffect(() => () => disconnect(), [disconnect])
 
   return {

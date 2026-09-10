@@ -519,11 +519,12 @@ export class ParticleFace {
     // shared head uniforms (expression + mouth + placement)
     const hu = this.headUniforms
     hu.uFormation.value = this.current.face < 0.001 ? 0 : this.current.face > 0.999 ? 1 : this.current.face
-    if (this.style === 'viki') {
-      const awake = this.active || this.target.face > 0
-      this.vikiAssembly.update(dt, awake, FROZEN ? reviewNumber('assembly', awake ? 1 : 0) : undefined)
-      hu.uFormation.value *= this.vikiAssembly.face
-    }
+    // Only the selected scene wakes up; the assembly still ticks in the
+    // background so a head left behind finishes its shutdown invisibly.
+    const awake = this.active || this.target.face > 0
+    const vikiAwake = this.style === 'viki' && awake
+    this.vikiAssembly.update(dt, vikiAwake, FROZEN ? reviewNumber('assembly', vikiAwake ? 1 : 0) : undefined)
+    if (this.style === 'viki') hu.uFormation.value *= this.vikiAssembly.face
     hu.uMouthOpen.value = this.mouth.open
     hu.uMouthWide.value = this.mouth.wide
     hu.uSmile.value = this.current.smile
@@ -536,7 +537,7 @@ export class ParticleFace {
     this.cube.update(t, hu.uFormation.value)
     this.styles?.setTime(t)
     this.sceneBackdrop.update(t)
-    this.portrait?.update(t, this.target.face > 0, dt, FROZEN)
+    this.portrait?.update(t, this.style === 'lattice' && this.target.face > 0, dt, FROZEN)
     if (this.style === 'viki') this.vikiCube?.update(t, hu.uFormation.value, this.vikiAssembly.cube)
 
     // drag rotation: radians per pixel while dragging, inertia afterwards; fully free
