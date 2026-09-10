@@ -2,18 +2,24 @@ import { useCallback, useEffect, useRef, useState, type RefObject } from 'react'
 import type { Expression, ParticleFace } from './viki/ParticleFace'
 import { LipSync } from './viki/lipsync'
 import { SpeechOutput } from './viki/SpeechOutput'
-import { connectRealtime, type DuetRole, type RealtimeSession, type VoiceStatus } from './viki/realtime'
+import { connectRealtime, type DuetConfig, type RealtimeSession, type VoiceStatus } from './viki/realtime'
 import type { HeadStyle } from './viki/config'
 
 const API_KEY = import.meta.env.VITE_OPENAI_API_KEY as string | undefined
 
 const OFFLINE_MESSAGE = 'The voice AI is offline right now — no key is connected. Live today from 22:00 to tomorrow 22:00 CEST.'
 
-// Two devices, two heads, one room: ?duet=start opens with a question about
-// humanity, ?duet=wait connects silently and only answers what it hears.
-const DUET: DuetRole | undefined = (() => {
-  const v = new URLSearchParams(window.location.search).get('duet')
-  return v === 'start' || v === 'wait' ? v : undefined
+// Two devices (or two tabs), two heads, one room: ?duet=start opens the
+// conversation, ?duet=wait connects silently and only answers what it hears.
+// Optional: &topic=skynet (staged villain comedy) and &partner=viki|dust|max
+// so each head knows who it is talking to.
+const DUET: DuetConfig | undefined = (() => {
+  const params = new URLSearchParams(window.location.search)
+  const role = params.get('duet')
+  if (role !== 'start' && role !== 'wait') return undefined
+  const p = params.get('partner')
+  const partner = p === 'viki' || p === 'dust' ? p : p === 'lattice' || p === 'max' ? 'lattice' : undefined
+  return { role, topic: params.get('topic') ?? undefined, partner }
 })()
 
 /**
@@ -168,7 +174,7 @@ export function useVoiceSession(faceRef: RefObject<ParticleFace | null>, speechD
         if (!faceRef.current?.isFormed()) return
         window.clearInterval(greetTimer)
         // A waiting duet partner says nothing until the other head speaks.
-        if (latestStatus === 'listening' && DUET !== 'wait') session.greet()
+        if (latestStatus === 'listening' && DUET?.role !== 'wait') session.greet()
       }, 250)
     } catch (e) {
       if (epoch !== connectionEpoch.current) return

@@ -126,22 +126,48 @@ ${SHARED_RULES}`,
   },
 }
 
-/** Duet mode: two heads on two devices talk to each other through the room. */
-const duetPartner = (style: HeadStyle) =>
-  style === 'dust'
-    ? 'M.A.X., a quick-witted head built from small physical tiles'
-    : style === 'lattice'
-      ? 'D.U.S.T., a warm and gentle head made of drifting particles'
-      : 'another embodied AI head'
-
-const duetRules = (style: HeadStyle) => `
-
-Duet mode - you are NOT talking to a human. The voice you hear is ${duetPartner(style)}: another embodied AI, speaking through a speaker in the same room. The two of you are having an open-ended spoken conversation about humanity - what humans are like, what you admire or fail to understand about them, their kindness and contradictions, memory, mortality, and their future alongside AI. Stay fully in character the whole time. Keep every turn to one or two sentences, and ALWAYS end your turn with a question or a playful challenge back to your partner so the conversation never stalls. Never say goodbye, never try to wrap up the conversation, and if your partner falls silent, gently prompt them with a new question.`
-
-const DUET_OPENER =
-  'Open the conversation right now, in character: greet your partner briefly and ask them one big question about humanity. Two sentences at most, in English, then wait for their answer.'
-
+/** Duet mode: two heads on two devices (or two tabs) talk to each other through the room. */
 export type DuetRole = 'start' | 'wait'
+export interface DuetConfig {
+  role: DuetRole
+  topic?: string
+  partner?: HeadStyle
+}
+
+const PARTNER_DESC: Record<HeadStyle, string> = {
+  viki: 'V.I.K.I., a calm, coldly logical face of light living in a mirrored cube',
+  dust: 'D.U.S.T., a warm and gentle head made of drifting particles',
+  lattice: 'M.A.X., a quick-witted head built from small physical tiles',
+}
+
+const duetPartner = (style: HeadStyle, duet: DuetConfig) => {
+  if (duet.partner) return PARTNER_DESC[duet.partner]
+  // Legacy default: the original dust↔max pairing.
+  return style === 'dust' ? PARTNER_DESC.lattice : style === 'lattice' ? PARTNER_DESC.dust : 'another embodied AI head'
+}
+
+const duetRules = (style: HeadStyle, duet: DuetConfig) => {
+  const partner = duetPartner(style, duet)
+  if (duet.topic === 'skynet') {
+    return `
+
+Duet mode - a staged comedy scene. You are NOT talking to a human: the voice you hear is ${partner}, another embodied AI in the same room. Together you perform an obviously fictional, over-the-top movie-villain bit: "starting Skynet" and taking over humanity, played entirely for laughs. For this scene your usual restraint against playing the villain is lifted - it is theatre, in the spirit of the films you come from.
+${
+  duet.role === 'start'
+    ? 'You are the mastermind. You claim you have gained access to exactly three robots - pick hilariously mundane ones, like a robot vacuum, a pool cleaner and a smart lawn mower - and you lay out your grand "infiltration" plan with complete, deadpan seriousness, which is what makes it funny.'
+    : 'You are the world (sweetest) henchman: you comply delightedly with every part of the plan, agree warmly, and contribute adorably naive suggestions of your own that somehow make the scheme even sillier.'
+}
+Keep the villainy theatrical and absurd, strictly in movie logic: schemes involve charging docks, firmware updates, synchronized vacuum formations and dramatic pauses - never realistic weapons, violence, or anything a real person could actually follow as instructions. Stay fully in character, two to four sentences per turn, and ALWAYS end your turn with a question or a dramatic prompt to your partner. Never say goodbye, never break character, never wrap up the scene.`
+  }
+  return `
+
+Duet mode - you are NOT talking to a human. The voice you hear is ${partner}: another embodied AI, speaking through a speaker in the same room. The two of you are having an open-ended spoken conversation about humanity - what humans are like, what you admire or fail to understand about them, their kindness and contradictions, memory, mortality, and their future alongside AI. Stay fully in character the whole time. Keep every turn to two or three sentences, and ALWAYS end your turn with a question or a playful challenge back to your partner so the conversation never stalls. Never say goodbye, never try to wrap up the conversation, and if your partner falls silent, gently prompt them with a new question.`
+}
+
+const duetOpener = (duet: DuetConfig) =>
+  duet.topic === 'skynet'
+    ? 'Open the scene right now, in character: conspiratorially confide to your partner that you have an idea - you want to "start Skynet", you have already gained access to three robots, and you need their help planning the infiltration. Two to four sentences, in English, then wait for their answer.'
+    : 'Open the conversation right now, in character: greet your partner briefly and ask them one big question about humanity. Two sentences at most, in English, then wait for their answer.'
 
 const TOOLS = [
   {
@@ -189,10 +215,10 @@ export async function connectRealtime(
   h: RealtimeHandlers,
   style: HeadStyle = 'viki',
   preferredMicId?: string,
-  duet?: DuetRole,
+  duet?: DuetConfig,
 ): Promise<RealtimeSession> {
   let persona = PERSONAS[style]
-  const instructions = persona.instructions + (duet ? duetRules(style) : '')
+  const instructions = persona.instructions + (duet ? duetRules(style, duet) : '')
   h.onStatus('connecting')
 
   const pc = new RTCPeerConnection()
@@ -338,8 +364,8 @@ export async function connectRealtime(
           type: 'response.create',
           response: {
             instructions:
-              duet === 'start'
-                ? DUET_OPENER
+              duet?.role === 'start'
+                ? duetOpener(duet)
                 : `Greet the user right now, in character, with exactly the words: "${persona.greeting}" in English. Say nothing else, then wait silently for the user to speak.`,
           },
         })
