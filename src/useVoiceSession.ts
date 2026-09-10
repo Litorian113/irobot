@@ -2,12 +2,19 @@ import { useCallback, useEffect, useRef, useState, type RefObject } from 'react'
 import type { Expression, ParticleFace } from './viki/ParticleFace'
 import { LipSync } from './viki/lipsync'
 import { SpeechOutput } from './viki/SpeechOutput'
-import { connectRealtime, type RealtimeSession, type VoiceStatus } from './viki/realtime'
+import { connectRealtime, type DuetRole, type RealtimeSession, type VoiceStatus } from './viki/realtime'
 import type { HeadStyle } from './viki/config'
 
 const API_KEY = import.meta.env.VITE_OPENAI_API_KEY as string | undefined
 
 const OFFLINE_MESSAGE = 'The voice AI is offline right now — no key is connected. Live today from 22:00 to tomorrow 22:00 CEST.'
+
+// Two devices, two heads, one room: ?duet=start opens with a question about
+// humanity, ?duet=wait connects silently and only answers what it hears.
+const DUET: DuetRole | undefined = (() => {
+  const v = new URLSearchParams(window.location.search).get('duet')
+  return v === 'start' || v === 'wait' ? v : undefined
+})()
 
 /**
  * Local development uses the .env key directly. The deployed site instead asks
@@ -126,6 +133,8 @@ export function useVoiceSession(faceRef: RefObject<ParticleFace | null>, speechD
           },
         },
         styleRef.current,
+        undefined,
+        DUET,
       )
       if (epoch !== connectionEpoch.current) { session.disconnect(); speech.dispose(); return }
       sessionRef.current = session
@@ -139,7 +148,8 @@ export function useVoiceSession(faceRef: RefObject<ParticleFace | null>, speechD
         }
         if (!faceRef.current?.isFormed()) return
         window.clearInterval(greetTimer)
-        if (latestStatus === 'listening') session.greet()
+        // A waiting duet partner says nothing until the other head speaks.
+        if (latestStatus === 'listening' && DUET !== 'wait') session.greet()
       }, 250)
     } catch (e) {
       if (epoch !== connectionEpoch.current) return
