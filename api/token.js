@@ -16,7 +16,7 @@ export default async function handler(req, res) {
         // Valid long enough to cover a slow WebRTC handshake; the conversation
         // itself continues past expiry, the secret only opens the session.
         expires_after: { anchor: 'created_at', seconds: 600 },
-        session: { type: 'realtime', model: 'gpt-realtime' },
+        session: { type: 'realtime', model: 'gpt-realtime-2.1' },
       }),
     })
     if (!upstream.ok) {

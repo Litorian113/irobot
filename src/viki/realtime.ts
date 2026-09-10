@@ -88,7 +88,7 @@ async function openPreferredMic(preferredId?: string, duet = false): Promise<Med
   }
 }
 
-const MODEL = 'gpt-realtime'
+const MODEL = 'gpt-realtime-2.1'
 const VOICE = 'marin'
 
 const SHARED_RULES = `
