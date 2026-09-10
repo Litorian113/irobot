@@ -2,7 +2,7 @@ import { useCallback, useEffect, useRef, useState, type RefObject } from 'react'
 import type { Expression, ParticleFace } from './viki/ParticleFace'
 import { LipSync } from './viki/lipsync'
 import { SpeechOutput } from './viki/SpeechOutput'
-import { connectRealtime, type DuetConfig, type RealtimeSession, type VoiceStatus } from './viki/realtime'
+import { connectRealtime, modelFor, type DuetConfig, type RealtimeSession, type VoiceStatus } from './viki/realtime'
 import type { HeadStyle } from './viki/config'
 
 const API_KEY = import.meta.env.VITE_OPENAI_API_KEY as string | undefined
@@ -27,10 +27,14 @@ const DUET: DuetConfig | undefined = (() => {
  * our serverless endpoint for a short-lived client secret (ek_...), so the
  * real API key never reaches the browser.
  */
-async function obtainKey(): Promise<string | null> {
+async function obtainKey(model: string): Promise<string | null> {
   if (API_KEY) return API_KEY
   try {
-    const res = await fetch('/api/token', { method: 'POST' })
+    const res = await fetch('/api/token', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ model }),
+    })
     if (!res.ok) return null
     const data = (await res.json()) as { value?: string }
     return data.value ?? null
@@ -101,7 +105,7 @@ export function useVoiceSession(faceRef: RefObject<ParticleFace | null>, speechD
 
     try {
       await ctx.resume()
-      const key = await obtainKey()
+      const key = await obtainKey(modelFor(DUET))
       if (!key) throw new Error(OFFLINE_MESSAGE)
       if (epoch !== connectionEpoch.current) return
       const speech = await SpeechOutput.create(ctx, speechDelay, (message) => {
@@ -166,16 +170,28 @@ export function useVoiceSession(faceRef: RefObject<ParticleFace | null>, speechD
       }
       // The film moment: once she has fully materialized and nothing else is
       // happening yet, she opens the conversation herself - then waits.
-      const greetTimer = window.setInterval(() => {
-        if (epoch !== connectionEpoch.current) {
-          window.clearInterval(greetTimer)
-          return
-        }
-        if (!faceRef.current?.isFormed()) return
-        window.clearInterval(greetTimer)
-        // A waiting duet partner says nothing until the other head speaks.
-        if (latestStatus === 'listening' && DUET?.role !== 'wait') session.greet()
-      }, 250)
+      // A waiting duet partner says nothing until the other head speaks.
+      if (DUET?.role !== 'wait') {
+        let formedAt = 0
+        const greetTimer = window.setInterval(() => {
+          if (epoch !== connectionEpoch.current) {
+            window.clearInterval(greetTimer)
+            return
+          }
+          if (!faceRef.current?.isFormed()) return
+          if (!formedAt) formedAt = performance.now()
+          // Fire once she is formed and idle. Keep retrying instead of giving
+          // up: a stray sound can make the turn detector answer first, and the
+          // opener - which launches the whole duet scene - must still land. A
+          // safety timeout forces it if the line never falls quiet.
+          const quiet = latestStatus === 'listening'
+          const forced = performance.now() - formedAt > 6000
+          if (quiet || forced) {
+            window.clearInterval(greetTimer)
+            session.greet()
+          }
+        }, 250)
+      }
     } catch (e) {
       if (epoch !== connectionEpoch.current) return
       lipRef.current?.dispose()

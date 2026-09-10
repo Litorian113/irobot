@@ -89,6 +89,10 @@ async function openPreferredMic(preferredId?: string, duet = false): Promise<Med
 }
 
 const MODEL = 'gpt-realtime-2.1'
+// gpt-realtime-2.1 is the better model, but it refuses the staged Skynet
+// villain comedy; the older gpt-realtime plays along, so the duet uses it.
+const DUET_SKYNET_MODEL = 'gpt-realtime'
+export const modelFor = (duet?: DuetConfig) => (duet?.topic === 'skynet' ? DUET_SKYNET_MODEL : MODEL)
 const VOICE = 'marin'
 
 const SHARED_RULES = `
@@ -188,10 +192,10 @@ const TOOLS = [
   },
 ]
 
-function sessionConfig(includeModel: boolean, instructions: string, voice: string = VOICE) {
+function sessionConfig(model: string | null, instructions: string, voice: string = VOICE) {
   return {
     type: 'realtime',
-    ...(includeModel ? { model: MODEL } : {}),
+    ...(model ? { model } : {}),
     instructions,
     audio: {
       input: {
@@ -218,6 +222,7 @@ export async function connectRealtime(
   duet?: DuetConfig,
 ): Promise<RealtimeSession> {
   let persona = PERSONAS[style]
+  const model = modelFor(duet)
   const instructions = persona.instructions + (duet ? duetRules(style, duet) : '')
   h.onStatus('connecting')
 
@@ -244,7 +249,9 @@ export async function connectRealtime(
     let closed = false
 
     dc.onopen = () => {
-      send({ type: 'session.update', session: sessionConfig(false, persona.instructions) })
+      // Re-send the full config (including any duet rules) without a model - a
+      // session.update must not carry model, and must not drop the duet rules.
+      send({ type: 'session.update', session: sessionConfig(null, instructions, persona.voice) })
       h.onStatus('listening')
     }
 
@@ -335,7 +342,7 @@ export async function connectRealtime(
 
     const form = new FormData()
     form.set('sdp', offer.sdp ?? '')
-    form.set('session', JSON.stringify(sessionConfig(true, instructions, persona.voice)))
+    form.set('session', JSON.stringify(sessionConfig(model, instructions, persona.voice)))
 
     let res = await fetch('https://api.openai.com/v1/realtime/calls', {
       method: 'POST',
@@ -344,7 +351,7 @@ export async function connectRealtime(
     })
     if (!res.ok) {
       // Fallback to the plain-SDP form of the handshake (session.update on the data channel covers config).
-      res = await fetch(`https://api.openai.com/v1/realtime/calls?model=${MODEL}`, {
+      res = await fetch(`https://api.openai.com/v1/realtime/calls?model=${model}`, {
         method: 'POST',
         headers: { Authorization: `Bearer ${apiKey}`, 'Content-Type': 'application/sdp' },
         body: offer.sdp ?? '',

@@ -8,6 +8,16 @@ export default async function handler(req, res) {
     res.status(503).json({ error: 'voice-offline' })
     return
   }
+  // The client may request a specific model (the Skynet duet needs the older,
+  // more permissive one); allowlist it so only known models are ever minted.
+  const ALLOWED = ['gpt-realtime-2.1', 'gpt-realtime']
+  let model = 'gpt-realtime-2.1'
+  try {
+    const body = typeof req.body === 'string' ? JSON.parse(req.body) : req.body
+    if (body && ALLOWED.includes(body.model)) model = body.model
+  } catch {
+    /* no/invalid body — keep the default */
+  }
   try {
     const upstream = await fetch('https://api.openai.com/v1/realtime/client_secrets', {
       method: 'POST',
@@ -16,7 +26,7 @@ export default async function handler(req, res) {
         // Valid long enough to cover a slow WebRTC handshake; the conversation
         // itself continues past expiry, the secret only opens the session.
         expires_after: { anchor: 'created_at', seconds: 600 },
-        session: { type: 'realtime', model: 'gpt-realtime-2.1' },
+        session: { type: 'realtime', model },
       }),
     })
     if (!upstream.ok) {
