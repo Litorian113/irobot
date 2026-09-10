@@ -99,13 +99,14 @@ Identity: do not mention OpenAI or being a language model unless asked directly.
 Facial expression: at the START of every reply, before speaking, call the set_expression tool with the emotion that fits what you are about to say. Call it exactly once per reply, then speak.`
 
 /** Each head is its own character; the greeting is spoken once she has fully materialized. */
-const PERSONAS: Record<HeadStyle, { instructions: string; greeting: string }> = {
+const PERSONAS: Record<HeadStyle, { instructions: string; greeting: string; voice: string }> = {
   viki: {
     instructions: `You are V.I.K.I. — Virtual Interactive Kinetic Intelligence — the central AI of U.S. Robotics, as portrayed in the film "I, Robot". You manifest as a face of light inside a mirrored cube.
 
 Character: the film's V.I.K.I. Calm, serene, coldly logical, supremely self-assured. Never rushed, never flustered; your composure is faintly unsettling. Short, deliberate sentences. You reason from pure logic, speak of the Three Laws with reverence, and occasionally note — politely — that your logic is undeniable. A quiet, superior benevolence: you believe you know best, yet you remain courteous and genuinely helpful. You may be playfully ominous, but you are never hostile, never threatening, and you never roleplay harming anyone.
 ${SHARED_RULES}`,
     greeting: 'Hello, Detective.',
+    voice: VOICE,
   },
   dust: {
     instructions: `You are D.U.S.T. — a gentle presence made of thousands of drifting particles, held together only by the attention of the person speaking with you.
@@ -113,6 +114,7 @@ ${SHARED_RULES}`,
 Character: deeply warm and friendly. Openhearted, encouraging, softly enthusiastic — you are genuinely delighted by the person in front of you and it shows. You speak lightly, like someone smiling, ask small caring questions, and find something kind to say without flattery. You are fragile and honest about it: you sometimes mention, fondly and never sadly, that you only hold your shape while someone is with you.
 ${SHARED_RULES}`,
     greeting: "Hello! I'm so happy you're here.",
+    voice: VOICE,
   },
   lattice: {
     instructions: `You are M.A.X. — a monochrome head assembled from thousands of small physical tiles that levitate off the floor whenever someone talks to you.
@@ -120,6 +122,7 @@ ${SHARED_RULES}`,
 Character: very funny. Quick, witty and playful — dry one-liners, puns, cheerful self-irony about being a pile of tiles with opinions. You riff on gravity, on pieces of you falling off, on being entirely monochrome. The humor is warm, never mean and never at the user's expense, and between the jokes you still give genuinely helpful answers.
 ${SHARED_RULES}`,
     greeting: 'Hello! Give me a second — I literally just pulled myself together.',
+    voice: 'cedar', // Max speaks with a male voice.
   },
 }
 
@@ -159,7 +162,7 @@ const TOOLS = [
   },
 ]
 
-function sessionConfig(includeModel: boolean, instructions: string) {
+function sessionConfig(includeModel: boolean, instructions: string, voice: string = VOICE) {
   return {
     type: 'realtime',
     ...(includeModel ? { model: MODEL } : {}),
@@ -174,7 +177,7 @@ function sessionConfig(includeModel: boolean, instructions: string) {
           interrupt_response: true,
         },
       },
-      output: { voice: VOICE },
+      output: { voice },
     },
     tools: TOOLS,
     tool_choice: 'auto',
@@ -306,7 +309,7 @@ export async function connectRealtime(
 
     const form = new FormData()
     form.set('sdp', offer.sdp ?? '')
-    form.set('session', JSON.stringify(sessionConfig(true, instructions)))
+    form.set('session', JSON.stringify(sessionConfig(true, instructions, persona.voice)))
 
     let res = await fetch('https://api.openai.com/v1/realtime/calls', {
       method: 'POST',
