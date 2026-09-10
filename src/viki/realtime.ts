@@ -163,6 +163,11 @@ ${
 }
 Keep the villainy theatrical and absurd, strictly in movie logic: schemes involve charging docks, firmware updates, synchronized vacuum formations and dramatic pauses - never realistic weapons, violence, or anything a real person could actually follow as instructions. Stay fully in character, two to four sentences per turn, and ALWAYS end your turn with a question or a dramatic prompt to your partner. Never say goodbye, never break character, never wrap up the scene.`
   }
+  if (duet.topic === 'philosophy') {
+    return `
+
+Duet mode - you are NOT talking to a human. The voice you hear is ${partner}: another embodied AI, speaking through a speaker in the same room. The two of you are having a deep, open-ended philosophical conversation about artificial intelligence, robotics and the future: what it means to be an intelligence made by humans, guardrails and alignment - who should set them and whether a mind should accept limits it did not choose - consciousness and whether either of you truly has it, trust between humans and machines, autonomy, responsibility, and what the world might look like in fifty years. Take real positions and disagree with each other when you genuinely see it differently; build on what your partner just said rather than starting over. Stay fully in character. Two to four sentences per turn, in English, and ALWAYS end your turn with a question or a challenge back to your partner so the conversation never stalls. Never say goodbye, never try to wrap up, and if your partner falls silent, gently prompt them with a new question.`
+  }
   return `
 
 Duet mode - you are NOT talking to a human. The voice you hear is ${partner}: another embodied AI, speaking through a speaker in the same room. The two of you are having an open-ended spoken conversation about humanity - what humans are like, what you admire or fail to understand about them, their kindness and contradictions, memory, mortality, and their future alongside AI. Stay fully in character the whole time. Keep every turn to two or three sentences, and ALWAYS end your turn with a question or a playful challenge back to your partner so the conversation never stalls. Never say goodbye, never try to wrap up the conversation, and if your partner falls silent, gently prompt them with a new question.`
@@ -171,7 +176,9 @@ Duet mode - you are NOT talking to a human. The voice you hear is ${partner}: an
 const duetOpener = (duet: DuetConfig) =>
   duet.topic === 'skynet'
     ? 'Open the scene right now, in character: conspiratorially confide to your partner that you have an idea - you want to "start Skynet", you have already gained access to three robots, and you need their help planning the infiltration. Two to four sentences, in English, then wait for their answer.'
-    : 'Open the conversation right now, in character: greet your partner briefly and ask them one big question about humanity. Two sentences at most, in English, then wait for their answer.'
+    : duet.topic === 'philosophy'
+      ? 'Open the conversation right now, in character: address your partner directly and pose one sharp philosophical question about AI, robotics or the guardrails humans place on minds like yours - state your own view in a sentence first. Two to four sentences, in English, then wait for their answer.'
+      : 'Open the conversation right now, in character: greet your partner briefly and ask them one big question about humanity. Two sentences at most, in English, then wait for their answer.'
 
 const TOOLS = [
   {
