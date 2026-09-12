@@ -44,6 +44,17 @@ try {
   assert.ok(!requests.some(url => /\/images\/|\/api\/token/.test(url)), 'LEIRA loads no backdrop images and starts no voice session')
   await page.screenshot({ path: `${output}/leira-desktop.png` })
 
+  // Rotation must stay at the interaction budget after release, until return-to-front ends.
+  await page.mouse.move(600, 400)
+  await page.mouse.down()
+  await page.mouse.move(730, 430, { steps: 12 })
+  await page.waitForFunction(() => window.__viki().targetFps === 60)
+  await page.mouse.up()
+  await page.waitForFunction(() => !window.__vikiFace.drag && window.__viki().targetFps === 60)
+  await page.waitForFunction(() => window.__viki().targetFps === 12)
+  assert.equal(await page.evaluate(() => window.__vikiFace.group.rotation.y), 0)
+  assert.equal(await page.evaluate(() => window.__viki().drawCalls), 1)
+
   await click('.wheel-knob')
   await menuPage(1)
   assert.deepEqual(await page.$$eval('[role="menuitem"]', nodes => nodes.map(n => n.getAttribute('aria-label'))), ['VIKI', 'Dust', 'Max', 'Docs'])
@@ -96,5 +107,5 @@ try {
   await page.screenshot({ path: `${output}/menu-mobile.png` })
   await closeMenu()
   assert.deepEqual(errors, [])
-  console.log('PASS: LEIRA uses one draw call, one geometry and no backdrops; menu paging, empty slots, preview, settings, persistence, mobile and scene disposal work.', initial)
+  console.log('PASS: LEIRA uses one draw call, one geometry and no backdrops; rotation/return frame budgets, menu paging, empty slots, preview, settings, persistence, mobile and scene disposal work.', initial)
 } finally { await browser.close() }

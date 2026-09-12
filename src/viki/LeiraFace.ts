@@ -26,6 +26,8 @@ export class LeiraFace implements HeadRenderer {
   private disposed = false
   private raf = 0
   private lastFrame = 0
+  private nextFrameAt = 0
+  private targetFps = 12
   private nextBlink = 0
   private blinkStart = -1
   private drag: { id: number; x: number; y: number } | null = null
@@ -131,6 +133,7 @@ export class LeiraFace implements HeadRenderer {
   private onPointerDown = (event: PointerEvent) => {
     if (event.pointerType === 'mouse' && event.button !== 0) return
     this.drag = { id: event.pointerId, x: event.clientX, y: event.clientY }
+    this.nextFrameAt = 0
     this.canvas.setPointerCapture(event.pointerId)
     this.canvas.style.cursor = 'grabbing'
   }
@@ -145,19 +148,26 @@ export class LeiraFace implements HeadRenderer {
     if (event.pointerId !== this.drag?.id) return
     if (this.canvas.hasPointerCapture(event.pointerId)) this.canvas.releasePointerCapture(event.pointerId)
     this.drag = null
+    // The same orientation can return by the shortest path after a full turn.
+    this.group.rotation.y = Math.atan2(Math.sin(this.group.rotation.y), Math.cos(this.group.rotation.y))
     this.canvas.style.cursor = 'grab'
   }
   private onVisibility = () => {
     cancelAnimationFrame(this.raf)
-    if (!document.hidden && !this.disposed) { this.lastFrame = 0; this.tick() }
+    if (!document.hidden && !this.disposed) { this.lastFrame = 0; this.nextFrameAt = 0; this.tick() }
   }
 
   private tick = () => {
     if (this.disposed || document.hidden) return
     this.raf = requestAnimationFrame(this.tick)
     const now = performance.now()
-    const fps = this.active || this.mouthSource || this.drag ? 30 : 12
-    if (now - this.lastFrame < 1000 / fps - 1) return
+    const returning = this.config.autoReturn && (Math.abs(this.group.rotation.x) > 0.001 || Math.abs(this.group.rotation.y) > 0.001)
+    const fps = this.drag || returning ? 60 : this.active || this.mouthSource ? 30 : 12
+    if (fps !== this.targetFps) { this.targetFps = fps; this.nextFrameAt = now }
+    if (now + 1 < this.nextFrameAt) return
+    // Keep the frame deadline's remainder so small RAF delays don't halve the frame rate.
+    const interval = 1000 / fps
+    this.nextFrameAt = now + interval - Math.max(0, now - this.nextFrameAt) % interval
     const dt = Math.min((now - this.lastFrame) / 1000, 0.1)
     this.lastFrame = now
     if (now > this.nextBlink) { this.blinkStart = now; this.nextBlink = now + 3000 + Math.random() * 3000 }
@@ -173,6 +183,8 @@ export class LeiraFace implements HeadRenderer {
     if (!this.drag && this.config.autoReturn) {
       this.group.rotation.x *= Math.exp(-1.8 * dt)
       this.group.rotation.y *= Math.exp(-1.8 * dt)
+      if (Math.abs(this.group.rotation.x) < 0.001) this.group.rotation.x = 0
+      if (Math.abs(this.group.rotation.y) < 0.001) this.group.rotation.y = 0
     }
     this.renderer.render(this.scene, this.camera)
     this.frames++
@@ -187,7 +199,7 @@ export class LeiraFace implements HeadRenderer {
     return {
       style: 'leira', headLoaded: Boolean(this.rig), rigged: this.rig?.rigged,
       active: this.active, mouth: { ...this.mouth }, morphs: this.rig?.influences.slice(),
-      pixelRatio: this.renderer.getPixelRatio(), renderedFps: this.renderedFps,
+      pixelRatio: this.renderer.getPixelRatio(), renderedFps: this.renderedFps, targetFps: this.targetFps,
       passes: ['direct'], drawCalls: this.renderer.info.render.calls,
       triangles: this.renderer.info.render.triangles, geometries: this.renderer.info.memory.geometries,
       textures: this.renderer.info.memory.textures, disposed: this.disposed,

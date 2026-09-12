@@ -28,7 +28,8 @@ or press **Esc** to close. Menu entries also work with Tab and Enter / Space.
 Open LEIRA directly with `?style=leira`. It uses the same rigged head and AssemblyAI voice
 pipeline, with its own persona and saved configuration. The head remains visible at rest.
 Its separate renderer draws one mesh with two simple lights at native pixel ratio (capped at 1),
-up to 12 fps at rest and 30 fps while speaking, previewing or dragging. Hidden tabs stop rendering.
+up to 12 fps at rest, 30 fps while speaking or previewing, and 60 fps while dragging or
+returning to the front. Hidden tabs stop rendering.
 There are no particle fields, backdrop images, shadow maps, bloom or offscreen scene passes.
 Configure exposes only the controls this simple scene uses. This is the plain starting point
 for LEIRA's future appearance and behavior.
