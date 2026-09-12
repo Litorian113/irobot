@@ -58,22 +58,41 @@ with animated thin-line illustrations in the interface style.
 
 | | |
 |---|---|
-| **Voice** | OpenAI `gpt-realtime` over WebRTC — speech-to-speech, interruptions included, any language |
+| **Voice** | AssemblyAI **Voice Agent API** over one WebSocket — Universal streaming speech-to-text, a managed LLM and text-to-speech, semantic turn-taking and barge-in, 18 input languages |
 | **Lips** | 15 visemes detected live from *her* audio; a delay line keeps the mouth slightly ahead of the sound |
-| **Mimic** | the model calls `set_expression` itself, mid-sentence, on sixteen facial morph targets |
+| **Mimic** | the model opens every reply with a silent expression tag — `[[curious]]`, `[[stern]]`… — that the TTS never speaks; it reaches the face through the word stream as her first word starts, on sixteen facial morph targets |
 | **Character** | each head carries its own persona and greeting — cold logic, warmth, jokes — swapped live when you switch heads |
 | **Head** | morphable CC0 head built from MakeHuman geometry and Mika Suominen's face units |
-| **Render** | three.js / WebGL, everything live in the browser, no backend |
+| **Render** | three.js / WebGL, everything live in the browser; the only backend is one tiny token endpoint that keeps the API key off the client |
 
 ## Run
 
 ```
-cp .env.example .env   # put your key in VITE_OPENAI_API_KEY
+cp .env.example .env   # put your AssemblyAI key in ASSEMBLYAI_API_KEY
 npm install
 npm run dev
 ```
 
-> `VITE_*` keys are inlined into the bundle — fine for this local prototype, never for a public deploy.
+> To try it from a phone or another machine, run `npm run dev:https` instead: microphones need a secure origin,
+> and the self-signed certificate only has to be accepted once in that browser.
+
+> The key never reaches the browser: the dev server (and, on Vercel, `api/token.js`) mints single-use
+> Voice Agent tokens for each conversation. Without a key everything still runs in preview mode.
+
+### Deploy
+
+Set `ASSEMBLYAI_API_KEY` in the Vercel project settings (no `VITE_` prefix). `api/token.js` becomes a
+serverless function; the same handler runs inside `npm run dev` locally.
+
+### Docs at hand
+
+`.mcp.json` registers AssemblyAI's documentation MCP server, so Claude Code can answer Voice Agent and
+LLM Gateway questions from the live docs while you work — approve it on the first launch.
+
+### Duet
+
+Two heads, two tabs, one room: open one head with `?duet=start&partner=max` and the other with
+`?duet=wait&partner=viki`; add `&topic=philosophy` or `&topic=skynet` for the staged scenes.
 
 ## Dev cheatsheet
 
@@ -94,4 +113,4 @@ the audio lip-sync pipeline, validation scripts, file map: **[docs/TECHNICAL.md]
 **Franz Anhäupl** — concept, design, direction · HfG Schwäbisch Gmünd
 Built in a running dialogue with AI agents, GPT Astra chief among them.
 Head: MakeHuman CC0 + face units by Mika Suominen · first prototype: Lee Perry-Smith scan (CC BY 3.0)
-Voice: OpenAI Realtime · Renderer: three.js · 2026
+Voice: AssemblyAI Voice Agent API · Renderer: three.js · 2026

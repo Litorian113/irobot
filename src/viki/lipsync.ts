@@ -10,11 +10,14 @@ import type { MouthSample } from './ParticleFace'
 export class LipSync {
   private analyser: AnalyserNode
   private data: Uint8Array<ArrayBuffer>
-  private source: MediaStreamAudioSourceNode
+  private source: AudioNode
+  private owned: boolean
   private binHz: number
 
-  constructor(ctx: AudioContext, stream: MediaStream) {
-    this.source = ctx.createMediaStreamSource(stream)
+  /** Accepts a microphone/remote stream or any WebAudio node (the agent's PCM player). */
+  constructor(ctx: AudioContext, input: MediaStream | AudioNode) {
+    this.owned = !('connect' in input)
+    this.source = 'connect' in input ? input : ctx.createMediaStreamSource(input)
     this.analyser = ctx.createAnalyser()
     this.analyser.fftSize = 1024
     this.analyser.smoothingTimeConstant = 0.4
@@ -51,7 +54,8 @@ export class LipSync {
   }
 
   dispose() {
-    this.source.disconnect()
+    if (this.owned) this.source.disconnect()
+    else { try { this.source.disconnect(this.analyser) } catch { /* already detached */ } }
     this.analyser.disconnect()
   }
 }

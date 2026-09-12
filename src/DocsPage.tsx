@@ -117,7 +117,7 @@ function FigPipeline() {
       <text x="41" y="61" textAnchor="middle" className="fig-label">MIC</text>
       <line x1="74" y1="57" x2="118" y2="57" className="fig-flow" />
       <path d={box(120, 104)} className="fig-line" fill="none" />
-      <text x="172" y="61" textAnchor="middle" className="fig-label">GPT-REALTIME</text>
+      <text x="172" y="61" textAnchor="middle" className="fig-label">VOICE AGENT</text>
       <line x1="226" y1="57" x2="268" y2="57" className="fig-flow" />
       <line x1="247" y1="57" x2="247" y2="20" className="fig-flow" />
       <line x1="247" y1="20" x2="268" y2="20" className="fig-flow" />
@@ -313,11 +313,12 @@ export default function DocsPage({ onClose }: { onClose: () => void }) {
         <Reveal>
           <h2>How she works</h2>
           <p>
-            Her voice is OpenAI's realtime speech-to-speech model over WebRTC — no text detour. Her lips are
+            Her voice is AssemblyAI's Voice Agent API: one live connection that listens, thinks and speaks, and
+            decides from meaning — not silence — when you are done or when you are interrupting. Her lips are
             driven by a viseme detector listening to her own audio, a few milliseconds ahead of what you hear,
             the way real articulation runs ahead of sound. Her expressions are not scripted: the model itself
-            decides mid-sentence when to smile, doubt or think, and plays it on sixteen facial muscles of a
-            morphable head. Everything renders live in your browser.
+            decides, as it composes each reply, whether she smiles, doubts or thinks, and plays it on sixteen
+            facial muscles of a morphable head. Everything renders live in your browser.
           </p>
           <FigPipeline />
         </Reveal>
@@ -337,7 +338,7 @@ export default function DocsPage({ onClose }: { onClose: () => void }) {
           <h2>Credits</h2>
           <p>
             Concept, design, direction: <strong>Franz Anhäupl</strong>, student at HfG Schwäbisch Gmünd ·
-            Voice: OpenAI <code>gpt-realtime</code> · Head: MakeHuman CC0 base with Mika Suominen's CC0 face
+            Voice: AssemblyAI Voice Agent API · Head: MakeHuman CC0 base with Mika Suominen's CC0 face
             units · First prototype head: a photogrammetry scan by Lee Perry-Smith / Infinite-Realities (CC BY 3.0), still bundled as a fallback · Rendering: three.js / WebGL · Built with GPT
             Astra &amp; friends, 2026.
           </p>

@@ -31,7 +31,7 @@ export default function Imprint() {
             </p>
             <p className="imprint-fine">
               <em>I, Robot</em> is a film by 20th Century Fox; this project is an unaffiliated homage. Voice
-              conversations are processed by OpenAI's Realtime API. Head model: MakeHuman (CC0) with face units
+              conversations are processed by AssemblyAI's Voice Agent API. Head model: MakeHuman (CC0) with face units
               by Mika Suominen (CC0); prototype scan by Lee Perry-Smith / Infinite-Realities (CC BY 3.0).
               Rendering: three.js.
             </p>
