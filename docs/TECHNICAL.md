@@ -5,7 +5,7 @@ The full engineering documentation. For the showcase, see the [README](../README
 ## Run
 
 ```
-cp .env.example .env   # then put your key in VITE_OPENAI_API_KEY
+cp .env.example .env   # then put your AssemblyAI key in ASSEMBLYAI_API_KEY
 npm install
 npm run dev
 ```
@@ -24,8 +24,40 @@ and lip-sync; each tab keeps its own saved configuration.
 eyes, mouth, lattice look and behaviour. Changes preview live on the active face; **Save** stores them in `localStorage`
 (closing without saving discards them), **Reset to standard** returns to the built-in defaults.
 
-> Note: `VITE_*` variables are inlined into the browser bundle. This is fine for a local prototype, but never deploy it
-> publicly with a real key — mint ephemeral Realtime tokens from a small backend instead.
+> The key stays server-side. `api/token.js` mints single-use Voice Agent tokens; Vercel deploys it as a serverless
+> function and `vite.config.ts` serves the same handler during `npm run dev` / `vite preview`, reading
+> `ASSEMBLYAI_API_KEY` from `.env`.
+
+## Voice pipeline
+
+One WebSocket to `wss://agents.assemblyai.com/v1/ws?token=…` carries the whole conversation
+(`src/viki/voiceAgent.ts`):
+
+- **Capture** — `public/audio/pcm-capture-worklet.mjs` takes the AudioContext's native rate, linearly resamples to
+  24 kHz mono PCM16 and posts 50 ms chunks, sent as `input.audio` once `session.ready` arrived. The context keeps
+  its default rate on purpose: Firefox only feeds its echo canceller from the default graph and Safari ignores a
+  requested rate. Echo cancellation stays on, noise suppression off (the server denoises already).
+- **Session** — the first `session.update` carries the persona's `system_prompt`, the voice (`anna`, `eve`,
+  `george`) and PCM formats inline; no stored agent is needed. `setPersona` sends a new `system_prompt`; the voice
+  is immutable for the session.
+- **Playback** — `reply.audio` chunks are decoded by `src/viki/PcmPlayer.ts` and scheduled back to back on the
+  audio clock, then routed through `SpeechOutput.attachNode` into the same delay line and viseme detector the
+  WebRTC track used before. `reply.done` only ends the *speaking* state once the scheduled tail has been heard.
+- **Turns** — `src/viki/agentEvents.ts` maps `input.speech.*`, `reply.*`, `transcript.*` and `session.*` onto the
+  head's status machine. Barge-in is semantic and decided server-side: `reply.done` with `status: "interrupted"`
+  flushes the player and the delay line.
+- **Greeting** — sent as `reply.create` once the face has formed (the API's own `greeting` would speak on connect).
+- **Expression** — the persona rules make the model open every reply with a tag such as `[[curious]]`. Measured
+  live: the TTS renders a double-bracket tag as a ~0.1–0.3 s pause and never as a word (single brackets, parentheses
+  and asterisks *are* spoken), and the word-aligned `transcript.agent.delta` stream delivers the tag as the first
+  word starts playing. `agentEvents.ts` turns it into `onExpression` and strips it from captions. A client tool
+  cannot do this job on this API: every `tool.result` auto-fires another spoken reply, and an unanswered call makes
+  the agent apologise after its timeout.
+- **Teardown** — `disconnect` sends `session.end` before closing (a bare close leaves a billable 30 s resume
+  window); `pagehide` does the same when the tab goes away.
+
+The AssemblyAI documentation MCP server is registered in `.mcp.json` for Claude Code, so protocol questions
+can be answered from the live docs while working on this file.
 
 ## Face model
 
@@ -216,7 +248,7 @@ portrait and fully dormant states.
 
 ## Audio-driven lip sync
 
-The assistant's remote WebRTC track feeds a local **HeadAudio** AudioWorklet. Its trained MFCC classifier identifies
+The assistant's decoded PCM stream (see *Voice pipeline*) feeds a local **HeadAudio** AudioWorklet. Its trained MFCC classifier identifies
 15 visemes (including silence), mapped to the same head's jaw and lips. The microphone drives only the input meter;
 captions are not used to guess timing. The bundled detector and model have no extra runtime service or API cost.
 See [pinned HeadAudio assets and license](public/vendor/headaudio/README.md).
@@ -245,7 +277,7 @@ Use `?preview=neutral&freeze=1&viseme=PP` to inspect a fixed pose (`aa`, `E`, `I
 This is approximate speech articulation, not exact word alignment. The supplied model was trained on English;
 German audio works through the same classifier but needs voice-specific listening/visual tuning. Tongue-dependent
 consonants are approximated with lip poses; the head has no animated tongue. A real conversation with the selected
-Realtime voice on the target device remains the final perceptual check.
+Voice Agent voice on the target device remains the final perceptual check.
 
 ## Validation
 
@@ -265,9 +297,12 @@ still needs a separate microphone/listening check.
 `scripts/review-speech-browser.mjs` uses the same browser environment variables. It checks fixed visemes, the real
 AudioWorklet, measured audio delay, interruption/restart and audible fallback on model failure. Optionally set
 `VIKI_SPEECH_EN` and/or `VIKI_SPEECH_DE` to local WAV paths: these clips are passed through a local WebRTC peer pair
-to verify remote-track detection, output and mouth closure. All tests block external requests and make no OpenAI calls.
-`scripts/review-realtime-browser.mjs` separately checks start/end/interruption events and failed-handshake cleanup
-with a simulated connection and the same browser setup.
+to verify remote-track detection, output and mouth closure. All tests block external requests and make no AssemblyAI calls.
+`scripts/review-voice-agent-browser.mjs` separately drives `connectVoiceAgent` against a fake WebSocket: capture
+worklet streaming, PCM playback reaching the output node, drain/interruption/greeting/teardown and a refused
+handshake. Set `CHROME_NO_SANDBOX=1` on hosts where Chrome cannot create its sandbox namespace.
+`scripts/voice-agent.test.mjs` (part of `npm test`) covers the event router, the PCM codec and the capture
+worklet's resampler under node.
 
 `scripts/review-viki-browser.mjs` checks all six windows, rendered parallax, shared lip poses, moving/stopped pixels, dissolve,
 VIKI controls and saved settings, switching back to Dust/Lattice, pointer rotation and mobile framing. It uses the same
@@ -305,5 +340,9 @@ to `/tmp/viki-hologram-review`. `scripts/viki-assembly.test.mjs` checks the reve
 - `src/viki/visemeModel.ts` — decoder for the pinned HeadAudio model
 - `public/audio/viseme-worklet.mjs` — local detector adapter with audio timestamps and interruption generations
 - `src/viki/lipsync.ts` — microphone level meter and basic mouth fallback
-- `src/viki/realtime.ts` — WebRTC handshake with `gpt-realtime`, event handling, tool round-trip
+- `src/viki/voiceAgent.ts` — Voice Agent WebSocket session, microphone capture, personas and duet rules
+- `src/viki/agentEvents.ts` — pure event router: API events → status machine, captions, interruptions
+- `src/viki/PcmPlayer.ts`, `src/viki/pcm.ts` — gapless PCM16 playback and the base64/PCM helpers
+- `public/audio/pcm-capture-worklet.mjs` — microphone → 24 kHz PCM16 chunks
+- `api/token.js` — serverless token minting (also served by Vite)
 - `src/App.tsx` — HUD, status, captions

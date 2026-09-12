@@ -1,41 +1,35 @@
-// Mints a short-lived Realtime client secret so the real API key never
-// reaches the browser. Deployed by Vercel as a serverless function; the key
-// lives in the OPENAI_API_KEY environment variable (no VITE_ prefix, so it is
-// never baked into the client bundle).
-export default async function handler(req, res) {
-  const key = process.env.OPENAI_API_KEY
-  if (!key) {
-    res.status(503).json({ error: 'voice-offline' })
-    return
-  }
-  // The client may request a specific model (the Skynet duet needs the older,
-  // more permissive one); allowlist it so only known models are ever minted.
-  const ALLOWED = ['gpt-realtime-2.1', 'gpt-realtime']
-  let model = 'gpt-realtime-2.1'
+// Mints a single-use AssemblyAI Voice Agent token so the real API key never
+// reaches the browser. Deployed by Vercel as a serverless function and served
+// locally by the Vite dev server (see vite.config.ts); the key lives in the
+// ASSEMBLYAI_API_KEY environment variable (no VITE_ prefix, so it is never
+// baked into the client bundle).
+const TOKEN_URL = 'https://agents.assemblyai.com/v1/token'
+
+/**
+ * @param {string | undefined} key
+ * @param {{ expiresIn?: number, maxSession?: number }} [options]
+ * @returns {Promise<{ status: number, body: Record<string, unknown> }>}
+ */
+export async function mintToken(key, { expiresIn = 300, maxSession = 7200 } = {}) {
+  if (!key) return { status: 503, body: { error: 'voice-offline' } }
   try {
-    const body = typeof req.body === 'string' ? JSON.parse(req.body) : req.body
-    if (body && ALLOWED.includes(body.model)) model = body.model
-  } catch {
-    /* no/invalid body — keep the default */
-  }
-  try {
-    const upstream = await fetch('https://api.openai.com/v1/realtime/client_secrets', {
-      method: 'POST',
-      headers: { Authorization: `Bearer ${key}`, 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        // Valid long enough to cover a slow WebRTC handshake; the conversation
-        // itself continues past expiry, the secret only opens the session.
-        expires_after: { anchor: 'created_at', seconds: 600 },
-        session: { type: 'realtime', model },
-      }),
-    })
-    if (!upstream.ok) {
-      res.status(502).json({ error: 'mint-failed' })
-      return
-    }
+    const url = new URL(TOKEN_URL)
+    // The token only has to survive the WebSocket handshake; the conversation
+    // itself may run up to maxSession seconds (the API caps it at 3 hours and
+    // ends the session without warning when the cap is hit).
+    url.searchParams.set('expires_in_seconds', String(expiresIn))
+    url.searchParams.set('max_session_duration_seconds', String(maxSession))
+    const upstream = await fetch(url, { headers: { Authorization: `Bearer ${key}` } })
+    if (!upstream.ok) return { status: 502, body: { error: 'mint-failed', status: upstream.status } }
     const data = await upstream.json()
-    res.status(200).json({ value: data.value })
+    if (typeof data.token !== 'string') return { status: 502, body: { error: 'mint-failed' } }
+    return { status: 200, body: { token: data.token } }
   } catch {
-    res.status(502).json({ error: 'mint-failed' })
+    return { status: 502, body: { error: 'mint-failed' } }
   }
+}
+
+export default async function handler(_req, res) {
+  const result = await mintToken(process.env.ASSEMBLYAI_API_KEY)
+  res.status(result.status).json(result.body)
 }
