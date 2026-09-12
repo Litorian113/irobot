@@ -73,6 +73,9 @@ npm install
 npm run dev
 ```
 
+> To try it from a phone or another machine, run `npm run dev:https` instead: microphones need a secure origin,
+> and the self-signed certificate only has to be accepted once in that browser.
+
 > The key never reaches the browser: the dev server (and, on Vercel, `api/token.js`) mints single-use
 > Voice Agent tokens for each conversation. Without a key everything still runs in preview mode.
 

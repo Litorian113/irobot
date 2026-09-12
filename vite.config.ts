@@ -1,4 +1,5 @@
 import type { IncomingMessage, ServerResponse } from 'node:http'
+import basicSsl from '@vitejs/plugin-basic-ssl'
 import react from '@vitejs/plugin-react'
 import { defineConfig, loadEnv, type Plugin } from 'vite'
 import { mintToken } from './api/token.js'
@@ -34,6 +35,10 @@ function apiEndpoints(env: Record<string, string>): Plugin {
 }
 
 // https://vite.dev/config/
-export default defineConfig(({ mode }) => ({
-  plugins: [react(), apiEndpoints(loadEnv(mode, process.cwd(), ''))],
-}))
+export default defineConfig(({ mode }) => {
+  const env = loadEnv(mode, process.cwd(), '')
+  // Microphones need a secure origin. `npm run dev:https` serves a self-signed
+  // certificate so the prototype can be tried from another device on the LAN.
+  const https = env.VIKI_HTTPS === '1' || process.env.VIKI_HTTPS === '1'
+  return { plugins: [react(), apiEndpoints(env), ...(https ? [basicSsl()] : [])] }
+})
