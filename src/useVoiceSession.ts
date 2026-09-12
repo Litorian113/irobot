@@ -178,7 +178,8 @@ export function useVoiceSession(faceRef: RefObject<ParticleFace | null>, speechD
             window.clearInterval(greetTimer)
             return
           }
-          if (!faceRef.current?.isFormed()) return
+          // Without WebGL there is no formation animation to wait for.
+          if (faceRef.current && !faceRef.current.isFormed()) return
           if (!formedAt) formedAt = performance.now()
           // Fire once she is formed and idle. Keep retrying instead of giving
           // up: a stray sound can make the turn detector answer first, and the

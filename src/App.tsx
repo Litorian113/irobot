@@ -38,6 +38,7 @@ const STATE_FORM: Record<VoiceStatus, { face: number; turb: number; forward: num
 export default function App() {
   const canvasRef = useRef<HTMLCanvasElement>(null)
   const faceRef = useRef<ParticleFace | null>(null)
+  const [visualUnavailable, setVisualUnavailable] = useState(false)
 
   const [testSpeech, setTestSpeech] = useState(false)
   const [previewSpeech, setPreviewSpeech] = useState(false)
@@ -62,18 +63,34 @@ export default function App() {
   // Renderer lifecycle
   useEffect(() => {
     if (!canvasRef.current) return
-    const face = new ParticleFace(canvasRef.current, { debugFace: DEBUG_FACE })
-    faceRef.current = face
-    const first = initialStyle()
-    face.setStyle(first)
-    face.applyConfig(loadConfig(first))
-    ;(window as unknown as { __viki?: () => unknown; __vikiFace?: unknown }).__viki = () => face.debug()
-    ;(window as unknown as { __vikiFace?: unknown }).__vikiFace = face
-    applyUrlPreview(face, STATE_FORM.speaking)
-    face.setBackdrop(backdropRef.current)
-    return () => {
-      face.dispose()
+    let face: ParticleFace | null = null
+    const debugWindow = window as unknown as { __viki?: () => unknown; __vikiFace?: unknown }
+    try {
+      const renderer = new ParticleFace(canvasRef.current, { debugFace: DEBUG_FACE })
+      face = renderer
+      const first = initialStyle()
+      renderer.setStyle(first)
+      renderer.applyConfig(loadConfig(first))
+      applyUrlPreview(renderer, STATE_FORM.speaking)
+      renderer.setBackdrop(backdropRef.current)
+      faceRef.current = renderer
+      debugWindow.__viki = () => renderer.debug()
+      debugWindow.__vikiFace = renderer
+      // Renderer availability is only known after mounting its canvas.
+      // oxlint-disable-next-line react/set-state-in-effect
+      setVisualUnavailable(false)
+    } catch (error) {
+      face?.dispose()
+      face = null
       faceRef.current = null
+      setVisualUnavailable(true)
+      console.warn('[viki] 3D visualization unavailable; continuing without it.', error)
+    }
+    return () => {
+      face?.dispose()
+      faceRef.current = null
+      delete debugWindow.__viki
+      delete debugWindow.__vikiFace
     }
   }, [])
 
@@ -133,8 +150,8 @@ export default function App() {
   }, [cfg.draft.speechDelay, voice.lipRef])
 
   return (
-    <div className={`hero${cfg.style === 'lattice' && cfg.draft.optical ? ' film-look' : ''}${cfg.configOpen ? ' configuring' : ''}${status === 'idle' && !PREVIEW && !previewSpeech ? ' dormant' : ''}`}>
-      <canvas ref={canvasRef} />
+    <div className={`hero${!visualUnavailable && cfg.style === 'lattice' && cfg.draft.optical ? ' film-look' : ''}${cfg.configOpen ? ' configuring' : ''}${status === 'idle' && !PREVIEW && !previewSpeech ? ' dormant' : ''}`}>
+      <canvas ref={canvasRef} style={visualUnavailable ? { display: 'none' } : undefined} />
 
       <div className={`hud${cfg.configOpen ? ' config-open' : ''}`}>
         <HudHeader
@@ -152,11 +169,17 @@ export default function App() {
         <Captions userText={voice.userText} assistantText={voice.assistantText} hold={status === 'thinking' || status === 'speaking'} />
 
         <footer className="hud-bottom">
+          {visualUnavailable && (
+            <p className="visual-notice" role="status">
+              3D visualization unavailable in this browser. You can still use the microphone and captions.
+            </p>
+          )}
           {voice.error && <p className="error">{voice.error}</p>}
           <MicControl
             connected={voice.connected}
             busy={voice.busy}
             hidePreview={Boolean(PREVIEW)}
+            visualUnavailable={visualUnavailable}
             previewSpeech={previewSpeech}
             orbRef={voice.orbRef}
             onToggle={

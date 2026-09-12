@@ -40,6 +40,17 @@ body,
   user-select: none;
 }
 
+.visual-notice {
+  max-width: 440px;
+  margin: 0;
+  color: var(--ink-dim);
+  font-size: 12px;
+  line-height: 1.6;
+  text-align: center;
+  text-transform: none;
+  letter-spacing: 0.02em;
+}
+
 .hud {
   position: absolute;
   inset: 0;
