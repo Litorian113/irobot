@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState, type RefObject } from 'react'
-import type { ParticleFace } from './viki/ParticleFace'
+import type { HeadRenderer } from './viki/HeadRenderer'
 import {
   clearConfig,
   loadConfig,
@@ -20,7 +20,7 @@ export function initialStyle(): HeadStyle {
 }
 
 /** Per-style configuration: saved config, live draft, and the configurator panel state. */
-export function useHeadConfig(faceRef: RefObject<ParticleFace | null>) {
+export function useHeadConfig(faceRef: RefObject<HeadRenderer | null>) {
   const [style, setStyle] = useState<HeadStyle>(initialStyle)
   const [config, setConfig] = useState<HeadConfig>(() => loadConfig(initialStyle()))
   const [draft, setDraft] = useState<HeadConfig>(config)
@@ -34,9 +34,7 @@ export function useHeadConfig(faceRef: RefObject<ParticleFace | null>) {
     setConfig(cfg)
     setDraft(cfg)
     saveStyle(next)
-    faceRef.current?.setStyle(next)
-    faceRef.current?.applyConfig(cfg)
-  }, [faceRef])
+  }, [])
 
   const openConfig = useCallback(() => {
     setDraft(config)

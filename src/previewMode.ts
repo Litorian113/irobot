@@ -1,4 +1,5 @@
-import { EXPRESSIONS, type Expression, type ParticleFace } from './viki/ParticleFace'
+import { EXPRESSIONS, type Expression } from './viki/ParticleFace'
+import type { HeadRenderer } from './viki/HeadRenderer'
 import { fixedViseme, VISEMES } from './viki/visemes'
 
 /** Dev aid: `?preview=happy` forms the face with that expression and fakes speech (no API calls). */
@@ -21,7 +22,7 @@ export function fakeTalk(t0: number) {
  * URL-driven preview pose: expression plus a mouth held by `mouth`/`wide`/`round`,
  * a fixed `viseme`, or the animated fake speech.
  */
-export function applyUrlPreview(face: ParticleFace, form: { face: number; turb: number; forward: number }) {
+export function applyUrlPreview(face: HeadRenderer, form: { face: number; turb: number; forward: number }) {
   if (!PREVIEW) return
   face.setTarget(form)
   face.setExpression(PREVIEW in EXPRESSIONS ? PREVIEW : 'neutral')

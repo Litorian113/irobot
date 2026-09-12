@@ -8,7 +8,7 @@ import { OutputPass } from 'three/addons/postprocessing/OutputPass.js'
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js'
 import { FacePass } from './FacePass'
 import { SceneBackdrop } from './SceneBackdrop'
-import { STYLE_DEFAULTS, type HeadConfig, type HeadStyle } from './config'
+import { STYLE_DEFAULTS, type HeadConfig, type HeadStyle as ProjectStyle } from './config'
 import { applyPlacement, applyShapeConfig, createHeadUniforms } from './headShader'
 import { DataCube } from './DataCube'
 import { createStyles, type StyleSet } from './styles'
@@ -19,6 +19,8 @@ import { OpticalEnclosure } from './OpticalEnclosure'
 import { VikiCube } from './VikiCube'
 import { VikiAssembly } from './VikiAssembly'
 import { DustRadialBlur } from './DustRadialBlur'
+
+type HeadStyle = Exclude<ProjectStyle, 'leira'>
 
 export type Expression =
   | 'neutral'

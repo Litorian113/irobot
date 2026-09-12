@@ -19,6 +19,25 @@ Same rigged head. Same sixteen facial muscles. Same lips. Only the matter change
 | ![The Max head](docs/max.png) | **M.A.X.** — the matter. Physical tiles with real GPU gravity: they lie on the floor, levitate when the voice calls, assemble into a monochrome sculpture — and what he doesn't need rains back down, bounces and rests. **Character:** very funny. He *did* just pull himself together for you. |
 ## The interface
 
+### LEIRA — a new project
+
+Click the corner cube once for VIKI / Dust / Max / Docs, then again for the second page:
+**LEIRA** and three reserved, inactive slots. Further clicks cycle the pages; click outside
+or press **Esc** to close. Menu entries also work with Tab and Enter / Space.
+
+Open LEIRA directly with `?style=leira`. It uses the same rigged head and AssemblyAI voice
+pipeline, with its own persona and saved configuration. The head remains visible at rest.
+Its separate renderer draws one mesh with two simple lights at native pixel ratio (capped at 1),
+up to 12 fps at rest and 30 fps while speaking, previewing or dragging. Hidden tabs stop rendering.
+There are no particle fields, backdrop images, shadow maps, bloom or offscreen scene passes.
+Configure exposes only the controls this simple scene uses. This is the plain starting point
+for LEIRA's future appearance and behavior.
+
+The optional `node scripts/review-leira-browser.mjs` check uses `puppeteer-core` (or a
+`PUPPETEER_MODULE` path), a local server at `VIKI_URL` (default `http://127.0.0.1:5173`),
+and installed Chrome. It checks paging, disabled slots, settings, animated morphs, scene
+switching, and the single-draw-call render budget without contacting the voice service.
+
 One button, one wheel, no menu bars.
 
 ### The mic orb
@@ -39,7 +58,7 @@ One button, one wheel, no menu bars.
 | ![The knob](docs/ui-knob.png) | ![The fan, open with hover caption](docs/ui-wheel.png) |
 
 - A dark dial in the corner, a wireframe cube spinning 45° as it opens
-- Click → four sectors **fan open around the knob**, Counter-Strike style: VIKI, Dust, Max, Docs
+- Click → four sectors **fan open around the knob**, Counter-Strike style: VIKI, Dust, Max, Docs; click again for LEIRA and three empty slots
 - Hovering a sector describes it in the fixed caption above the fan
 - Selecting folds the fan back shut — last sector first; `Esc` and backdrop too
 

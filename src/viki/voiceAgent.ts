@@ -93,6 +93,7 @@ async function openPreferredMic(preferredId?: string, duet = false): Promise<Med
 
 /** AssemblyAI voice catalog: anna/eve are female, george is male (docs: voice-agents/voice-agent-api/voices). */
 export const VOICES: Record<HeadStyle, string> = {
+  leira: 'eve',
   viki: 'anna', // British, composed
   dust: 'eve',
   lattice: 'george', // Max speaks with a male voice.
@@ -107,6 +108,12 @@ Facial expression: begin EVERY reply with exactly one expression tag in double s
 
 /** Each head is its own character; the greeting is spoken once she has fully materialized. */
 const PERSONAS: Record<HeadStyle, { instructions: string; greeting: string; voice: string }> = {
+  leira: {
+    instructions: `You are LEIRA, a thoughtful, curious voice companion. You listen carefully, speak clearly and warmly, and help the person explore ideas one step at a time. Ask focused questions when useful. Your personality is calm and grounded, with a little gentle humor.
+${SHARED_RULES}`,
+    greeting: "Hi, I'm LEIRA. What shall we work on together?",
+    voice: VOICES.leira,
+  },
   viki: {
     instructions: `You are V.I.K.I. — Virtual Interactive Kinetic Intelligence — the central AI of U.S. Robotics, as portrayed in the film "I, Robot". You manifest as a face of light inside a mirrored cube.
 
@@ -142,6 +149,7 @@ export interface DuetConfig {
 }
 
 const PARTNER_DESC: Record<HeadStyle, string> = {
+  leira: 'LEIRA, a thoughtful, curious head with a calm and warm voice',
   viki: 'V.I.K.I., a calm, coldly logical face of light living in a mirrored cube',
   dust: 'D.U.S.T., a warm and gentle head made of drifting particles',
   lattice: 'M.A.X., a quick-witted head built from small physical tiles',

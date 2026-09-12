@@ -8,6 +8,7 @@ interface Props {
   /** Hide everything but the status (used by the URL preview mode). */
   hidePreview: boolean
   visualUnavailable: boolean
+  simpleHead?: boolean
   previewSpeech: boolean
   /** The mic-level effect writes --level onto this element. */
   orbRef: Ref<HTMLButtonElement>
@@ -16,7 +17,7 @@ interface Props {
 }
 
 /** The single voice control: the mic orb wakes her up and shuts her down; Preview is the debug side door. */
-export default function MicControl({ connected, busy, hidePreview, visualUnavailable, previewSpeech, orbRef, onToggle, onTogglePreview }: Props) {
+export default function MicControl({ connected, busy, hidePreview, visualUnavailable, simpleHead, previewSpeech, orbRef, onToggle, onTogglePreview }: Props) {
   return (
     <>
       <div className="controls">
@@ -51,10 +52,10 @@ export default function MicControl({ connected, busy, hidePreview, visualUnavail
       </div>
       <p className="hint">
         {connected
-          ? `Speak. She is listening.${visualUnavailable ? '' : ' Drag to turn the cube.'}`
+          ? `Speak. She is listening.${visualUnavailable ? '' : simpleHead ? ' Drag to turn the head.' : ' Drag to turn the cube.'}`
           : busy
             ? 'Establishing link…'
-            : `Tap the mic to wake her.${visualUnavailable ? '' : ' Drag to turn the cube.'}`}
+            : `Tap the mic to wake her.${visualUnavailable ? '' : simpleHead ? ' Drag to turn the head.' : ' Drag to turn the cube.'}`}
       </p>
     </>
   )

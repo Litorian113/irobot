@@ -7,9 +7,11 @@ import Imprint from './Imprint'
 import MicControl from './MicControl'
 import RadialMenu from './RadialMenu'
 import { applyUrlPreview, fakeTalk, PREVIEW } from './previewMode'
-import { useHeadConfig, initialStyle } from './useHeadConfig'
+import { useHeadConfig } from './useHeadConfig'
 import { useVoiceSession } from './useVoiceSession'
 import { ParticleFace } from './viki/ParticleFace'
+import { LeiraFace } from './viki/LeiraFace'
+import type { HeadRenderer } from './viki/HeadRenderer'
 import { loadConfig, STYLES } from './viki/config'
 import type { VoiceStatus } from './viki/voiceAgent'
 
@@ -37,7 +39,7 @@ const STATE_FORM: Record<VoiceStatus, { face: number; turb: number; forward: num
 
 export default function App() {
   const canvasRef = useRef<HTMLCanvasElement>(null)
-  const faceRef = useRef<ParticleFace | null>(null)
+  const faceRef = useRef<HeadRenderer | null>(null)
   const [visualUnavailable, setVisualUnavailable] = useState(false)
 
   const [testSpeech, setTestSpeech] = useState(false)
@@ -63,14 +65,15 @@ export default function App() {
   // Renderer lifecycle
   useEffect(() => {
     if (!canvasRef.current) return
-    let face: ParticleFace | null = null
+    let face: HeadRenderer | null = null
     const debugWindow = window as unknown as { __viki?: () => unknown; __vikiFace?: unknown }
     try {
-      const renderer = new ParticleFace(canvasRef.current, { debugFace: DEBUG_FACE })
+      const renderer = cfg.style === 'leira'
+        ? new LeiraFace(canvasRef.current)
+        : new ParticleFace(canvasRef.current, { debugFace: DEBUG_FACE })
       face = renderer
-      const first = initialStyle()
-      renderer.setStyle(first)
-      renderer.applyConfig(loadConfig(first))
+      if (renderer instanceof ParticleFace && cfg.style !== 'leira') renderer.setStyle(cfg.style)
+      renderer.applyConfig(loadConfig(cfg.style))
       applyUrlPreview(renderer, STATE_FORM.speaking)
       renderer.setBackdrop(backdropRef.current)
       faceRef.current = renderer
@@ -92,7 +95,7 @@ export default function App() {
       delete debugWindow.__viki
       delete debugWindow.__vikiFace
     }
-  }, [])
+  }, [cfg.style])
 
   // A scene switch shuts the previous head down: preview off, session closed.
   // Each head is woken in its own scene and never inherits a running one.
@@ -130,7 +133,7 @@ export default function App() {
     // Audio can still be playing after the server's buffer-stopped event.
     // Let the detector's audio clock carry the final lips and close on silence.
     face.setMouthSource(lipRef.current && !['idle', 'error', 'connecting'].includes(status) ? () => lipRef.current?.sample() ?? null : null)
-  }, [status, cfg.configOpen, testSpeech, previewSpeech, voice.lipRef])
+  }, [status, cfg.style, cfg.configOpen, testSpeech, previewSpeech, voice.lipRef])
 
   // Flip between the two halls behind the VIKI scene
   const toggleBackdrop = () => {
@@ -180,6 +183,7 @@ export default function App() {
             busy={voice.busy}
             hidePreview={Boolean(PREVIEW)}
             visualUnavailable={visualUnavailable}
+            simpleHead={cfg.style === 'leira'}
             previewSpeech={previewSpeech}
             orbRef={voice.orbRef}
             onToggle={

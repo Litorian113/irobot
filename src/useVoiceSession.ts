@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState, type RefObject } from 'react'
-import type { Expression, ParticleFace } from './viki/ParticleFace'
+import type { Expression } from './viki/ParticleFace'
+import type { HeadRenderer } from './viki/HeadRenderer'
 import { LipSync } from './viki/lipsync'
 import { SpeechOutput } from './viki/SpeechOutput'
 import { connectVoiceAgent, type DuetConfig, type VoiceAgentSession, type VoiceStatus } from './viki/voiceAgent'
@@ -16,7 +17,7 @@ const DUET: DuetConfig | undefined = (() => {
   const role = params.get('duet')
   if (role !== 'start' && role !== 'wait') return undefined
   const p = params.get('partner')
-  const partner = p === 'viki' || p === 'dust' ? p : p === 'lattice' || p === 'max' ? 'lattice' : undefined
+  const partner = p === 'viki' || p === 'dust' || p === 'leira' ? p : p === 'lattice' || p === 'max' ? 'lattice' : undefined
   return { role, topic: params.get('topic') ?? undefined, partner }
 })()
 
@@ -41,7 +42,7 @@ async function obtainToken(): Promise<string | null> {
  * viseme detection, microphone level, connection epochs and teardown.
  * The face only receives expressions and (through `lipRef`) mouth poses.
  */
-export function useVoiceSession(faceRef: RefObject<ParticleFace | null>, speechDelay: number, style: HeadStyle) {
+export function useVoiceSession(faceRef: RefObject<HeadRenderer | null>, speechDelay: number, style: HeadStyle) {
   const sessionRef = useRef<VoiceAgentSession | null>(null)
   const audioCtxRef = useRef<AudioContext | null>(null)
   const lipRef = useRef<SpeechOutput | null>(null)

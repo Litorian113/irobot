@@ -1,7 +1,7 @@
 /** The head's reference scale: feature anchors are defined for the head at this size, centred on its placement. */
 export const REF_SCALE = 0.29
 
-export type HeadStyle = 'lattice' | 'dust' | 'viki'
+export type HeadStyle = 'lattice' | 'dust' | 'viki' | 'leira'
 
 export const STYLES: { id: HeadStyle; label: string; hint: string; title: string; subtitle: string }[] = [
   {
@@ -24,6 +24,10 @@ export const STYLES: { id: HeadStyle; label: string; hint: string; title: string
     hint: 'A monochrome portrait sculpted from stacked tiles',
     title: 'M.A.X.',
     subtitle: 'A monochrome portrait sculpted from stacked tiles',
+  },
+  {
+    id: 'leira', label: 'LEIRA', title: 'LEIRA',
+    hint: 'A new face, a fresh start', subtitle: 'A new face, a fresh start',
   },
 ]
 
@@ -139,6 +143,12 @@ const APPEARANCE_BASE = {
 }
 
 export const STYLE_DEFAULTS: Record<HeadStyle, HeadConfig> = {
+  leira: {
+    ...APPEARANCE_BASE, ...SHAPE_DEFAULTS,
+    colorA: '#05080d', colorB: '#b7c6cf', colorC: '#edf5fa',
+    lighting: 'soft', lightElevation: 40, lightFill: 0.25,
+    headScale: 0.44, headY: -0.43, bloom: 0, cage: 0,
+  },
   lattice: {
     ...APPEARANCE_BASE,
     ...SHAPE_DEFAULTS,
@@ -271,6 +281,14 @@ export const SHAPE_GROUPS: SliderGroup[] = [
 
 /** Appearance group per style. */
 export const STYLE_GROUPS: Record<HeadStyle, SliderGroup> = {
+  leira: {
+    title: 'LEIRA',
+    sliders: [
+      { key: 'headScale', label: 'Head size', min: 0.25, max: 0.6, step: 0.005 },
+      { key: 'headY', label: 'Head height', min: -0.9, max: -0.2, step: 0.01 },
+      { key: 'gain', label: 'Brightness', min: 0.4, max: 2, step: 0.02 },
+    ],
+  },
   viki: {
     title: 'VIKI display',
     sliders: [
@@ -314,6 +332,7 @@ export const STYLE_GROUPS: Record<HeadStyle, SliderGroup> = {
 }
 
 export const COLOR_LABELS: Record<HeadStyle, [string, string, string]> = {
+  leira: ['Background', 'Face', 'Eyes'],
   lattice: ['Tile sides', 'Tile faces', 'Highlights'],
   dust: ['Shadow', 'Light', 'Sparkle'],
   viki: ['Shadow', 'Silver', 'Highlights'],

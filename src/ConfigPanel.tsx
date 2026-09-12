@@ -16,7 +16,9 @@ const COLOR_KEYS: (keyof HeadConfig)[] = ['colorA', 'colorB', 'colorC']
 
 export default function ConfigPanel({ style, draft, dirty, testSpeech, onChange, onTestSpeech, onSave, onReset, onClose }: Props) {
   const meta = STYLES.find((s) => s.id === style)
-  const groups = [STYLE_GROUPS[style], ...SHAPE_GROUPS.filter((group) => style === 'dust' || group.title !== 'Optical enclosure')]
+  const groups = [STYLE_GROUPS[style], ...SHAPE_GROUPS.filter((group) => style === 'leira'
+    ? ['Lighting adjustment', 'Speech'].includes(group.title)
+    : style === 'dust' || group.title !== 'Optical enclosure')]
   return (
     <aside className="config" aria-label="Head configuration">
       <header className="config-head">
