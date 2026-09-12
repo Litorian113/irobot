@@ -1,3 +1,5 @@
+import type { Expression } from './ParticleFace'
+
 export type VoiceStatus = 'idle' | 'connecting' | 'listening' | 'thinking' | 'speaking' | 'error'
 
 /** Everything the UI needs to hear from a running conversation. */
@@ -5,6 +7,8 @@ export interface AgentEventHandlers {
   onStatus: (s: VoiceStatus) => void
   onAssistantText: (text: string, done: boolean) => void
   onUserText: (text: string) => void
+  /** The expression tag she put in front of her reply; arrives as the first word starts playing. */
+  onExpression: (e: Expression) => void
   onSpeechStart: () => void
   onInterrupt: () => void
   onError: (message: string) => void
@@ -29,6 +33,19 @@ export interface AgentEventIO {
 const RECOVERABLE_ERRORS = new Set([
   'invalid_format', 'invalid_audio', 'invalid_value', 'immutable_field', 'invalid_config', 'agent_id_not_first', 'audio_rate_violation',
 ])
+
+export const EXPRESSIONS: readonly Expression[] = ['neutral', 'happy', 'curious', 'thinking', 'surprised', 'concerned', 'sad', 'stern']
+// She opens every reply with e.g. "[[curious]]": the TTS renders it as a short
+// pause, never as a word, but it reaches us through the transcript stream.
+const TAG_RE = /\s*\[\[\s*([a-z]+)\s*\]\]\s*/gi
+export const stripExpressionTags = (text: string) => text.replace(TAG_RE, ' ').replace(/\s+/g, ' ').trim()
+export function readExpressionTag(text: string): Expression | null {
+  for (const m of text.matchAll(TAG_RE)) {
+    const tag = m[1].toLowerCase() as Expression
+    if (EXPRESSIONS.includes(tag)) return tag
+  }
+  return null
+}
 
 const joinWord = (text: string, delta: string) => (text && !/^[\s,.;:!?'")\]]/.test(delta) ? `${text} ${delta}` : text + delta)
 
@@ -105,12 +122,17 @@ export function createAgentEventRouter(h: AgentEventHandlers, io: AgentEventIO) 
         break
       case 'transcript.agent.delta':
         if (typeof ev.delta === 'string') {
-          transcript = joinWord(transcript, ev.delta)
-          h.onAssistantText(transcript, false)
+          const tag = readExpressionTag(ev.delta)
+          if (tag) h.onExpression(tag)
+          const word = stripExpressionTags(ev.delta)
+          if (word) {
+            transcript = joinWord(transcript, word)
+            h.onAssistantText(transcript, false)
+          }
         }
         break
       case 'transcript.agent':
-        transcript = typeof ev.text === 'string' ? ev.text : transcript
+        transcript = typeof ev.text === 'string' ? stripExpressionTags(ev.text) : transcript
         h.onAssistantText(transcript, true)
         break
       case 'tool.call':

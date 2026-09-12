@@ -36,30 +36,6 @@ async function obtainToken(): Promise<string | null> {
   }
 }
 
-const EXPRESSIONS: readonly Expression[] = ['neutral', 'happy', 'curious', 'thinking', 'surprised', 'concerned', 'sad', 'stern']
-/** The face she wears for her own opening line. */
-const GREETING_EXPRESSION: Record<HeadStyle, Expression> = { viki: 'neutral', dust: 'happy', lattice: 'happy' }
-
-/**
- * Her mood for the coming reply, judged from what the user just said. Runs
- * through the LLM Gateway while the agent is still composing, so the face is
- * usually set before the voice starts. Any failure simply leaves the face as is.
- */
-async function classifyExpression(style: HeadStyle, text: string): Promise<Expression | null> {
-  try {
-    const res = await fetch('/api/expression', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ style, text }),
-    })
-    if (!res.ok) return null
-    const data = (await res.json()) as { expression?: string }
-    return EXPRESSIONS.includes(data.expression as Expression) ? (data.expression as Expression) : null
-  } catch {
-    return null
-  }
-}
-
 /**
  * Owns the whole voice link: Voice Agent WebSocket, audio context, speech output with
  * viseme detection, microphone level, connection epochs and teardown.
@@ -132,7 +108,6 @@ export function useVoiceSession(faceRef: RefObject<ParticleFace | null>, speechD
       lipRef.current = speech
       ;(window as unknown as { __vikiSpeech?: () => unknown }).__vikiSpeech = () => speech.debug()
       let latestStatus: VoiceStatus = 'connecting'
-      let classifying = false
       const showExpression = (e: Expression) => {
         if (epoch !== connectionEpoch.current) return
         faceRef.current?.setExpression(e)
@@ -148,16 +123,8 @@ export function useVoiceSession(faceRef: RefObject<ParticleFace | null>, speechD
             if (epoch === connectionEpoch.current) setStatus(s)
           },
           onAssistantText: (text) => { if (epoch === connectionEpoch.current) setAssistantText(text) },
-          onUserText: (text) => {
-            if (epoch !== connectionEpoch.current) return
-            setUserText(text)
-            // One judgement at a time: a rapid back-and-forth must not queue up gateway calls.
-            if (classifying) return
-            classifying = true
-            void classifyExpression(styleRef.current, text)
-              .then((e) => { if (e) showExpression(e) })
-              .finally(() => { classifying = false })
-          },
+          onUserText: (text) => { if (epoch === connectionEpoch.current) setUserText(text) },
+          onExpression: showExpression,
           onOutput: (node) => {
             if (epoch === connectionEpoch.current) speech.attachNode(node)
           },
@@ -216,7 +183,6 @@ export function useVoiceSession(faceRef: RefObject<ParticleFace | null>, speechD
           const forced = performance.now() - formedAt > 6000
           if (quiet || forced) {
             window.clearInterval(greetTimer)
-            showExpression(GREETING_EXPRESSION[styleRef.current])
             session.greet()
           }
         }, 250)

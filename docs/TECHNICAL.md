@@ -24,9 +24,9 @@ and lip-sync; each tab keeps its own saved configuration.
 eyes, mouth, lattice look and behaviour. Changes preview live on the active face; **Save** stores them in `localStorage`
 (closing without saving discards them), **Reset to standard** returns to the built-in defaults.
 
-> The key stays server-side. `api/token.js` mints single-use Voice Agent tokens and `api/expression.js` runs the
-> expression classifier; Vercel deploys both as serverless functions and `vite.config.ts` serves the same handlers
-> during `npm run dev` / `vite preview`, reading `ASSEMBLYAI_API_KEY` from `.env`.
+> The key stays server-side. `api/token.js` mints single-use Voice Agent tokens; Vercel deploys it as a serverless
+> function and `vite.config.ts` serves the same handler during `npm run dev` / `vite preview`, reading
+> `ASSEMBLYAI_API_KEY` from `.env`.
 
 ## Voice pipeline
 
@@ -47,10 +47,12 @@ One WebSocket to `wss://agents.assemblyai.com/v1/ws?token=…` carries the whole
   head's status machine. Barge-in is semantic and decided server-side: `reply.done` with `status: "interrupted"`
   flushes the player and the delay line.
 - **Greeting** — sent as `reply.create` once the face has formed (the API's own `greeting` would speak on connect).
-- **Expression** — the Voice Agent API cannot run a silent client tool mid-reply (every `tool.result` spawns
-  another spoken reply), so the head's mood comes from `POST /api/expression`: `qwen3.5-4b-32k-fast` on the LLM
-  Gateway reads the user's final transcript and answers with one word from the expression set. It runs while the
-  agent is still composing, so the face is usually set before the voice starts.
+- **Expression** — the persona rules make the model open every reply with a tag such as `[[curious]]`. Measured
+  live: the TTS renders a double-bracket tag as a ~0.1–0.3 s pause and never as a word (single brackets, parentheses
+  and asterisks *are* spoken), and the word-aligned `transcript.agent.delta` stream delivers the tag as the first
+  word starts playing. `agentEvents.ts` turns it into `onExpression` and strips it from captions. A client tool
+  cannot do this job on this API: every `tool.result` auto-fires another spoken reply, and an unanswered call makes
+  the agent apologise after its timeout.
 - **Teardown** — `disconnect` sends `session.end` before closing (a bare close leaves a billable 30 s resume
   window); `pagehide` does the same when the tab goes away.
 
@@ -246,7 +248,7 @@ portrait and fully dormant states.
 
 ## Audio-driven lip sync
 
-The assistant's remote WebRTC track feeds a local **HeadAudio** AudioWorklet. Its trained MFCC classifier identifies
+The assistant's decoded PCM stream (see *Voice pipeline*) feeds a local **HeadAudio** AudioWorklet. Its trained MFCC classifier identifies
 15 visemes (including silence), mapped to the same head's jaw and lips. The microphone drives only the input meter;
 captions are not used to guess timing. The bundled detector and model have no extra runtime service or API cost.
 See [pinned HeadAudio assets and license](public/vendor/headaudio/README.md).
@@ -342,5 +344,5 @@ to `/tmp/viki-hologram-review`. `scripts/viki-assembly.test.mjs` checks the reve
 - `src/viki/agentEvents.ts` — pure event router: API events → status machine, captions, interruptions
 - `src/viki/PcmPlayer.ts`, `src/viki/pcm.ts` — gapless PCM16 playback and the base64/PCM helpers
 - `public/audio/pcm-capture-worklet.mjs` — microphone → 24 kHz PCM16 chunks
-- `api/token.js`, `api/expression.js` — serverless token minting and expression classification (also served by Vite)
+- `api/token.js` — serverless token minting (also served by Vite)
 - `src/App.tsx` — HUD, status, captions

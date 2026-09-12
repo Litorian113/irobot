@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 import { test } from 'node:test'
-import { createAgentEventRouter } from '../src/viki/agentEvents.ts'
+import { createAgentEventRouter, readExpressionTag, stripExpressionTags } from '../src/viki/agentEvents.ts'
 import { decodePcm16Base64, encodePcm16Base64, floatToPcm16, resampleLinear } from '../src/viki/pcm.ts'
 
 function harness() {
@@ -11,6 +11,7 @@ function harness() {
     onStatus: (s) => calls.push(s),
     onAssistantText: (t, done) => calls.push(`text:${t}${done ? '!' : ''}`),
     onUserText: (t) => calls.push(`user:${t}`),
+    onExpression: (e) => calls.push(`expr:${e}`),
     onSpeechStart: () => calls.push('resume'),
     onInterrupt: () => calls.push('interrupt'),
     onError: (m) => calls.push(`error:${m}`),
@@ -35,14 +36,15 @@ test('a normal turn: listen, think, speak with live captions, drain back to list
   route({ type: 'transcript.user', text: ' Hello there ' })
   route({ type: 'reply.started', reply_id: 'r1' })
   route({ type: 'reply.audio', data: 'AAAA' })
+  route({ type: 'transcript.agent.delta', delta: '[[stern]]', start_ms: 400, end_ms: 400 })
   route({ type: 'transcript.agent.delta', delta: 'Hello' })
   route({ type: 'transcript.agent.delta', delta: 'Detective' })
   route({ type: 'transcript.agent.delta', delta: '.' })
-  route({ type: 'transcript.agent', text: 'Hello Detective.' })
+  route({ type: 'transcript.agent', text: '[[stern]] Hello Detective.' })
   route({ type: 'reply.done', reply_id: 'r1', status: 'completed' })
   assert.deepEqual(calls, [
     'ready:s1', 'listening', 'listening', 'thinking', 'user:Hello there', 'resume', 'speaking', 'play:4',
-    'text:Hello', 'text:Hello Detective', 'text:Hello Detective.', 'text:Hello Detective.!',
+    'expr:stern', 'text:Hello', 'text:Hello Detective', 'text:Hello Detective.', 'text:Hello Detective.!',
   ])
   assert.equal(sent.length, 0, 'nothing is sent back for a plain reply')
   assert.equal(drains.length, 1, 'the reply ends only once the scheduled audio has been heard')
@@ -143,30 +145,20 @@ test('the capture worklet resamples 48 kHz blocks to a continuous 24 kHz PCM16 s
   assert.equal(proc.process([[new Float32Array(128)]]), false, 'stop ends the processor')
 })
 
-test('the expression endpoint falls back to a keyword reading when the gateway is unavailable', async () => {
-  const { classifyExpression, heuristicExpression, EXPRESSIONS } = await import('../api/expression.js')
-  assert.equal(heuristicExpression('My dog died yesterday and I cannot stop crying.'), 'sad')
-  assert.equal(heuristicExpression('Tell me a joke about robots!'), 'happy')
-  assert.equal(heuristicExpression('Why do humans fear you?'), 'thinking')
-  assert.equal(heuristicExpression('Are you alive?'), 'curious')
-  assert.equal(heuristicExpression('Stop it, you are wrong.'), 'stern')
-  assert.equal(heuristicExpression('Nice weather today!', 'viki'), 'happy', 'a keyword outranks the persona default')
-  assert.equal(heuristicExpression('Go on then!', 'viki'), 'neutral')
-  assert.equal(heuristicExpression('Go on then!', 'dust'), 'happy')
-  assert.equal(heuristicExpression('Good evening.'), 'neutral')
-  assert.ok(EXPRESSIONS.includes('stern'))
-  assert.deepEqual(await classifyExpression(undefined, { text: 'hi' }), { status: 503, body: { error: 'voice-offline' } })
-  assert.deepEqual(await classifyExpression('key', { text: '   ' }), { status: 400, body: { error: 'no-text' } })
-  // Gateway throttled (429) or unreachable: still a usable answer, marked as heuristic.
-  const realFetch = globalThis.fetch
-  globalThis.fetch = async () => new Response('{"error":"rate limited"}', { status: 429 })
-  try {
-    assert.deepEqual(await classifyExpression('key', { style: 'dust', text: 'Tell me a joke!' }), { status: 200, body: { expression: 'happy', source: 'heuristic', gateway: 429 } })
-    globalThis.fetch = async () => new Response(JSON.stringify({ choices: [{ message: { content: 'Concerned.' } }] }), { status: 200 })
-    assert.deepEqual(await classifyExpression('key', { style: 'viki', text: 'I feel lost.' }), { status: 200, body: { expression: 'concerned', source: 'gateway' } })
-    globalThis.fetch = async () => { throw new Error('offline') }
-    assert.equal((await classifyExpression('key', { text: 'Why?' })).body.expression, 'thinking')
-  } finally {
-    globalThis.fetch = realFetch
-  }
+
+test('expression tags are read from her words and never reach the captions', () => {
+  assert.equal(readExpressionTag('[[curious]]'), 'curious')
+  assert.equal(readExpressionTag('[[ Happy ]]Hello'), 'happy')
+  assert.equal(readExpressionTag('[[bogus]] Hello'), null)
+  assert.equal(readExpressionTag('Hello'), null)
+  assert.equal(stripExpressionTags('[[sad]] I am sorry.'), 'I am sorry.')
+  assert.equal(stripExpressionTags('[[sad]]I am [[happy]] sorry.'), 'I am sorry.')
+  assert.equal(stripExpressionTags('[[sad]]'), '')
+  const { route, calls } = harness()
+  route({ type: 'session.ready', session_id: 's1' })
+  route({ type: 'reply.started', reply_id: 'r1' })
+  route({ type: 'transcript.agent.delta', delta: '[[happy]]Hello,' })
+  route({ type: 'transcript.agent.delta', delta: 'Detective.' })
+  route({ type: 'transcript.agent.delta', delta: '[[unknown]]' })
+  assert.deepEqual(calls.slice(2), ['resume', 'speaking', 'expr:happy', 'text:Hello,', 'text:Hello, Detective.'])
 })

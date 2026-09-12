@@ -58,7 +58,7 @@ try {
     let outputNode = null
     const handlers = {
       onStatus: (s) => calls.push(s), onAssistantText: (t, done) => { if (done) calls.push(`text:${t}`) },
-      onUserText: (t) => calls.push(`user:${t}`),
+      onUserText: (t) => calls.push(`user:${t}`), onExpression: (e) => calls.push(`expr:${e}`),
       onOutput: (node) => { outputNode = node; calls.push('output') }, onSpeechStart: () => calls.push('resume'),
       onInterrupt: () => calls.push('interrupt'), onError: (e) => calls.push(`error:${e}`),
     }
@@ -75,22 +75,35 @@ try {
       const chunks = ws.audioChunks
       const chunkBytes = atob(ws.lastAudio).length
       // Analyse the player's output: a 440 Hz tone chunk scheduled through the PCM path must be audible.
-      const analyser = ctx.createAnalyser()
-      outputNode.connect(analyser)
+      // Headless Chrome's audio clock may run many times faster than wall time, so
+      // playback is measured on the render thread by a probe worklet and waits are
+      // expressed in audio-clock seconds.
+      const probeSrc = `class P extends AudioWorkletProcessor {
+        constructor() { super(); this.peak = 0; this.port.onmessage = (e) => { if (e.data === 'reset') this.peak = 0; else this.port.postMessage(this.peak) } }
+        process(inputs) { const c = inputs[0]?.[0]; if (c) for (let k = 0; k < c.length; k++) { const v = Math.abs(c[k]); if (v > this.peak) this.peak = v } return true }
+      }
+      registerProcessor('viki-probe', P)`
+      await ctx.audioWorklet.addModule(URL.createObjectURL(new Blob([probeSrc], { type: 'text/javascript' })))
+      const probe = new AudioWorkletNode(ctx, 'viki-probe', { numberOfInputs: 1, numberOfOutputs: 0 })
+      outputNode.connect(probe)
+      const probePeak = () => new Promise((r) => { probe.port.onmessage = (e) => r(e.data); probe.port.postMessage('read') })
+      const clockWait = async (sec) => { const end = ctx.currentTime + sec; while (ctx.currentTime < end) await wait(20) }
+      const clockBefore = ctx.currentTime
       const tone = Float32Array.from({ length: 2400 }, (_, i) => 0.6 * Math.sin((2 * Math.PI * 440 * i) / 24000))
       const b64 = encodePcm16Base64(floatToPcm16(tone))
       ws.emit({ type: 'reply.started', reply_id: 'r1' })
       for (let i = 0; i < 6; i++) ws.emit({ type: 'reply.audio', data: b64 })
+      ws.emit({ type: 'transcript.agent.delta', delta: '[[stern]]', start_ms: 400, end_ms: 400 })
       ws.emit({ type: 'transcript.agent.delta', delta: 'Hello' })
       ws.emit({ type: 'transcript.agent.delta', delta: 'Detective.' })
-      await wait(250)
-      const data = new Float32Array(analyser.fftSize)
-      analyser.getFloatTimeDomainData(data)
-      const peak = data.reduce((m, v) => Math.max(m, Math.abs(v)), 0)
-      ws.emit({ type: 'transcript.agent', text: 'Hello Detective.' })
+      await clockWait(1.0)
+      const peak = await probePeak()
+      const clock = { state: ctx.state, advanced: ctx.currentTime - clockBefore, rate: ctx.sampleRate }
+      ws.emit({ type: 'transcript.agent', text: '[[stern]] Hello Detective.' })
       ws.emit({ type: 'reply.done', reply_id: 'r1', status: 'completed' })
       const midStatus = lastStatus()
       await wait(1200)
+      await clockWait(1.0)
       const afterDrain = lastStatus()
       // A stray tool call is answered so the session cannot stall.
       ws.emit({ type: 'tool.call', call_id: 'c1', name: 'lookup', arguments: {} })
@@ -100,9 +113,9 @@ try {
       ws.emit({ type: 'reply.started', reply_id: 'r2' })
       for (let i = 0; i < 20; i++) ws.emit({ type: 'reply.audio', data: b64 })
       ws.emit({ type: 'reply.done', reply_id: 'r2', status: 'interrupted' })
-      await wait(150)
-      analyser.getFloatTimeDomainData(data)
-      const peakAfterFlush = data.reduce((m, v) => Math.max(m, Math.abs(v)), 0)
+      probe.port.postMessage('reset')
+      await clockWait(2.5)
+      const peakAfterFlush = await probePeak()
       session.greet()
       const greet = ws.sent.find((e) => e.type === 'reply.create')
       session.setPersona('dust')
@@ -116,7 +129,7 @@ try {
       let failed = ''
       try { await connectVoiceAgent(ctx, 'expired', handlers, 'viki') } catch (e) { failed = e.message }
       return {
-        calls, config, chunks, chunkBytes, peak, midStatus, afterDrain, toolResult, peakAfterFlush, greet, ended,
+        calls, config, chunks, chunkBytes, peak, clock, midStatus, afterDrain, toolResult, peakAfterFlush, greet, ended,
         audioStoppedAfterDisconnect: ws.audioChunks === chunksAfter, failed,
         personaUpdate: ws.sent.find((e) => e.type === 'session.update' && e.session.system_prompt?.includes('D.U.S.T.')) !== undefined,
         stopped: tracks.every((t) => t.readyState === 'ended'),
@@ -130,10 +143,10 @@ try {
   assert.equal(result.config.session.output.voice, 'anna')
   assert.equal(result.config.session.output.format.sample_rate, 24000)
   assert.equal(result.config.session.tools, undefined, 'no tools: a silent client tool cannot exist on this API')
-  assert.ok(result.config.session.system_prompt.includes('V.I.K.I.'))
+  assert.ok(result.config.session.system_prompt.includes('V.I.K.I.') && result.config.session.system_prompt.includes('[[curious]]'))
   assert.ok(result.chunks >= 3, `mic audio streams once the session is ready (got ${result.chunks} chunks)`)
   assert.equal(result.chunkBytes, 2400, '1200 samples of PCM16 per chunk')
-  assert.ok(result.peak > 0.2, `scheduled PCM must reach the output node (peak ${result.peak})`)
+  assert.ok(result.peak > 0.2, `scheduled PCM must reach the output node (peak ${result.peak}, clock ${JSON.stringify(result.clock)})`)
   assert.equal(result.midStatus, 'speaking', 'reply.done alone does not end speech while audio is still queued')
   assert.equal(result.afterDrain, 'listening')
   assert.equal(result.toolResult?.call_id, 'c1')
@@ -146,6 +159,6 @@ try {
   assert.ok(result.failed.includes('refused'), `refused handshake rejects: ${result.failed}`)
   const statuses = result.calls.filter((c) => !c.includes(':') && c !== 'output')
   assert.deepEqual(statuses, ['connecting', 'listening', 'resume', 'speaking', 'listening', 'thinking', 'resume', 'speaking', 'interrupt', 'listening', 'idle', 'connecting'])
-  assert.ok(result.calls.includes('text:Hello Detective.'))
+  assert.ok(result.calls.includes('text:Hello Detective.') && result.calls.includes('expr:stern'), 'tag becomes an expression and never reaches the captions')
   console.log('PASS: capture worklet streams 24 kHz PCM16, playback reaches the output node, drain/interrupt/tool/greet/persona/teardown and refused handshake.')
 } finally { await browser.close() }

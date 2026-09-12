@@ -60,10 +60,10 @@ with animated thin-line illustrations in the interface style.
 |---|---|
 | **Voice** | AssemblyAI **Voice Agent API** over one WebSocket — Universal streaming speech-to-text, a managed LLM and text-to-speech, semantic turn-taking and barge-in, 18 input languages |
 | **Lips** | 15 visemes detected live from *her* audio; a delay line keeps the mouth slightly ahead of the sound |
-| **Mimic** | while she is still composing, a small model on AssemblyAI's LLM Gateway reads what you just said and picks her expression on sixteen facial morph targets |
+| **Mimic** | the model opens every reply with a silent expression tag — `[[curious]]`, `[[stern]]`… — that the TTS never speaks; it reaches the face through the word stream as her first word starts, on sixteen facial morph targets |
 | **Character** | each head carries its own persona and greeting — cold logic, warmth, jokes — swapped live when you switch heads |
 | **Head** | morphable CC0 head built from MakeHuman geometry and Mika Suominen's face units |
-| **Render** | three.js / WebGL, everything live in the browser; the only backend is two tiny token/expression endpoints that keep the API key off the client |
+| **Render** | three.js / WebGL, everything live in the browser; the only backend is one tiny token endpoint that keeps the API key off the client |
 
 ## Run
 
@@ -78,8 +78,8 @@ npm run dev
 
 ### Deploy
 
-Set `ASSEMBLYAI_API_KEY` in the Vercel project settings (no `VITE_` prefix). `api/token.js` and
-`api/expression.js` become serverless functions; the same handlers run inside `npm run dev` locally.
+Set `ASSEMBLYAI_API_KEY` in the Vercel project settings (no `VITE_` prefix). `api/token.js` becomes a
+serverless function; the same handler runs inside `npm run dev` locally.
 
 ### Docs at hand
 

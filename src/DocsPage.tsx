@@ -316,9 +316,9 @@ export default function DocsPage({ onClose }: { onClose: () => void }) {
             Her voice is AssemblyAI's Voice Agent API: one live connection that listens, thinks and speaks, and
             decides from meaning — not silence — when you are done or when you are interrupting. Her lips are
             driven by a viseme detector listening to her own audio, a few milliseconds ahead of what you hear,
-            the way real articulation runs ahead of sound. Her expressions are not scripted: while she is still
-            composing, a small model reads what you just said and decides whether she smiles, doubts or thinks,
-            played on sixteen facial muscles of a morphable head. Everything renders live in your browser.
+            the way real articulation runs ahead of sound. Her expressions are not scripted: the model itself
+            decides, as it composes each reply, whether she smiles, doubts or thinks, and plays it on sixteen
+            facial muscles of a morphable head. Everything renders live in your browser.
           </p>
           <FigPipeline />
         </Reveal>
