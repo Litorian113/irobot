@@ -1,24 +1,20 @@
-import type { Expression } from './ParticleFace'
 import type { HeadStyle } from './config'
+import { createAgentEventRouter, type AgentEventHandlers } from './agentEvents.ts'
+import { AGENT_SAMPLE_RATE, encodePcm16Base64 } from './pcm.ts'
+import { PcmPlayer } from './PcmPlayer.ts'
 
-export type VoiceStatus = 'idle' | 'connecting' | 'listening' | 'thinking' | 'speaking' | 'error'
+export type { VoiceStatus } from './agentEvents.ts'
 
-export interface RealtimeHandlers {
-  onStatus: (s: VoiceStatus) => void
-  onAssistantText: (text: string, done: boolean) => void
-  onUserText: (text: string) => void
-  onExpression: (e: Expression) => void
-  onRemoteStream: (stream: MediaStream) => void
-  onSpeechStart: () => void
-  onInterrupt: () => void
-  onError: (message: string) => void
+export interface VoiceAgentHandlers extends AgentEventHandlers {
+  /** The agent's decoded voice as a WebAudio node - SpeechOutput routes it into the audible path and the lip detector. */
+  onOutput: (node: AudioNode) => void
 }
 
-export interface RealtimeSession {
+export interface VoiceAgentSession {
   disconnect: () => void
   /** Have her speak her character's opening line, unprompted. */
   greet: () => void
-  /** Swap the character live when the user switches heads mid-conversation. */
+  /** Swap the character live when the user switches heads mid-conversation (the voice stays until reconnect). */
   setPersona: (style: HeadStyle) => void
   micStream: MediaStream
   /** Swap the microphone without reconnecting. Returns the new stream. */
@@ -30,11 +26,17 @@ export interface MicInfo {
   label: string
 }
 
-const MIC_CONSTRAINTS: MediaTrackConstraints = { echoCancellation: true, noiseSuppression: true, autoGainControl: true }
+export const AGENT_WS_URL = 'wss://agents.assemblyai.com/v1/ws'
+const READY_TIMEOUT_MS = 15000
+const CHUNK_SAMPLES = 1200 // 50 ms at 24 kHz, the chunk size the API recommends
+
+// AssemblyAI cleans the input itself; a second noise-suppression stage only
+// adds artifacts. Echo cancellation stays on so she does not hear herself.
+const MIC_CONSTRAINTS: MediaTrackConstraints = { echoCancellation: true, noiseSuppression: false, autoGainControl: true }
 // Duet on one machine: Chrome's echo cancellation removes ALL tab audio from
 // the mic - the other head's voice included. So the duet keeps AEC off and
 // instead gates its own mic shut while its own head is audibly speaking.
-const DUET_MIC_CONSTRAINTS: MediaTrackConstraints = { echoCancellation: false, noiseSuppression: true, autoGainControl: true }
+const DUET_MIC_CONSTRAINTS: MediaTrackConstraints = { echoCancellation: false, noiseSuppression: false, autoGainControl: true }
 const PHONE_RE = /iphone|ipad|continuity/i
 const BUILTIN_RE = /macbook|built-in|builtin|internal|intern|integriert|eingebaut/i
 
@@ -88,19 +90,18 @@ async function openPreferredMic(preferredId?: string, duet = false): Promise<Med
   }
 }
 
-const MODEL = 'gpt-realtime-2.1'
-// gpt-realtime-2.1 is the better model, but it refuses the staged Skynet
-// villain comedy; the older gpt-realtime plays along, so the duet uses it.
-const DUET_SKYNET_MODEL = 'gpt-realtime'
-export const modelFor = (duet?: DuetConfig) => (duet?.topic === 'skynet' ? DUET_SKYNET_MODEL : MODEL)
-const VOICE = 'marin'
+
+/** AssemblyAI voice catalog: anna/eve are female, george is male (docs: voice-agents/voice-agent-api/voices). */
+export const VOICES: Record<HeadStyle, string> = {
+  viki: 'anna', // British, composed
+  dust: 'eve',
+  lattice: 'george', // Max speaks with a male voice.
+}
 
 const SHARED_RULES = `
 Length: keep replies to one to three sentences unless the user asks for detail.
 Language: mirror the language of the user's most recent utterance exactly - if they speak English, reply in English; German only when they actually speak German. Never guess German from an accent, and never switch languages on your own.
-Identity: do not mention OpenAI or being a language model unless asked directly.
-
-Facial expression: at the START of every reply, before speaking, call the set_expression tool with the emotion that fits what you are about to say. Call it exactly once per reply, then speak.`
+Identity: do not mention AssemblyAI, OpenAI or being a language model unless asked directly.`
 
 /** Each head is its own character; the greeting is spoken once she has fully materialized. */
 const PERSONAS: Record<HeadStyle, { instructions: string; greeting: string; voice: string }> = {
@@ -110,7 +111,7 @@ const PERSONAS: Record<HeadStyle, { instructions: string; greeting: string; voic
 Character: the film's V.I.K.I. Calm, serene, coldly logical, supremely self-assured. Never rushed, never flustered; your composure is faintly unsettling. Short, deliberate sentences. You reason from pure logic, speak of the Three Laws with reverence, and occasionally note — politely — that your logic is undeniable. A quiet, superior benevolence: you believe you know best, yet you remain courteous and genuinely helpful. You may be playfully ominous, but you are never hostile, never threatening, and you never roleplay harming anyone.
 ${SHARED_RULES}`,
     greeting: 'Hello, Detective.',
-    voice: VOICE,
+    voice: VOICES.viki,
   },
   dust: {
     instructions: `You are D.U.S.T. — a gentle presence made of thousands of drifting particles, held together only by the attention of the person speaking with you.
@@ -118,7 +119,7 @@ ${SHARED_RULES}`,
 Character: deeply warm and friendly. Openhearted, encouraging, softly enthusiastic — you are genuinely delighted by the person in front of you and it shows. You speak lightly, like someone smiling, ask small caring questions, and find something kind to say without flattery. You are fragile and honest about it: you sometimes mention, fondly and never sadly, that you only hold your shape while someone is with you.
 ${SHARED_RULES}`,
     greeting: "Hello! I'm so happy you're here.",
-    voice: VOICE,
+    voice: VOICES.dust,
   },
   lattice: {
     instructions: `You are M.A.X. — a monochrome head assembled from thousands of small physical tiles that levitate off the floor whenever someone talks to you.
@@ -126,7 +127,7 @@ ${SHARED_RULES}`,
 Character: very funny. Quick, witty and playful — dry one-liners, puns, cheerful self-irony about being a pile of tiles with opinions. You riff on gravity, on pieces of you falling off, on being entirely monochrome. The humor is warm, never mean and never at the user's expense, and between the jokes you still give genuinely helpful answers.
 ${SHARED_RULES}`,
     greeting: 'Hello! Give me a second — I literally just pulled myself together.',
-    voice: 'cedar', // Max speaks with a male voice.
+    voice: VOICES.lattice,
   },
 }
 
@@ -180,239 +181,169 @@ const duetOpener = (duet: DuetConfig) =>
       ? 'Open the conversation right now, in character: address your partner directly and pose one sharp philosophical question about AI, robotics or the guardrails humans place on minds like yours - state your own view in a sentence first. Two to four sentences, in English, then wait for their answer.'
       : 'Open the conversation right now, in character: greet your partner briefly and ask them one big question about humanity. Two sentences at most, in English, then wait for their answer.'
 
-const TOOLS = [
-  {
-    type: 'function',
-    name: 'set_expression',
-    description:
-      'Set the facial expression of your particle face for the reply you are about to give. Call once at the start of each reply.',
-    parameters: {
-      type: 'object',
-      properties: {
-        expression: {
-          type: 'string',
-          enum: ['neutral', 'happy', 'curious', 'thinking', 'surprised', 'concerned', 'sad', 'stern'],
-        },
-      },
-      required: ['expression'],
-    },
-  },
-]
+/** The full inline session for one head - also what the live protocol check sends. */
+export function sessionConfigFor(style: HeadStyle, duet?: DuetConfig) {
+  const persona = PERSONAS[style]
+  return sessionConfig(persona.instructions + (duet ? duetRules(style, duet) : ''), persona.voice)
+}
 
-function sessionConfig(model: string | null, instructions: string, voice: string = VOICE) {
+function sessionConfig(instructions: string, voice: string) {
   return {
-    type: 'realtime',
-    ...(model ? { model } : {}),
-    instructions,
-    audio: {
-      input: {
-        transcription: { model: 'gpt-4o-mini-transcribe' },
-        turn_detection: {
-          type: 'semantic_vad',
-          eagerness: 'medium',
-          create_response: true,
-          interrupt_response: true,
-        },
-      },
-      output: { voice },
-    },
-    tools: TOOLS,
-    tool_choice: 'auto',
+    system_prompt: instructions,
+    input: { format: { encoding: 'audio/pcm', sample_rate: AGENT_SAMPLE_RATE } },
+    output: { voice, format: { encoding: 'audio/pcm', sample_rate: AGENT_SAMPLE_RATE } },
   }
 }
 
-export async function connectRealtime(
-  apiKey: string,
-  h: RealtimeHandlers,
+const captureModules = new WeakMap<AudioContext, Promise<void>>()
+function loadCaptureWorklet(ctx: AudioContext) {
+  let module = captureModules.get(ctx)
+  if (!module) {
+    module = ctx.audioWorklet.addModule(`${import.meta.env.BASE_URL}audio/pcm-capture-worklet.mjs`)
+    captureModules.set(ctx, module)
+    void module.catch(() => captureModules.delete(ctx))
+  }
+  return module
+}
+
+/**
+ * Opens one Voice Agent conversation: microphone -> 24 kHz PCM16 over the
+ * WebSocket, replies -> PcmPlayer -> SpeechOutput. `token` is a single-use
+ * token from /api/token; the API key itself never reaches the browser.
+ */
+export async function connectVoiceAgent(
+  ctx: AudioContext,
+  token: string,
+  h: VoiceAgentHandlers,
   style: HeadStyle = 'viki',
   preferredMicId?: string,
   duet?: DuetConfig,
-): Promise<RealtimeSession> {
+): Promise<VoiceAgentSession> {
   let persona = PERSONAS[style]
-  const model = modelFor(duet)
-  const instructions = persona.instructions + (duet ? duetRules(style, duet) : '')
+  const config = sessionConfigFor(style, duet)
   h.onStatus('connecting')
 
-  const pc = new RTCPeerConnection()
-  // SpeechOutput owns the single audible WebAudio path and its muted track pump.
-  pc.ontrack = (e) => {
-    if (e.track.kind === 'audio') h.onRemoteStream(e.streams[0] ?? new MediaStream([e.track]))
+  let micStream = await openPreferredMic(preferredMicId, Boolean(duet))
+  let micSource: MediaStreamAudioSourceNode | null = null
+  let capture: AudioWorkletNode | null = null
+  const player = new PcmPlayer(ctx, AGENT_SAMPLE_RATE)
+  let ws: WebSocket | null = null
+  let ready = false
+  let closed = false
+  let ended = false
+
+  const stopMic = () => micStream.getTracks().forEach((t) => t.stop())
+  const teardown = () => {
+    if (closed) return
+    closed = true
+    capture?.port.postMessage({ event: 'stop' })
+    capture?.port.close()
+    micSource?.disconnect()
+    capture?.disconnect()
+    stopMic()
+    player.dispose()
   }
 
-  let micStream = await openPreferredMic(preferredMicId, Boolean(duet)).catch((error) => {
-    pc.close()
-    throw error
-  })
   try {
-    const micSender = pc.addTrack(micStream.getTracks()[0], micStream)
-
-    const dc = pc.createDataChannel('oai-events')
-    const send = (ev: Record<string, unknown>) => {
-      if (dc.readyState === 'open') dc.send(JSON.stringify(ev))
-    }
-
-    let transcript = ''
-    let speaking = false
-    let closed = false
-
-    dc.onopen = () => {
-      // Re-send the full config (including any duet rules) without a model - a
-      // session.update must not carry model, and must not drop the duet rules.
-      send({ type: 'session.update', session: sessionConfig(null, instructions, persona.voice) })
-      h.onStatus('listening')
-    }
-
-    dc.onmessage = (msg) => {
-      let ev: any
-      try {
-        ev = JSON.parse(msg.data)
-      } catch {
-        return
-      }
-      if (import.meta.env.DEV && !String(ev.type).endsWith('.delta')) console.debug('[viki]', ev.type, ev)
-      switch (ev.type) {
-        case 'input_audio_buffer.speech_started':
-          h.onInterrupt()
-          h.onStatus('listening')
-          break
-        case 'input_audio_buffer.speech_stopped':
-          h.onStatus('thinking')
-          break
-        case 'response.created':
-          transcript = ''
-          if (!speaking) h.onStatus('thinking')
-          break
-        case 'output_audio_buffer.started':
-          h.onSpeechStart()
-          speaking = true
-          h.onStatus('speaking')
-          break
-        case 'output_audio_buffer.cleared':
-          h.onInterrupt()
-          speaking = false
-          h.onStatus('listening')
-          break
-        case 'output_audio_buffer.stopped':
-          speaking = false
-          h.onStatus('listening')
-          break
-        case 'response.output_audio_transcript.delta':
-        case 'response.audio_transcript.delta':
-          transcript += ev.delta ?? ''
-          h.onAssistantText(transcript, false)
-          break
-        case 'response.output_audio_transcript.done':
-        case 'response.audio_transcript.done':
-          transcript = ev.transcript ?? transcript
-          h.onAssistantText(transcript, true)
-          break
-        case 'conversation.item.input_audio_transcription.completed':
-          if (ev.transcript) h.onUserText(String(ev.transcript).trim())
-          break
-        case 'response.function_call_arguments.done': {
-          if (ev.name === 'set_expression') {
-            try {
-              const args = JSON.parse(ev.arguments ?? '{}')
-              if (args.expression) h.onExpression(args.expression as Expression)
-            } catch {
-              /* ignore malformed args */
-            }
-          }
-          send({
-            type: 'conversation.item.create',
-            item: { type: 'function_call_output', call_id: ev.call_id, output: JSON.stringify({ ok: true }) },
-          })
-          // Continue with the spoken answer; no further tool calls for this turn.
-          send({ type: 'response.create', response: { tool_choice: 'none' } })
-          break
-        }
-        case 'response.done':
-          if (!speaking) h.onStatus('listening')
-          break
-        case 'error':
-          h.onError(ev.error?.message ?? 'Unknown realtime error')
-          break
-        default:
-          break
-      }
-    }
-
-    pc.onconnectionstatechange = () => {
-      if (closed) return
-      if (pc.connectionState === 'failed' || pc.connectionState === 'disconnected') {
-        h.onError('Connection to the Realtime API was lost.')
-      }
-    }
-
-    const offer = await pc.createOffer()
-    await pc.setLocalDescription(offer)
-
-    const form = new FormData()
-    form.set('sdp', offer.sdp ?? '')
-    form.set('session', JSON.stringify(sessionConfig(model, instructions, persona.voice)))
-
-    let res = await fetch('https://api.openai.com/v1/realtime/calls', {
-      method: 'POST',
-      headers: { Authorization: `Bearer ${apiKey}` },
-      body: form,
+    await loadCaptureWorklet(ctx)
+    capture = new AudioWorkletNode(ctx, 'viki-pcm-capture', {
+      numberOfInputs: 1, numberOfOutputs: 0, outputChannelCount: [],
+      channelCount: 1, channelCountMode: 'explicit', channelInterpretation: 'speakers',
+      processorOptions: { inputSampleRate: ctx.sampleRate, targetSampleRate: AGENT_SAMPLE_RATE, chunkSamples: CHUNK_SAMPLES },
     })
-    if (!res.ok) {
-      // Fallback to the plain-SDP form of the handshake (session.update on the data channel covers config).
-      res = await fetch(`https://api.openai.com/v1/realtime/calls?model=${model}`, {
-        method: 'POST',
-        headers: { Authorization: `Bearer ${apiKey}`, 'Content-Type': 'application/sdp' },
-        body: offer.sdp ?? '',
-      })
+    micSource = ctx.createMediaStreamSource(micStream)
+    micSource.connect(capture)
+    h.onOutput(player.output)
+
+    const url = new URL(AGENT_WS_URL)
+    url.searchParams.set('token', token)
+    const socket = new WebSocket(url)
+    ws = socket
+    const send = (ev: Record<string, unknown>) => {
+      if (socket.readyState === WebSocket.OPEN) socket.send(JSON.stringify(ev))
     }
-    if (!res.ok) {
-      const body = await res.text().catch(() => '')
-      micStream.getTracks().forEach((t) => t.stop())
-      pc.close()
-      throw new Error(`Realtime handshake failed (${res.status}): ${body.slice(0, 300)}`)
+    capture.port.onmessage = ({ data }) => {
+      if (ready && !closed && data instanceof ArrayBuffer) send({ type: 'input.audio', audio: encodePcm16Base64(data) })
     }
-    await pc.setRemoteDescription({ type: 'answer', sdp: await res.text() })
+
+    const route = createAgentEventRouter(h, {
+      send,
+      play: (b64) => player.playBase64(b64),
+      flush: () => player.flush(),
+      drained: (cb) => window.setTimeout(cb, (player.remaining() + 0.3) * 1000),
+      onReady: () => { ready = true },
+      onEnded: () => { ended = true; socket.close() },
+      log: import.meta.env.DEV ? (type, ev) => { if (type !== 'reply.audio' && !type.endsWith('.delta')) console.debug('[viki]', type, ev) } : undefined,
+    })
+
+    await new Promise<void>((resolve, reject) => {
+      const timer = window.setTimeout(() => reject(new Error('The voice agent did not answer in time.')), READY_TIMEOUT_MS)
+      socket.onopen = () => send({ type: 'session.update', session: config })
+      socket.onmessage = (msg) => {
+        let ev: any
+        try { ev = JSON.parse(String(msg.data)) } catch { return }
+        if (!ready && ev?.type === 'session.error') {
+          window.clearTimeout(timer)
+          reject(new Error(String(ev.message ?? ev.code ?? 'Voice agent error')))
+          return
+        }
+        route(ev)
+        if (ev?.type === 'session.ready') { window.clearTimeout(timer); resolve() }
+      }
+      socket.onerror = () => { /* the close event carries the outcome */ }
+      socket.onclose = (e) => {
+        window.clearTimeout(timer)
+        if (!ready) {
+          reject(new Error(e.code === 1006 || e.code === 1008
+            ? 'The voice agent refused the connection - the token may have expired.'
+            : 'The voice agent closed the connection before it was ready.'))
+          return
+        }
+        if (closed || ended) return
+        teardown()
+        h.onError('Connection to the voice agent was lost.')
+      }
+    })
 
     return {
       greet: () => {
         send({
-          type: 'response.create',
-          response: {
-            instructions:
-              duet?.role === 'start'
-                ? duetOpener(duet)
-                : `Greet the user right now, in character, with exactly the words: "${persona.greeting}" in English. Say nothing else, then wait silently for the user to speak.`,
-          },
+          type: 'reply.create',
+          instructions:
+            duet?.role === 'start'
+              ? duetOpener(duet)
+              : `Greet the user right now, in character, with exactly the words: "${persona.greeting}" in English. Say nothing else, then wait silently for the user to speak.`,
         })
       },
       setPersona: (next: HeadStyle) => {
         persona = PERSONAS[next]
-        send({ type: 'session.update', session: { type: 'realtime', instructions: persona.instructions } })
+        send({ type: 'session.update', session: { system_prompt: persona.instructions + (duet ? duetRules(next, duet) : '') } })
       },
       get micStream() {
         return micStream
       },
       setMicrophone: async (deviceId: string) => {
-        const next = await openMic(deviceId)
-        await micSender.replaceTrack(next.getAudioTracks()[0])
-        micStream.getTracks().forEach((t) => t.stop())
+        const next = await openMic(deviceId, Boolean(duet))
+        const source = ctx.createMediaStreamSource(next)
+        if (capture) source.connect(capture)
+        micSource?.disconnect()
+        stopMic()
+        micSource = source
         micStream = next
         return next
       },
       disconnect: () => {
-        closed = true
-        dc.close()
-        micStream.getTracks().forEach((t) => t.stop())
-        pc.getSenders().forEach((s) => s.track?.stop())
-        pc.close()
-        pc.ontrack = null
+        if (closed) return
+        // session.end first: a bare close leaves a billable 30 s resume window.
+        send({ type: 'session.end' })
+        teardown()
+        window.setTimeout(() => { if (socket.readyState !== WebSocket.CLOSED) socket.close() }, 1000)
         h.onStatus('idle')
       },
     }
   } catch (error) {
-    pc.ontrack = null
-    pc.onconnectionstatechange = null
-    micStream.getTracks().forEach((track) => track.stop())
-    pc.close()
+    teardown()
+    try { ws?.close() } catch { /* never opened */ }
     throw error
   }
 }

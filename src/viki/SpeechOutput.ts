@@ -127,9 +127,7 @@ export class SpeechOutput {
 
   attachStream(stream: MediaStream) {
     if (this.disposed) return
-    this.streamSource?.disconnect()
-    this.fallback?.dispose()
-    if (this.pump) { this.pump.pause(); this.pump.srcObject = null }
+    this.detach()
     // Chrome's remote-track workaround. This element is ALWAYS muted; only
     // the WebAudio delay/output graph is audible, avoiding doubled speech.
     this.pump = new Audio()
@@ -141,6 +139,23 @@ export class SpeechOutput {
     this.streamSource = this.ctx.createMediaStreamSource(stream)
     this.resetDetector()
     this.streamSource.connect(this.input)
+  }
+
+  /** Route a WebAudio node (the Voice Agent's PCM player) into the audible path and the detector. */
+  attachNode(node: AudioNode) {
+    if (this.disposed) return
+    this.detach()
+    this.fallback = new LipSync(this.ctx, node)
+    this.resetDetector()
+    node.connect(this.input)
+  }
+
+  private detach() {
+    this.streamSource?.disconnect()
+    this.streamSource = null
+    this.fallback?.dispose()
+    this.fallback = null
+    if (this.pump) { this.pump.pause(); this.pump.srcObject = null; this.pump = null }
   }
 
   setDelay(ms: number) {

@@ -36,8 +36,8 @@ und je Stil speicherbar. Die Vorschau zeigt eine simulierte Visemfolge; feste Po
   unterschiedliche Lautformen, hörbarer Ausgang und geschlossener Mund nach Ende des verzögerten Tons.
 - Verzögerung direkt auf der Audio-Uhr gemessen: 100 und 180 ms. Unterbrechen und schneller Neustart lassen
   keine gepufferten Testimpulse durch. Bei absichtlich fehlendem Detektormodell bleibt Audio hörbar.
-- Realtime-Ereignisse separat mit simuliertem Handshake: normaler Abschluss, Unterbrechung, Neustart und Cleanup.
-- Build und Lint. Keine OpenAI-Aufrufe oder echten Mikrofonaufnahmen in den automatisierten Prüfungen.
+- Voice-Agent-Ereignisse separat mit simulierter WebSocket-Verbindung: normaler Abschluss, Unterbrechung, Neustart und Cleanup.
+- Build und Lint. Keine AssemblyAI-Aufrufe oder echten Mikrofonaufnahmen in den automatisierten Prüfungen.
 
 Wiederholbare Prüfskripte und Voraussetzungen stehen in `README.md`.
 
@@ -61,7 +61,7 @@ prüfen. Kopf und Augen dafür nicht erneut umformen.
 - `src/viki/HeadRig.ts`: gemeinsames Rig; `src/viki/visemes.ts`: Lautposen und Animationstimeline.
 - `src/viki/SpeechOutput.ts`: Ausgabe, Verzögerung, Detektor und Unterbrechungen.
 - `public/audio/viseme-worklet.mjs`, `src/viki/visemeModel.ts`: lokale HeadAudio-Anbindung.
-- `src/viki/realtime.ts`, `src/App.tsx`: Antwortstream und Ereignisse.
+- `src/viki/voiceAgent.ts`, `src/viki/agentEvents.ts`, `src/App.tsx`: AssemblyAI-Voice-Agent-Sitzung, Antwortstream und Ereignisse.
 - `src/viki/config.ts`: Speech-Regler; `src/viki/ParticleFace.ts`: Übergabe an die gemeinsame Gesichtspose.
 - `src/viki/SurfacePortrait.ts`, `headShader.ts`, `DataCube.ts`, `FacePass.ts`: akzeptierte Darstellung.
 

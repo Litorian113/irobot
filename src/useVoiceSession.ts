@@ -2,10 +2,8 @@ import { useCallback, useEffect, useRef, useState, type RefObject } from 'react'
 import type { Expression, ParticleFace } from './viki/ParticleFace'
 import { LipSync } from './viki/lipsync'
 import { SpeechOutput } from './viki/SpeechOutput'
-import { connectRealtime, modelFor, type DuetConfig, type RealtimeSession, type VoiceStatus } from './viki/realtime'
+import { connectVoiceAgent, type DuetConfig, type VoiceAgentSession, type VoiceStatus } from './viki/voiceAgent'
 import type { HeadStyle } from './viki/config'
-
-const API_KEY = import.meta.env.VITE_OPENAI_API_KEY as string | undefined
 
 const OFFLINE_MESSAGE = 'The voice AI is offline right now — no key is connected. Live today from 22:00 to tomorrow 22:00 CEST.'
 
@@ -23,33 +21,52 @@ const DUET: DuetConfig | undefined = (() => {
 })()
 
 /**
- * Local development uses the .env key directly. The deployed site instead asks
- * our serverless endpoint for a short-lived client secret (ek_...), so the
- * real API key never reaches the browser.
+ * The browser never holds the AssemblyAI key. /api/token (the Vite dev
+ * middleware locally, a Vercel function in production) mints a single-use
+ * Voice Agent token that only opens this one WebSocket session.
  */
-async function obtainKey(model: string): Promise<string | null> {
-  if (API_KEY) return API_KEY
+async function obtainToken(): Promise<string | null> {
   try {
-    const res = await fetch('/api/token', {
+    const res = await fetch('/api/token', { method: 'POST' })
+    if (!res.ok) return null
+    const data = (await res.json()) as { token?: string }
+    return data.token ?? null
+  } catch {
+    return null
+  }
+}
+
+const EXPRESSIONS: readonly Expression[] = ['neutral', 'happy', 'curious', 'thinking', 'surprised', 'concerned', 'sad', 'stern']
+/** The face she wears for her own opening line. */
+const GREETING_EXPRESSION: Record<HeadStyle, Expression> = { viki: 'neutral', dust: 'happy', lattice: 'happy' }
+
+/**
+ * Her mood for the coming reply, judged from what the user just said. Runs
+ * through the LLM Gateway while the agent is still composing, so the face is
+ * usually set before the voice starts. Any failure simply leaves the face as is.
+ */
+async function classifyExpression(style: HeadStyle, text: string): Promise<Expression | null> {
+  try {
+    const res = await fetch('/api/expression', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ model }),
+      body: JSON.stringify({ style, text }),
     })
     if (!res.ok) return null
-    const data = (await res.json()) as { value?: string }
-    return data.value ?? null
+    const data = (await res.json()) as { expression?: string }
+    return EXPRESSIONS.includes(data.expression as Expression) ? (data.expression as Expression) : null
   } catch {
     return null
   }
 }
 
 /**
- * Owns the whole voice link: WebRTC session, audio context, speech output with
+ * Owns the whole voice link: Voice Agent WebSocket, audio context, speech output with
  * viseme detection, microphone level, connection epochs and teardown.
  * The face only receives expressions and (through `lipRef`) mouth poses.
  */
 export function useVoiceSession(faceRef: RefObject<ParticleFace | null>, speechDelay: number, style: HeadStyle) {
-  const sessionRef = useRef<RealtimeSession | null>(null)
+  const sessionRef = useRef<VoiceAgentSession | null>(null)
   const audioCtxRef = useRef<AudioContext | null>(null)
   const lipRef = useRef<SpeechOutput | null>(null)
   const micLipRef = useRef<LipSync | null>(null)
@@ -105,8 +122,8 @@ export function useVoiceSession(faceRef: RefObject<ParticleFace | null>, speechD
 
     try {
       await ctx.resume()
-      const key = await obtainKey(modelFor(DUET))
-      if (!key) throw new Error(OFFLINE_MESSAGE)
+      const token = await obtainToken()
+      if (!token) throw new Error(OFFLINE_MESSAGE)
       if (epoch !== connectionEpoch.current) return
       const speech = await SpeechOutput.create(ctx, speechDelay, (message) => {
         if (epoch === connectionEpoch.current) setError(message)
@@ -115,23 +132,34 @@ export function useVoiceSession(faceRef: RefObject<ParticleFace | null>, speechD
       lipRef.current = speech
       ;(window as unknown as { __vikiSpeech?: () => unknown }).__vikiSpeech = () => speech.debug()
       let latestStatus: VoiceStatus = 'connecting'
-      const session = await connectRealtime(
-        key,
+      let classifying = false
+      const showExpression = (e: Expression) => {
+        if (epoch !== connectionEpoch.current) return
+        faceRef.current?.setExpression(e)
+        window.clearTimeout(relaxTimer.current)
+        relaxTimer.current = window.setTimeout(() => faceRef.current?.setExpression('neutral'), 9000)
+      }
+      const session = await connectVoiceAgent(
+        ctx,
+        token,
         {
           onStatus: (s) => {
             latestStatus = s
             if (epoch === connectionEpoch.current) setStatus(s)
           },
           onAssistantText: (text) => { if (epoch === connectionEpoch.current) setAssistantText(text) },
-          onUserText: (text) => { if (epoch === connectionEpoch.current) setUserText(text) },
-          onExpression: (e: Expression) => {
+          onUserText: (text) => {
             if (epoch !== connectionEpoch.current) return
-            faceRef.current?.setExpression(e)
-            window.clearTimeout(relaxTimer.current)
-            relaxTimer.current = window.setTimeout(() => faceRef.current?.setExpression('neutral'), 9000)
+            setUserText(text)
+            // One judgement at a time: a rapid back-and-forth must not queue up gateway calls.
+            if (classifying) return
+            classifying = true
+            void classifyExpression(styleRef.current, text)
+              .then((e) => { if (e) showExpression(e) })
+              .finally(() => { classifying = false })
           },
-          onRemoteStream: (stream) => {
-            if (epoch === connectionEpoch.current) speech.attachStream(stream)
+          onOutput: (node) => {
+            if (epoch === connectionEpoch.current) speech.attachNode(node)
           },
           onSpeechStart: () => speech.resume(),
           onInterrupt: () => speech.interrupt(),
@@ -188,6 +216,7 @@ export function useVoiceSession(faceRef: RefObject<ParticleFace | null>, speechD
           const forced = performance.now() - formedAt > 6000
           if (quiet || forced) {
             window.clearInterval(greetTimer)
+            showExpression(GREETING_EXPRESSION[styleRef.current])
             session.greet()
           }
         }, 250)
@@ -204,6 +233,13 @@ export function useVoiceSession(faceRef: RefObject<ParticleFace | null>, speechD
   }, [speechDelay, disconnect, faceRef])
 
   useEffect(() => () => disconnect(), [disconnect])
+  useEffect(() => {
+    // Closing the tab must still send session.end, or the agent lingers in a
+    // billable 30 s resume window. pagehide fires on mobile Safari too.
+    const onHide = () => sessionRef.current?.disconnect()
+    window.addEventListener('pagehide', onHide)
+    return () => window.removeEventListener('pagehide', onHide)
+  }, [])
 
   return {
     status,

@@ -11,7 +11,7 @@ import { useHeadConfig, initialStyle } from './useHeadConfig'
 import { useVoiceSession } from './useVoiceSession'
 import { ParticleFace } from './viki/ParticleFace'
 import { loadConfig, STYLES } from './viki/config'
-import type { VoiceStatus } from './viki/realtime'
+import type { VoiceStatus } from './viki/voiceAgent'
 
 /** Dev aid: `?facepass=1` shows the raw head textures (depth/light) the lattice samples. */
 const DEBUG_FACE = new URLSearchParams(window.location.search).has('facepass')
