@@ -1,5 +1,4 @@
 import * as THREE from 'three'
-import { mapVisemes } from './visemes'
 import { EffectComposer } from 'three/addons/postprocessing/EffectComposer.js'
 import { RenderPass } from 'three/addons/postprocessing/RenderPass.js'
 import { ShaderPass } from 'three/addons/postprocessing/ShaderPass.js'
@@ -8,76 +7,47 @@ import { OutputPass } from 'three/addons/postprocessing/OutputPass.js'
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js'
 import { FacePass } from './FacePass'
 import { SceneBackdrop } from './SceneBackdrop'
-import { STYLE_DEFAULTS, type HeadConfig, type HeadStyle as ProjectStyle } from './config'
-import { applyPlacement, applyShapeConfig, createHeadUniforms } from './headShader'
-import { DataCube } from './DataCube'
+import { REF_SCALE, STYLE_DEFAULTS, type HeadConfig, type HeadStyle } from './config'
+import { applyPlacement, applyShapeConfig, createHeadUniforms, HEAD_Z_ACTIVE } from './headShader'
 import { createStyles, type StyleSet } from './styles'
 import { LayeredPortrait } from './LayeredPortrait'
 import { HeadRig } from './HeadRig'
 import { HeadLight } from './HeadLight'
-import { OpticalEnclosure } from './OpticalEnclosure'
-import { VikiCube } from './VikiCube'
-import { VikiAssembly } from './VikiAssembly'
 import { DustRadialBlur } from './DustRadialBlur'
 
-type HeadStyle = Exclude<ProjectStyle, 'leira'>
-
-export type Expression =
-  | 'neutral'
-  | 'happy'
-  | 'curious'
-  | 'thinking'
-  | 'surprised'
-  | 'concerned'
-  | 'sad'
-  | 'stern'
+export type Expression = 'neutral' | 'happy' | 'curious'
 
 export const EXPRESSIONS: Record<Expression, { smile: number; brow: number; eyeOpen: number }> = {
   neutral: { smile: 0.25, brow: 0.08, eyeOpen: 1.0 },
   happy: { smile: 0.85, brow: 0.25, eyeOpen: 0.85 },
   curious: { smile: 0.2, brow: 0.65, eyeOpen: 1.1 },
-  thinking: { smile: -0.05, brow: -0.35, eyeOpen: 0.8 },
-  surprised: { smile: 0.1, brow: 0.95, eyeOpen: 1.3 },
-  concerned: { smile: -0.45, brow: -0.5, eyeOpen: 0.9 },
-  sad: { smile: -0.65, brow: 0.3, eyeOpen: 0.7 },
-  stern: { smile: -0.4, brow: -0.9, eyeOpen: 0.8 },
 }
 
-export interface FaceState {
-  face: number // 0..1 how formed the face is
-  turb: number // 0..1 turbulence
-  forward: number // 0 resting deep in the cube .. 1 awake and forward
-  smile: number
-  brow: number
-  eyeOpen: number
-}
+type FaceState = (typeof EXPRESSIONS)[Expression]
 
-export interface MouthSample {
-  open: number
-  wide: number
-  round?: number
-  visemes?: readonly number[]
+export interface FaceOptions {
+  style: HeadStyle
+  /** Per-head tweaks on top of the style defaults (shape, colours). */
+  config?: Partial<HeadConfig>
+  /** Upper frame rate; several heads on one page share the GPU. */
+  fps?: number
+  maxPixelRatio?: number
+  /** Gaze spring: angular frequency in rad/s (higher = snappier). */
+  stiffness?: number
+  /** Seconds this head lags behind the gaze target, so the wall never moves in lockstep. */
+  delay?: number
 }
 
 const CAM_DIST = 4.2
 const FOV = 40
-const MAX_PIXEL_RATIO = 1.5
-const IDLE_FPS = 20
-const ACTIVE_FPS = 30
-const DRAG_FPS = 60 // only while the pointer is turning the cube
-const TWO_PI = Math.PI * 2
-const REVIEW = new URLSearchParams(window.location.search)
-const FROZEN = REVIEW.has('freeze')
-function reviewNumber(key: string, fallback: number) {
-  const value = REVIEW.get(key)
-  return value !== null && Number.isFinite(Number(value)) ? Number(value) : fallback
-}
+/** Limits of the neck, in radians. */
+const MAX_YAW = 0.95
+const MAX_PITCH = 0.42
 
 /** Bloom radius / threshold per style (strength comes from the config). */
 const BLOOM_SHAPE: Record<HeadStyle, { radius: number; threshold: number }> = {
   lattice: { radius: 0.3, threshold: 0.75 },
   dust: { radius: 0.3, threshold: 0.6 },
-  viki: { radius: 0.45, threshold: 0.35 },
 }
 
 /**
@@ -107,41 +77,10 @@ const SoftClampShader = {
     }`,
 }
 
-/** Debug view: the four head textures tiled 2x2 (front, back / right, left). Luminance, depth as blue. */
-const FaceDebugShader = {
-  uniforms: {
-    uFront: { value: null as THREE.Texture | null },
-    uBack: { value: null as THREE.Texture | null },
-    uRight: { value: null as THREE.Texture | null },
-    uLeft: { value: null as THREE.Texture | null },
-  },
-  vertexShader: SoftClampShader.vertexShader,
-  fragmentShader: /* glsl */ `
-    uniform sampler2D uFront;
-    uniform sampler2D uBack;
-    uniform sampler2D uRight;
-    uniform sampler2D uLeft;
-    varying vec2 vUv;
-    void main() {
-      vec2 t = fract(vUv * 2.0);
-      vec4 f;
-      if (vUv.y > 0.5) f = vUv.x < 0.5 ? texture2D(uFront, t) : texture2D(uBack, t);
-      else f = vUv.x < 0.5 ? texture2D(uRight, t) : texture2D(uLeft, t);
-      float depth = (vUv.y > 0.5 ? f.r : f.a) * 0.5 + 0.5;
-      gl_FragColor = vec4(vec3(f.g) + vec3(0.0, 0.0, depth * 0.35) * f.b, 1.0);
-    }`,
-}
+/** Smooth-follow rates per expression parameter (higher = snappier). */
+const RATES: Record<keyof FaceState, number> = { smile: 3.0, brow: 3.0, eyeOpen: 6.0 }
 
-/** Smooth-follow rates per parameter (higher = snappier). */
-const RATES: Record<keyof FaceState, number> = {
-  face: 1.6,
-  turb: 3.0,
-  forward: 1.1,
-  smile: 4.0,
-  brow: 4.0,
-  eyeOpen: 6.0,
-}
-
+/** A single, always-formed head that turns to look at a point. */
 export class ParticleFace {
   private renderer: THREE.WebGLRenderer
   private scene = new THREE.Scene()
@@ -150,70 +89,70 @@ export class ParticleFace {
   private softClamp: ShaderPass
   private bloom: UnrealBloomPass
   private dustBlur = new DustRadialBlur()
-  private cube: DataCube
-  private enclosure = new OpticalEnclosure()
-  private vikiCube: VikiCube | null = null
-  private vikiAssembly = new VikiAssembly()
-  private backdropName = 'viki-hall-main'
-  private backdrops = new Map<string, THREE.Texture>()
   private sceneBackdrop = new SceneBackdrop()
   private headUniforms = createHeadUniforms()
   private facePass = new FacePass(this.headUniforms, 256)
   private styles: StyleSet | null = null
   private portrait: LayeredPortrait | null = null
   private rig: HeadRig | null = null
-  private debugQuad: THREE.Mesh | null = null
-  private debugCamera = new THREE.OrthographicCamera(-1, 1, 1, -1, 0, 1)
+  private headLight: HeadLight | null = null
   private group = new THREE.Group()
   private clock = new THREE.Clock()
+  private resizeObserver: ResizeObserver
   private raf = 0
   private disposed = false
-  private active = false
   private lastFrame = 0
   private frameMs = 0
   private renderedFps = 0
   private fpsCount = 0
   private fpsSince = 0
   private canvas: HTMLCanvasElement
-  private style: HeadStyle = 'lattice'
-  private config: HeadConfig = { ...STYLE_DEFAULTS.lattice }
+  private style: HeadStyle
+  private config: HeadConfig
+  private fps: number
   private headLoaded = false
-  private narrow = false
-  private headLight: HeadLight | null = null
 
-  private current: FaceState = { face: 0, turb: 0.0, forward: 1, ...EXPRESSIONS.neutral }
+  private current: FaceState = { ...EXPRESSIONS.neutral }
   private target: FaceState = { ...this.current }
 
-  private mouth = { open: 0, wide: 0, round: 0 }
-  private visemes: readonly number[] | undefined
-  private mouthSource: (() => MouthSample | null) | null = null
-
-  // drag-to-rotate: yaw/pitch with inertia, optionally easing back to the front when released
-  private drag = { active: false, lastX: 0, lastY: 0, dx: 0, dy: 0, pointerId: -1 }
+  // gaze: a damped spring per axis follows a delayed copy of the target
+  private stiffness: number
+  private delay: number
+  private gazeQueue: { at: number; yaw: number; pitch: number }[] = []
+  private gazeGoal = { yaw: 0, pitch: 0 }
   private yaw = 0
   private pitch = 0
   private yawVel = 0
   private pitchVel = 0
+  private lookMatrix = new THREE.Matrix4()
+  private pivot = new THREE.Vector3()
+  private tmpMatrix = new THREE.Matrix4()
+  private tmpEuler = new THREE.Euler(0, 0, 0, 'YXZ')
 
   private nextBlink = 2
   private blinkUntil = -1
 
-  constructor(canvas: HTMLCanvasElement, opts: { debugFace?: boolean } = {}) {
+  constructor(canvas: HTMLCanvasElement, opts: FaceOptions) {
     this.canvas = canvas
+    this.style = opts.style
+    this.config = { ...STYLE_DEFAULTS[opts.style], ...opts.config }
+    this.fps = opts.fps ?? 30
+    this.stiffness = opts.stiffness ?? 5
+    this.delay = opts.delay ?? 0
+    this.nextBlink = 1 + Math.random() * 4
+
     this.renderer = new THREE.WebGLRenderer({ canvas, antialias: false, alpha: false, powerPreference: 'high-performance' })
-    this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, MAX_PIXEL_RATIO))
-    this.renderer.setClearColor(0x02050c, 1)
+    this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, opts.maxPixelRatio ?? 1.5))
     this.renderer.toneMapping = THREE.ACESFilmicToneMapping
     this.renderer.toneMappingExposure = 0.95
 
     this.camera = new THREE.PerspectiveCamera(FOV, 1, 0.1, 50)
     this.camera.position.set(0, 0, CAM_DIST)
 
-    const v = this.facePass.views
-    this.cube = new DataCube(v.front.target.texture)
-    this.group.add(this.cube.group, this.enclosure.mesh)
+    this.group.matrixAutoUpdate = false
     this.scene.add(this.group)
     this.scene.add(this.sceneBackdrop.mesh)
+    this.sceneBackdrop.setStyle()
 
     this.composer = new EffectComposer(this.renderer)
     this.composer.addPass(new RenderPass(this.scene, this.camera))
@@ -224,26 +163,27 @@ export class ParticleFace {
     this.composer.addPass(this.dustBlur)
     this.composer.addPass(new OutputPass())
 
-    if (opts.debugFace) {
-      const mat = new THREE.ShaderMaterial({ ...FaceDebugShader })
-      mat.uniforms.uFront.value = v.front.target.texture
-      mat.uniforms.uBack.value = v.back.target.texture
-      mat.uniforms.uRight.value = v.right.target.texture
-      mat.uniforms.uLeft.value = v.left.target.texture
-      this.debugQuad = new THREE.Mesh(new THREE.PlaneGeometry(2, 2), mat)
-    }
+    const lattice = this.style === 'lattice'
+    this.softClamp.enabled = !lattice
+    this.bloom.enabled = !lattice
+    this.bloom.radius = BLOOM_SHAPE[this.style].radius
+    this.bloom.threshold = BLOOM_SHAPE[this.style].threshold
+    this.bloom.strength = lattice ? 0 : this.config.bloom
+    this.renderer.setClearColor(0x02050c, 1)
 
-    void this.loadHead(`${import.meta.env.BASE_URL}models/${new URLSearchParams(window.location.search).get('model') === 'legacy' ? 'LeePerrySmith' : 'VikiHead'}.glb`).catch((e) => {
-      console.error('[viki] head model failed to load', e)
+    // Every head is formed from the first frame: no assembly, no dissolve.
+    this.headUniforms.uFormation.value = 1
+    applyShapeConfig(this.headUniforms, this.config)
+    applyPlacement(this.headUniforms, this.config, 1)
+    this.updatePivot()
+
+    void this.loadHead(`${import.meta.env.BASE_URL}models/VikiHead.glb`).catch((e) => {
+      console.error('[head] model failed to load', e)
     })
 
-    this.applyConfig(this.config)
+    this.resizeObserver = new ResizeObserver(this.resize)
+    this.resizeObserver.observe(canvas)
     this.resize()
-    window.addEventListener('resize', this.resize)
-    canvas.addEventListener('pointerdown', this.onPointerDown)
-    window.addEventListener('pointermove', this.onPointerMove)
-    window.addEventListener('pointerup', this.onPointerUp)
-    window.addEventListener('pointercancel', this.onPointerUp)
     document.addEventListener('visibilitychange', this.onVisibility)
     this.tick()
   }
@@ -269,110 +209,45 @@ export class ParticleFace {
     const geometry = rig.geometry
     this.headUniforms.uRigged.value = rig.rigged ? 1 : 0
     this.facePass.setGeometry(geometry, rig.influences)
-    this.vikiCube?.setGeometry(geometry, rig.influences)
     this.headLight = new HeadLight(this.headUniforms, geometry, rig.influences)
-    this.portrait = new LayeredPortrait(this.headUniforms, this.facePass.views.front.target.texture, this.facePass.views.back.target.texture)
-    this.group.add(this.portrait.group)
-    const styles = createStyles(this.headUniforms, geometry, CAM_DIST)
-    this.styles = styles
-    this.group.add(styles.dust, styles.cage)
+    if (this.style === 'lattice') {
+      this.portrait = new LayeredPortrait(this.headUniforms, this.facePass.views.front.target.texture, this.facePass.views.back.target.texture)
+      this.portrait.applyConfig(this.config)
+      this.facePass.setFraming(this.portrait.extent, this.portrait.centerY)
+      this.scene.add(this.portrait.group) // the tile slab faces the camera; the head turns inside the capture
+    } else {
+      const styles = createStyles(this.headUniforms, geometry, CAM_DIST)
+      styles.setTransition(false)
+      styles.applyConfig(this.config)
+      styles.dust.visible = true
+      styles.cage.visible = true
+      this.styles = styles
+      this.group.add(styles.dust, styles.cage)
+    }
     rig.bind(this.group)
     this.headLoaded = true
     this.resize()
-    this.applyConfig(this.config)
-    this.setStyle(this.style)
   }
 
-  /** Photo backdrop per style: the VIKI hall or the white cube frame for Max. */
-  private backdropTexture(): THREE.Texture {
-    // Phones get the portrait cut, whichever desktop backdrop is chosen.
-    const name = this.style === 'lattice'
-      ? (this.narrow ? 'Max-Mobile-BG' : 'MAX-Desktop-BG')
-      : (this.narrow ? 'mobile-bg' : this.backdropName)
-    let texture = this.backdrops.get(name)
-    if (!texture) {
-      texture = new THREE.TextureLoader().load(`${import.meta.env.BASE_URL}images/${name}.png`, () => this.resize())
-      texture.colorSpace = THREE.SRGBColorSpace
-      texture.center.set(0.5, 0.5)
-      this.backdrops.set(name, texture)
-    }
-    return texture
-  }
-
-  /** Choose the hall behind the VIKI scene (file name in /images without extension). */
-  setBackdrop(name: string) {
-    this.backdropName = name
-    if (this.style === 'viki') {
-      this.scene.background = this.backdropTexture()
-      this.resize()
-    }
+  /** The head turns around a point in its neck, so the face stays framed. */
+  private updatePivot() {
+    const sy = this.config.headScale * (1 + this.config.oval)
+    this.pivot.set(0, this.config.headY + 0.2 * sy / REF_SCALE, HEAD_Z_ACTIVE)
   }
 
   private resize = () => {
     const w = this.canvas.clientWidth || window.innerWidth
-    this.narrow = w < 700 || w / (this.canvas.clientHeight || window.innerHeight) < 0.8
     const h = this.canvas.clientHeight || window.innerHeight
     const pr = this.renderer.getPixelRatio()
     this.renderer.setSize(w, h, false)
     this.composer.setSize(w, h)
     this.camera.aspect = w / h
-    // Keep the cube's front corners and the portrait in frame on narrow screens.
+    // Keep the head in frame on narrow screens.
     const halfFov = THREE.MathUtils.degToRad(FOV * 0.5)
-    this.camera.position.z = this.style === 'viki'
-      ? Math.max(4.9, 1.42 + 2.65 / (2 * Math.tan(halfFov) * this.camera.aspect))
-      : Math.max(CAM_DIST, 1.0 + 2.3 / (2 * Math.tan(halfFov) * this.camera.aspect))
-    // Fit the left-side placement only when needed, preserving the established wide-screen shot.
-    if (this.style === 'viki') {
-      const corner = new THREE.Vector3(), rotation = new THREE.Euler(-0.07, Math.PI / 4, 0, 'YXZ')
-      for (const x of [-1, 1]) for (const y of [-1, 1]) for (const z of [-1, 1]) {
-        corner.set(x, y, z * this.config.cubeDepth).multiplyScalar(this.config.cubeScale).applyEuler(rotation)
-        corner.x += this.config.cubeX; corner.y += this.config.cubeY
-        const horizontal = Math.abs(corner.x) / (Math.tan(halfFov) * this.camera.aspect)
-        const vertical = Math.abs(corner.y) / Math.tan(halfFov)
-        this.camera.position.z = Math.max(this.camera.position.z, corner.z + Math.max(horizontal, vertical) + 0.08)
-      }
-    }
+    this.camera.position.z = Math.max(CAM_DIST, 1.0 + 2.3 / (2 * Math.tan(halfFov) * this.camera.aspect))
     this.camera.updateProjectionMatrix()
-    // Cover-fit the hall backdrop: crop instead of stretching.
-    const backdrop = this.scene.background instanceof THREE.Texture ? this.scene.background : this.backdrops.get(this.backdropName) ?? null
-    const image = backdrop?.image as { width?: number; height?: number } | undefined
-    if (backdrop && image?.width && image.height) {
-      const cover = (w / h) / (image.width / image.height)
-      backdrop.repeat.set(Math.min(1, 1 / cover), Math.min(1, cover))
-      // On narrow screens, crop towards the hall's light beam instead of the centre.
-      const focus = backdrop === this.backdrops.get('viki-hall') && this.narrow ? 0.28 : 0.5
-      backdrop.offset.set((1 - backdrop.repeat.x) * focus, (1 - backdrop.repeat.y) / 2)
-    }
-    if (this.style === 'viki' || this.style === 'lattice') this.scene.background = this.backdropTexture()
-    this.cube.resize(pr, h)
-    this.styles?.setDustBase(pr * 1.4)
+    this.styles?.setDustBase(pr * 1.4 * Math.min(1, h / 700 + 0.35))
     this.styles?.setFieldView(this.camera)
-  }
-
-  private onPointerDown = (e: PointerEvent) => {
-    if (e.button !== 0 && e.pointerType === 'mouse') return
-    this.drag.active = true
-    this.drag.pointerId = e.pointerId
-    this.drag.lastX = e.clientX
-    this.drag.lastY = e.clientY
-    this.drag.dx = 0
-    this.drag.dy = 0
-    this.canvas.setPointerCapture?.(e.pointerId)
-    this.canvas.style.cursor = 'grabbing'
-  }
-
-  private onPointerMove = (e: PointerEvent) => {
-    if (!this.drag.active || e.pointerId !== this.drag.pointerId) return
-    this.drag.dx += e.clientX - this.drag.lastX
-    this.drag.dy += e.clientY - this.drag.lastY
-    this.drag.lastX = e.clientX
-    this.drag.lastY = e.clientY
-  }
-
-  private onPointerUp = (e: PointerEvent) => {
-    if (!this.drag.active || e.pointerId !== this.drag.pointerId) return
-    this.drag.active = false
-    this.canvas.style.cursor = 'grab'
   }
 
   private onVisibility = () => {
@@ -385,92 +260,48 @@ export class ParticleFace {
     }
   }
 
-  /** Set expression & formation targets; they ease in over time. */
-  setTarget(partial: Partial<FaceState>) {
-    Object.assign(this.target, partial)
-  }
-
   setExpression(expr: Expression) {
-    this.setTarget(EXPRESSIONS[expr])
+    Object.assign(this.target, EXPRESSIONS[expr])
   }
 
-  /** Called every frame while speaking; return null to close the mouth. */
-  setMouthSource(fn: (() => MouthSample | null) | null) {
-    this.mouthSource = fn
+  /** Where to look: yaw > 0 turns the face to screen-right, pitch > 0 looks up (radians). */
+  setLook(yaw: number, pitch: number) {
+    const at = performance.now() / 1000 + this.delay
+    const queue = this.gazeQueue
+    queue.push({ at, yaw: THREE.MathUtils.clamp(yaw, -MAX_YAW, MAX_YAW), pitch: THREE.MathUtils.clamp(pitch, -MAX_PITCH, MAX_PITCH) })
+    if (queue.length > 240) queue.splice(0, queue.length - 240)
   }
 
-  /** Active = a session is running: full frame rate. Idle renders at a low rate to stay cool. */
-  setActive(active: boolean) {
-    this.active = active
-  }
-
-  /** Switch the head style (tab). */
-  setStyle(style: HeadStyle) {
-    const changed = this.style !== style
-    this.style = style
-    // Allocate the six panels only when requested; other styles keep their original render path.
-    if (style === 'viki' && !this.vikiCube) {
-      this.vikiCube = new VikiCube(this.headUniforms)
-      if (this.rig) this.vikiCube.setGeometry(this.rig.geometry, this.rig.influences)
-      this.vikiCube.applyConfig(this.config)
-      this.group.add(this.vikiCube.group)
+  private updateGaze(dt: number, t: number) {
+    const now = performance.now() / 1000
+    const queue = this.gazeQueue
+    while (queue.length && queue[0].at <= now) {
+      const next = queue.shift()!
+      this.gazeGoal.yaw = next.yaw
+      this.gazeGoal.pitch = next.pitch
     }
-    // The hall backdrop belongs to the VIKI scene only.
-    this.scene.background = style === 'viki' || style === 'lattice' ? this.backdropTexture() : null
-    this.sceneBackdrop.setStyle(style)
-    if (this.vikiCube) this.vikiCube.group.visible = style === 'viki'
-    const s = this.styles
-    this.cube.group.visible = false
-    if (this.portrait) this.portrait.group.visible = style === 'lattice'
-    if (s) {
-      s.setTransition(style === 'lattice')
-      s.dust.visible = style === 'dust'
-      s.cage.visible = style === 'dust'
+    // Critically damped spring: quick to start, no overshoot, frame-rate independent.
+    const w = this.stiffness
+    const steps = Math.max(1, Math.ceil(dt / (1 / 120)))
+    const h = dt / steps
+    for (let i = 0; i < steps; i++) {
+      this.yawVel += (w * w * (this.gazeGoal.yaw - this.yaw) - 2 * w * this.yawVel) * h
+      this.pitchVel += (w * w * (this.gazeGoal.pitch - this.pitch) - 2 * w * this.pitchVel) * h
+      this.yaw += this.yawVel * h
+      this.pitch += this.pitchVel * h
     }
-    this.enclosure.mesh.visible = false
-    const shape = BLOOM_SHAPE[style]
-    this.softClamp.enabled = style !== 'lattice'
-    this.bloom.enabled = style !== 'lattice'
-    this.bloom.radius = shape.radius
-    this.bloom.threshold = shape.threshold
-    this.updateDustBlurStrength()
-    if (changed) this.resize()
-  }
-
-  /** Apply the configurator's settings for the current style. */
-  applyConfig(cfg: HeadConfig) {
-    const placementChanged = cfg.cubeScale !== this.config.cubeScale || cfg.cubeX !== this.config.cubeX
-      || cfg.cubeY !== this.config.cubeY || cfg.cubeDepth !== this.config.cubeDepth
-    this.config = cfg
-    if (placementChanged && this.style === 'viki') this.resize()
-    applyShapeConfig(this.headUniforms, cfg)
-    applyPlacement(this.headUniforms, cfg, this.current.forward)
-    this.enclosure.applyConfig(cfg)
-    this.enclosure.mesh.visible = false
-    this.cube.applyConfig(cfg)
-    this.vikiCube?.applyConfig(cfg)
-    this.renderer.setClearColor(this.style === 'lattice' ? 0x414141 : this.style === 'viki' ? 0x030607 : cfg.optical ? 0x020405 : 0x02050c, 1)
-    // VIKI's glow slider diffuses the cube locally; keep the finished hall exposure stable.
-    this.bloom.strength = this.style === 'lattice' ? 0 : this.style === 'viki' ? 0.46 : cfg.optical ? Math.min(0.25, cfg.bloom) : cfg.bloom
-    this.updateDustBlurStrength()
-    this.portrait?.applyConfig(cfg)
-    if (this.portrait) this.facePass.setFraming(this.portrait.extent, this.portrait.centerY)
-    this.styles?.applyConfig(cfg)
-  }
-
-  private updateDustBlurStrength() {
-    // Follow the visible head, including previews. A connecting session alone has no face yet.
-    const presence = this.style === 'dust' && this.headLoaded
-      ? THREE.MathUtils.smoothstep(this.current.face, 0.15, 1) : 0
-    this.dustBlur.setStrength((this.config.radialBlur ?? STYLE_DEFAULTS.dust.radialBlur ?? 0) * presence)
-  }
-
-  /** Turn the cube back to the front. */
-  resetView() {
-    this.yaw = 0
-    this.pitch = 0
-    this.yawVel = 0
-    this.pitchVel = 0
+    // A living head never holds perfectly still.
+    const swayYaw = Math.sin(t * 0.37 + this.delay * 9) * 0.015
+    const swayPitch = Math.sin(t * 0.23 + this.delay * 5) * 0.01
+    this.tmpEuler.set(-(this.pitch + swayPitch), this.yaw + swayYaw, 0, 'YXZ')
+    this.lookMatrix.makeTranslation(this.pivot.x, this.pivot.y, this.pivot.z)
+      .multiply(this.tmpMatrix.makeRotationFromEuler(this.tmpEuler))
+      .multiply(this.tmpMatrix.makeTranslation(-this.pivot.x, -this.pivot.y, -this.pivot.z))
+    if (this.style === 'lattice') this.facePass.setLook(this.lookMatrix)
+    else {
+      this.group.matrix.copy(this.lookMatrix)
+      this.group.matrixWorldNeedsUpdate = true
+    }
   }
 
   private tick = () => {
@@ -478,165 +309,64 @@ export class ParticleFace {
     this.raf = requestAnimationFrame(this.tick)
 
     const now = performance.now()
-    const transitioning = Math.abs(this.current.face - this.target.face) > 0.002 || (this.style === 'viki' && this.vikiAssembly.moving)
-    const fps = this.drag.active ? DRAG_FPS : this.active || this.mouthSource || transitioning ? ACTIVE_FPS : IDLE_FPS
-    const minInterval = 1000 / fps - 2
-    if (now - this.lastFrame < minInterval) return
+    if (now - this.lastFrame < 1000 / this.fps - 2) return
     this.lastFrame = now
 
     const dt = Math.min(this.clock.getDelta(), 0.1)
-    const t = FROZEN ? reviewNumber('time', 0) : this.clock.elapsedTime
+    const t = this.clock.elapsedTime
 
     for (const key of Object.keys(RATES) as (keyof FaceState)[]) {
       const k = 1 - Math.exp(-RATES[key] * dt)
-      this.current[key] += (this.target[key] - this.current[key]) * (FROZEN ? 1 : k)
+      this.current[key] += (this.target[key] - this.current[key]) * k
     }
 
     // blink
-    if (!FROZEN && t > this.nextBlink) {
+    if (t > this.nextBlink) {
       this.blinkUntil = t + 0.22
       this.nextBlink = t + 2.5 + Math.random() * 4
     }
     const blinkPhase = THREE.MathUtils.clamp(1 - (this.blinkUntil - t) / 0.22, 0, 1)
-    const blink = FROZEN ? 1 - THREE.MathUtils.clamp(reviewNumber('blink', 0), 0, 1) : 1 - Math.pow(Math.sin(blinkPhase * Math.PI), 2)
+    const blink = 1 - Math.pow(Math.sin(blinkPhase * Math.PI), 2)
 
-    // mouth
-    let sample = this.mouthSource?.() ?? null
-    this.visemes = sample?.visemes
-    if (sample?.visemes && this.rig && !this.rig.rigged) {
-      // The optional old scan has no lip targets; retain its procedural motion.
-      const { pose } = mapVisemes(sample.visemes, this.config.speechStrength)
-      sample = { ...sample, open: pose.jawOpen / 0.6, wide: pose.mouthWide,
-        round: pose.mouthFunnel + pose.mouthPucker }
-    }
-    const targetOpen = sample ? sample.open : 0
-    const targetWide = sample ? sample.wide : 0
-    const targetRound = sample ? (sample.round ?? sample.open * (1 - sample.wide)) : 0
-    const attack = FROZEN ? 1 : 1 - Math.exp(-28 * dt)
-    const release = FROZEN ? 1 : 1 - Math.exp(-12 * dt)
-    this.mouth.open += (targetOpen - this.mouth.open) * (targetOpen > this.mouth.open ? attack : release)
-    this.mouth.wide += (targetWide - this.mouth.wide) * release
-    this.mouth.round += (targetRound - this.mouth.round) * release
-
-    // shared head uniforms (expression + mouth + placement)
     const hu = this.headUniforms
-    hu.uFormation.value = this.current.face < 0.001 ? 0 : this.current.face > 0.999 ? 1 : this.current.face
-    // Only the selected scene wakes up; the assembly still ticks in the
-    // background so a head left behind finishes its shutdown invisibly.
-    const awake = this.active || this.target.face > 0
-    const vikiAwake = this.style === 'viki' && awake
-    this.vikiAssembly.update(dt, vikiAwake, FROZEN ? reviewNumber('assembly', vikiAwake ? 1 : 0) : undefined)
-    if (this.style === 'viki') hu.uFormation.value *= this.vikiAssembly.face
-    hu.uMouthOpen.value = this.mouth.open
-    hu.uMouthWide.value = this.mouth.wide
     hu.uSmile.value = this.current.smile
     hu.uBrow.value = this.current.brow + Math.sin(t * 0.7) * 0.04
     hu.uEyeOpen.value = this.current.eyeOpen * blink
-    this.rig?.update(this.mouth.open, this.mouth.wide, this.mouth.round, this.current.smile, this.current.brow, this.current.eyeOpen * blink, this.visemes, this.config.speechStrength)
-    applyPlacement(hu, this.config, this.current.forward)
+    this.rig?.update(0, 0, 0, this.current.smile, this.current.brow, this.current.eyeOpen * blink)
 
-    if (this.styles) this.styles.dust.visible = this.style === 'dust'
-    this.cube.update(t, hu.uFormation.value)
+    this.updateGaze(dt, t)
     this.styles?.setTime(t)
     this.sceneBackdrop.update(t)
-    this.portrait?.update(t, this.style === 'lattice' && this.target.face > 0, dt, FROZEN)
-    if (this.style === 'viki') this.vikiCube?.update(t, hu.uFormation.value, this.vikiAssembly.cube)
-
-    // drag rotation: radians per pixel while dragging, inertia afterwards; fully free
-    const perPx = 0.006
-    if (this.drag.active) {
-      const dYaw = this.drag.dx * perPx
-      const dPitch = this.drag.dy * perPx
-      this.drag.dx = 0
-      this.drag.dy = 0
-      this.yaw += dYaw
-      this.pitch += dPitch
-      this.yawVel = dt > 0 ? dYaw / dt : 0
-      this.pitchVel = dt > 0 ? dPitch / dt : 0
-    } else {
-      const friction = Math.exp(-3.5 * dt)
-      this.yawVel *= friction
-      this.pitchVel *= friction
-      this.yaw += this.yawVel * dt
-      this.pitch += this.pitchVel * dt
-      if (this.config.autoReturn) {
-        const home = 1 - Math.exp(-0.35 * dt)
-        const yawHome = Math.round(this.yaw / TWO_PI) * TWO_PI
-        const pitchHome = Math.round(this.pitch / TWO_PI) * TWO_PI
-        this.yaw += (yawHome - this.yaw) * home
-        this.pitch += (pitchHome - this.pitch) * home
-      }
-    }
-    this.group.rotation.order = 'YXZ'
-    const isViki = this.style === 'viki'
-    this.group.rotation.y = FROZEN ? THREE.MathUtils.degToRad(reviewNumber('yaw', isViki ? 45 : 0)) : (isViki ? Math.PI / 4 : this.style === 'lattice' ? 0 : this.config.optical ? 0 : Math.sin(t * 0.18) * 0.08) + this.yaw
-    this.group.rotation.x = FROZEN ? THREE.MathUtils.degToRad(reviewNumber('pitch', isViki ? -4 : 0)) : (isViki ? -0.07 : this.style === 'lattice' || this.config.optical ? 0 : Math.sin(t * 0.13) * 0.03) + this.pitch
-    this.group.scale.setScalar((FROZEN || this.config.optical || isViki || this.style === 'lattice' ? 1 : 1 + Math.sin(t * 0.9) * 0.006) * (isViki ? this.config.cubeScale * (this.narrow ? 1.3 : 1) : 1))
-    this.group.position.set(isViki && !this.narrow ? this.config.cubeX : 0, isViki ? this.config.cubeY : 0, 0)
-    this.updateDustBlurStrength()
+    this.portrait?.update(t)
+    const presence = this.style === 'dust' && this.headLoaded ? 1 : 0
+    this.dustBlur.setStrength((this.config.radialBlur ?? 0) * presence)
     this.dustBlur.update(hu.uHeadMatrix.value, this.group, this.camera)
 
     const t0 = performance.now()
-    this.headLight?.render(this.renderer, isViki)
-    if (this.style === 'lattice' || this.debugQuad) {
-      // Keep the complete depth map while tiles travel to and from the floor.
-      const formation = hu.uFormation.value
-      if (this.style === 'lattice') hu.uFormation.value = 1
-      try { this.facePass.render(this.renderer, Boolean(this.debugQuad), true) }
-      finally { hu.uFormation.value = formation }
-    }
-    if (this.style === 'lattice') this.portrait?.simulate(this.renderer, dt)
-    if (isViki && !this.debugQuad) this.vikiCube?.capture(this.renderer, this.camera)
+    this.headLight?.render(this.renderer, true)
+    if (this.style === 'lattice') this.facePass.render(this.renderer, false, true)
+    this.composer.render()
+
+    this.frameMs += (performance.now() - t0 - this.frameMs) * 0.1
     this.fpsCount++
     if (now - this.fpsSince > 1000) {
       this.renderedFps = this.fpsCount
       this.fpsCount = 0
       this.fpsSince = now
     }
-
-    if (this.debugQuad) {
-      this.renderer.setRenderTarget(null)
-      this.renderer.render(this.debugQuad, this.debugCamera)
-      return
-    }
-    if (this.enclosure.mesh.visible) {
-      this.enclosure.capture(this.renderer, this.scene, this.camera, t)
-      // Transmission already contains these objects. Draw only the optical pane
-      // in the display pass instead of rendering the head and cube a second time.
-      const behind = this.group.children.filter((object) => object !== this.enclosure.mesh && object.visible)
-      for (const object of behind) object.visible = false
-      try { this.composer.render() } finally { for (const object of behind) object.visible = true }
-    } else this.composer.render()
-    this.frameMs += (performance.now() - t0 - this.frameMs) * 0.1
-  }
-
-  /** True once she is fully there: the VIKI cube finished assembling, or the face finished forming. */
-  isFormed() {
-    if (this.style === 'viki') return this.vikiAssembly.progress >= 0.999
-    return this.current.face >= 0.97
   }
 
   /** Snapshot of the animated state (dev aid). */
   debug() {
     return {
       style: this.style,
-      current: { ...this.current },
-      target: { ...this.target },
-      mouth: { ...this.mouth },
-      visemes: this.visemes?.slice(),
       headLoaded: this.headLoaded,
-      rigged: this.rig?.rigged,
-      morphs: this.rig?.influences.slice(),
-      active: this.active,
-      pixelRatio: this.renderer.getPixelRatio(),
       yaw: Number(this.yaw.toFixed(3)),
       pitch: Number(this.pitch.toFixed(3)),
+      goal: { ...this.gazeGoal },
+      expression: { ...this.current },
       renderedFps: this.renderedFps,
       cpuFrameMs: Number(this.frameMs.toFixed(2)),
-      passes: this.composer.passes.map((p) => `${p.constructor.name}:${p.enabled ? 1 : 0}`),
-      cubeVisible: this.cube.group.visible,
-      vikiVisible: this.vikiCube?.group.visible ?? false,
-      assembly: this.style === 'viki' ? { progress: this.vikiAssembly.progress, cube: this.vikiAssembly.cube, face: this.vikiAssembly.face, direction: this.vikiAssembly.direction } : undefined,
       shadows: this.headLight?.debug(),
     }
   }
@@ -645,16 +375,8 @@ export class ParticleFace {
     if (this.disposed) return
     this.disposed = true
     cancelAnimationFrame(this.raf)
-    window.removeEventListener('resize', this.resize)
-    this.canvas.removeEventListener('pointerdown', this.onPointerDown)
-    window.removeEventListener('pointermove', this.onPointerMove)
-    window.removeEventListener('pointerup', this.onPointerUp)
-    window.removeEventListener('pointercancel', this.onPointerUp)
+    this.resizeObserver.disconnect()
     document.removeEventListener('visibilitychange', this.onVisibility)
-    this.enclosure.dispose()
-    this.vikiCube?.dispose()
-    for (const texture of this.backdrops.values()) texture.dispose()
-    this.cube.dispose()
     this.styles?.dispose()
     this.portrait?.dispose()
     this.rig?.dispose()
@@ -664,10 +386,6 @@ export class ParticleFace {
     // EffectComposer disposes its own targets, not the passes it contains.
     for (const pass of this.composer.passes) pass.dispose()
     this.bloom.materialHighPassFilter.dispose()
-    if (this.debugQuad) {
-      this.debugQuad.geometry.dispose()
-      ;(this.debugQuad.material as THREE.Material).dispose()
-    }
     this.composer.dispose()
     this.renderer.dispose()
   }

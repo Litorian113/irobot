@@ -1,136 +1,87 @@
-# V.I.K.I. — Giving a Voice a Body
+# HfG Köpfe — eine Wand, die zurückschaut
 
-> *"My logic is undeniable."* — V.I.K.I., **I, Robot** (2004)
+Neun Bildschirme im Fenster der HfG Schwäbisch Gmünd. Acht zeigen je einen Kopf, der mittlere wirbt für
+ein Studium an der HfG. Eine Kamera über dem mittleren Bildschirm erkennt Menschen, die draußen vorbeigehen,
+und alle Köpfe drehen sich zu ihnen.
 
-Talk to an AI — and watch it become **someone** while it answers.
-An interaction study by **Franz Anhäupl** · HfG Schwäbisch Gmünd, chasing the one shot from
-*I, Robot* that never let go: a face of light condensing inside a cube of data.
+Die Köpfe sind M.A.X. (weiß, aus Kacheln) und D.U.S.T. (lila, aus Partikeln), schachbrettartig verteilt,
+jeder mit leicht anderem Gesicht.
 
-**Tap the mic → she forms. Speak → she watches you. Hang up → she dissolves.**
+## Datenschutz
 
-## Three bodies, three characters
+Die Kamerabilder werden im Browser des Kamera-Rechners von YOLO26n ausgewertet und sofort verworfen.
+Es wird nichts aufgezeichnet und kein Bild verlässt den Rechner. Über das Netzwerk geht nur, *ob* jemand da ist
+und wo ungefähr (drei Zahlen in Metern).
 
-Same rigged head. Same sixteen facial muscles. Same lips. Only the matter changes — and with it, who she is.
-
-| | |
-|---|---|
-| ![The VIKI cube](docs/viki-cube.png) | **V.I.K.I.** — the homage. A silver optical cube hanging in the hall, her face shimmering across its tiles, built top-down in raining matrix strands. **Character:** the film's VIKI — calm, coldly logical, faintly ominous. *"Hello, Detective."* |
-| ![The Dust head](docs/dust.png) | **D.U.S.T.** — the becoming. Tens of thousands of particles that lean towards a face while you speak and fray into noise at her silhouette. **Character:** deeply warm and friendly — held together, quite literally, by your attention. |
-| ![The Max head](docs/max.png) | **M.A.X.** — the matter. Physical tiles with real GPU gravity: they lie on the floor, levitate when the voice calls, assemble into a monochrome sculpture — and what he doesn't need rains back down, bounces and rests. **Character:** very funny. He *did* just pull himself together for you. |
-## The interface
-
-### LEIRA — a new project
-
-Click the corner cube once for VIKI / Dust / Max / Docs, then again for the second page:
-**LEIRA** and three reserved, inactive slots. Further clicks cycle the pages; click outside
-or press **Esc** to close. Menu entries also work with Tab and Enter / Space.
-
-Open LEIRA directly with `?style=leira`. It uses the same rigged head and AssemblyAI voice
-pipeline, with its own persona and saved configuration. The head remains visible at rest.
-Its separate renderer draws one mesh with two simple lights at native pixel ratio (capped at 1),
-up to 12 fps at rest, 30 fps while speaking or previewing, and 60 fps while dragging or
-returning to the front. Hidden tabs stop rendering.
-There are no particle fields, backdrop images, shadow maps, bloom or offscreen scene passes.
-Configure exposes only the controls this simple scene uses. This is the plain starting point
-for LEIRA's future appearance and behavior.
-
-The optional `node scripts/review-leira-browser.mjs` check uses `puppeteer-core` (or a
-`PUPPETEER_MODULE` path), a local server at `VIKI_URL` (default `http://127.0.0.1:5173`),
-and installed Chrome. It checks paging, disabled slots, settings, animated morphs, scene
-switching, and the single-draw-call render budget without contacting the voice service.
-
-One button, one wheel, no menu bars.
-
-### The mic orb
-
-| Dormant | Linked |
-|---|---|
-| ![The orb, waiting](docs/ui-orb.png) | ![The orb, linked and pulsing](docs/ui-orb-live.png) |
-
-- **Tap** — wakes her: mic on, link up, the face forms
-- **Tap again** — shuts her down; the dust lets go
-- The ring **pulses with your voice** while she listens; connecting spins an arc, linked it breathes
-- `Preview` beside it fakes speech for debugging — zero API calls
-
-### The wheel
-
-| Closed | Open |
-|---|---|
-| ![The knob](docs/ui-knob.png) | ![The fan, open with hover caption](docs/ui-wheel.png) |
-
-- A dark dial in the corner, a wireframe cube spinning 45° as it opens
-- Click → four sectors **fan open around the knob**, Counter-Strike style: VIKI, Dust, Max, Docs; click again for LEIRA and three empty slots
-- Hovering a sector describes it in the fixed caption above the fan
-- Selecting folds the fan back shut — last sector first; `Esc` and backdrop too
-
-### The character editor
-
-| | |
-|---|---|
-| ![The configure panel](docs/ui-config.png) | **Configure** opens her editor: colors, four lighting presets, cube placement, head shape, eyes, mouth, speech articulation. Every slider previews **live on the active face**. **Save** keeps it per head, **Reset** restores the standard look — each of the three bodies remembers its own setup. |
-
-### The docs
-
-Sector **04** of the wheel opens an in-app essay — the 2004 origin, the idea, how she works —
-with animated thin-line illustrations in the interface style.
-
-## Under the hood
-
-| | |
-|---|---|
-| **Voice** | AssemblyAI **Voice Agent API** over one WebSocket — Universal streaming speech-to-text, a managed LLM and text-to-speech, semantic turn-taking and barge-in, 18 input languages |
-| **Lips** | 15 visemes detected live from *her* audio; a delay line keeps the mouth slightly ahead of the sound |
-| **Mimic** | the model opens every reply with a silent expression tag — `[[curious]]`, `[[stern]]`… — that the TTS never speaks; it reaches the face through the word stream as her first word starts, on sixteen facial morph targets |
-| **Character** | each head carries its own persona and greeting — cold logic, warmth, jokes — swapped live when you switch heads |
-| **Head** | morphable CC0 head built from MakeHuman geometry and Mika Suominen's face units |
-| **Render** | three.js / WebGL, everything live in the browser; the only backend is one tiny token endpoint that keeps the API key off the client |
-
-## Run
+## Aufbau
 
 ```
-cp .env.example .env   # put your AssemblyAI key in ASSEMBLYAI_API_KEY
+0  1  2
+3  4  5      4 = Mitte: HfG-Werbung, Kamera darüber
+6  7  8
+```
+
+- **Kamera-Rechner** (zurzeit das MacBook): Webcam, Erkennung, Server. Er liefert die Seite aus und
+  verteilt die Blickrichtung über WebSocket (`/gaze`) an alle Bildschirme.
+- **Bildschirme** (iMacs): öffnen nur ihre Seite im Browser. Auf OS X 10.11 läuft Safari 11 *nicht*
+  (kein WebGL 2), stattdessen **Firefox ESR 78** oder Chrome ≤ 103.
+
+## Starten
+
+Auf dem Kamera-Rechner:
+
+```
 npm install
+npm run wall
+```
+
+Der Befehl baut die App und gibt alle Links aus: einen für die Kamera (`localhost`, damit der Browser die
+Kamera freigibt) und einen pro Bildschirm, z.B. `http://192.168.0.100:8080/?slot=0`.
+Auf jedem iMac den passenden Link öffnen und mit `F` auf Vollbild schalten. Die Bildschirme verbinden sich
+von selbst neu, wenn der Server kurz weg war.
+
+Netzwerk: Die iMacs hängen über den Switch in einem eigenen Netz (192.168.0.x, feste IPs). Der Kamera-Rechner
+braucht dort per Kabel eine feste Adresse, z.B. 192.168.0.100 / 255.255.255.0, ohne Router.
+
+## Am Laptop ausprobieren
+
+```
 npm run dev
 ```
 
-> To try it from a phone or another machine, run `npm run dev:https` instead: microphones need a secure origin,
-> and the self-signed certificate only has to be accepted once in that browser.
+`http://localhost:5173/` zeigt die ganze Wand auf einem Bildschirm, mit Kameravorschau unten links.
+Die externe Webcam wird automatisch der eingebauten vorgezogen.
 
-> The key never reaches the browser: the dev server (and, on Vercel, `api/token.js`) mints single-use
-> Voice Agent tokens for each conversation. Without a key everything still runs in preview mode.
-
-### Deploy
-
-Set `ASSEMBLYAI_API_KEY` in the Vercel project settings (no `VITE_` prefix). `api/token.js` becomes a
-serverless function; the same handler runs inside `npm run dev` locally.
-
-### Docs at hand
-
-`.mcp.json` registers AssemblyAI's documentation MCP server, so Claude Code can answer Voice Agent and
-LLM Gateway questions from the live docs while you work — approve it on the first launch.
-
-### Duet
-
-Two heads, two tabs, one room: open one head with `?duet=start&partner=max` and the other with
-`?duet=wait&partner=viki`; add `&topic=philosophy` or `&topic=skynet` for the staged scenes.
-
-## Dev cheatsheet
+## URL-Parameter
 
 | | |
 |---|---|
-| `?preview=happy` | any expression + fake speech, no API |
-| `?style=viki` | open a head directly (`viki` / `dust` / `lattice` — the last one is Max) |
-| `?preview=neutral&viseme=aa&freeze=1` | a frozen lip pose for comparisons |
-| `?style=viki&preview=neutral&freeze=1&assembly=0.35` | inspect the top-down hologram assembly (0–1) |
-| `?facepass=1` | the raw head textures the lattice samples |
-| `window.__viki()` | live animation state in the console |
+| `?slot=0…8` | ein Bildschirm der Wand (ohne: die ganze Wand auf einer Seite) |
+| `&camera=1` | Kamera und Erkennung in diesem Fenster |
+| `&preview=1` | Kameravorschau mit Erkennung (Taste `D`) |
+| `&cam=logitech` | Kamera nach Namen wählen |
+| `&mouse=1` | die Maus spielt die Person (Test ohne Kamera) |
+| `&stats=1` | fps-Anzeige |
+| `&spacing=0.55,0.5` | Abstand der Bildschirmmitten in Metern (x,y) |
+| `&cameray=0.3` | Höhe der Kamera über der Wandmitte in Metern |
+| `&fov=70` | horizontaler Bildwinkel der Kamera in Grad |
+| `&style=dust` | Kopf eines Slots überschreiben (`dust` / `lattice`) |
 
-Full engineering reference — model provenance, the VIKI display, optical enclosure, lighting,
-the audio lip-sync pipeline, validation scripts, file map: **[docs/TECHNICAL.md](docs/TECHNICAL.md)**
+Tasten: `D` Kameravorschau, `F` Vollbild.
+
+## Code
+
+| | |
+|---|---|
+| `src/wall.ts` | welcher Kopf wo, Abstände, URL-Parameter |
+| `src/Promo.tsx` | alle Texte der Mitte |
+| `src/tracking/` | Kamera, YOLO-Worker, Blick-Geometrie, Sync |
+| `src/viki/ParticleFace.ts` | ein Kopf, der sich zu einem Punkt dreht |
+| `public/models/yolo26n-320.onnx` | Personenerkennung (Ultralytics YOLO26n, AGPL-3.0) |
+
+`npm test` prüft Blick-Geometrie und Kopf-Rig.
 
 ## Credits
 
-**Franz Anhäupl** — concept, design, direction · HfG Schwäbisch Gmünd
-Built in a running dialogue with AI agents, GPT Astra chief among them.
-Head: MakeHuman CC0 + face units by Mika Suominen · first prototype: Lee Perry-Smith scan (CC BY 3.0)
-Voice: AssemblyAI Voice Agent API · Renderer: three.js · 2026
+**Franz Anhäupl** · HfG Schwäbisch Gmünd. Kopf: MakeHuman CC0 + Face Units von Mika Suominen.
+Erkennung: Ultralytics YOLO26n über ONNX Runtime Web. Rendering: three.js.

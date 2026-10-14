@@ -1,225 +1,88 @@
-import { useEffect, useRef, useState } from 'react'
-import Captions from './Captions'
-import ConfigPanel from './ConfigPanel'
-import DocsPage from './DocsPage'
-import HudHeader from './HudHeader'
-import Imprint from './Imprint'
-import MicControl from './MicControl'
-import RadialMenu from './RadialMenu'
-import { applyUrlPreview, fakeTalk, PREVIEW } from './previewMode'
-import { useHeadConfig } from './useHeadConfig'
-import { useVoiceSession } from './useVoiceSession'
-import { ParticleFace } from './viki/ParticleFace'
-import { LeiraFace } from './viki/LeiraFace'
-import type { HeadRenderer } from './viki/HeadRenderer'
-import { loadConfig, STYLES } from './viki/config'
-import type { VoiceStatus } from './viki/voiceAgent'
+import { useEffect, useState } from 'react'
+import HeadCell from './HeadCell'
+import Promo from './Promo'
+import TrackerPanel from './TrackerPanel'
+import { publish } from './tracking/bus'
+import { PersonTracker, type TrackerState } from './tracking/PersonTracker'
+import { PROMO_SLOT, SETTINGS, SLOTS } from './wall'
 
-/** Dev aid: `?facepass=1` shows the raw head textures (depth/light) the lattice samples. */
-const DEBUG_FACE = new URLSearchParams(window.location.search).has('facepass')
+/** Built once: a new preset object would rebuild that head. */
+const PRESETS = SLOTS.map((preset) => (preset && SETTINGS.style ? { ...preset, style: SETTINGS.style, config: undefined } : preset))
 
-const STATUS_LABEL: Record<VoiceStatus, string> = {
-  idle: 'DORMANT',
-  connecting: 'ESTABLISHING LINK',
-  listening: 'LISTENING',
-  thinking: 'PROCESSING',
-  speaking: 'SPEAKING',
-  error: 'LINK FAULT',
-}
-
-/** How formed / turbulent the lattice is per state. */
-const STATE_FORM: Record<VoiceStatus, { face: number; turb: number; forward: number }> = {
-  idle: { face: 0, turb: 0.02, forward: 1 },
-  connecting: { face: 0, turb: 0.3, forward: 1 },
-  listening: { face: 1.0, turb: 0.04, forward: 1 },
-  thinking: { face: 1, turb: 0.08, forward: 1 },
-  speaking: { face: 1.0, turb: 0.0, forward: 1 },
-  error: { face: 0, turb: 0.1, forward: 1 },
+function Slot({ slot }: { slot: number }) {
+  const preset = PRESETS[slot]
+  if (slot === PROMO_SLOT || !preset) return <Promo />
+  return <HeadCell slot={slot} preset={preset} />
 }
 
 export default function App() {
-  const canvasRef = useRef<HTMLCanvasElement>(null)
-  const faceRef = useRef<HeadRenderer | null>(null)
-  const [visualUnavailable, setVisualUnavailable] = useState(false)
+  const [tracker, setTracker] = useState<PersonTracker | null>(null)
+  const [trackerState, setTrackerState] = useState<TrackerState | null>(null)
+  const [preview, setPreview] = useState(SETTINGS.preview)
 
-  const [testSpeech, setTestSpeech] = useState(false)
-  const [previewSpeech, setPreviewSpeech] = useState(false)
-  const [docsOpen, setDocsOpen] = useState(false)
-  const [backdrop, setBackdrop] = useState(() => {
-    try {
-      return localStorage.getItem('viki.backdrop') ?? 'viki-hall-main'
-    } catch {
-      return 'viki-hall-main'
-    }
-  })
-
-  const backdropRef = useRef('viki-hall-main')
+  // Camera + detector: only in the window that owns the camera.
   useEffect(() => {
-    backdropRef.current = backdrop
-  }, [backdrop])
+    if (!SETTINGS.camera) return
+    const instance = new PersonTracker({
+      hfov: SETTINGS.hfov,
+      cameraPosition: SETTINGS.cameraPosition,
+      cameraName: SETTINGS.cameraName,
+      onUpdate: (state) => {
+        setTrackerState(state)
+        publish({ present: state.present, person: state.person, count: state.boxes.length })
+      },
+    })
+    void instance.start()
+    // The tracker only exists once mounted; the panel draws its video.
+    // oxlint-disable-next-line react/set-state-in-effect
+    setTracker(instance)
+    return () => instance.stop()
+  }, [])
 
-  const cfg = useHeadConfig(faceRef)
-  const voice = useVoiceSession(faceRef, cfg.draft.speechDelay, cfg.style)
-  const { status } = voice
-
-  // Renderer lifecycle
+  // Testing without a camera: the pointer is the person, just in front of the wall.
   useEffect(() => {
-    if (!canvasRef.current) return
-    let face: HeadRenderer | null = null
-    const debugWindow = window as unknown as { __viki?: () => unknown; __vikiFace?: unknown }
-    try {
-      const renderer = cfg.style === 'leira'
-        ? new LeiraFace(canvasRef.current)
-        : new ParticleFace(canvasRef.current, { debugFace: DEBUG_FACE })
-      face = renderer
-      if (renderer instanceof ParticleFace && cfg.style !== 'leira') renderer.setStyle(cfg.style)
-      renderer.applyConfig(loadConfig(cfg.style))
-      applyUrlPreview(renderer, STATE_FORM.speaking)
-      renderer.setBackdrop(backdropRef.current)
-      faceRef.current = renderer
-      debugWindow.__viki = () => renderer.debug()
-      debugWindow.__vikiFace = renderer
-      // Renderer availability is only known after mounting its canvas.
-      // oxlint-disable-next-line react/set-state-in-effect
-      setVisualUnavailable(false)
-    } catch (error) {
-      face?.dispose()
-      face = null
-      faceRef.current = null
-      setVisualUnavailable(true)
-      console.warn('[viki] 3D visualization unavailable; continuing without it.', error)
+    if (!SETTINGS.mouse) return
+    const { spacing } = SETTINGS
+    let pointer: { x: number; y: number } | null = null
+    const onMove = (event: PointerEvent) => {
+      pointer = { x: event.clientX / window.innerWidth, y: event.clientY / window.innerHeight }
     }
+    // Sent at a steady rate like the camera, so a resting pointer is not taken for a lost camera.
+    const timer = window.setInterval(() => {
+      if (!pointer) return
+      const wallWidth = (SETTINGS.wall ? 3 : 1) * spacing.x
+      const wallHeight = (SETTINGS.wall ? 3 : 1) * spacing.y
+      publish({
+        present: true,
+        person: { x: (pointer.x - 0.5) * wallWidth, y: (0.5 - pointer.y) * wallHeight, z: SETTINGS.wall ? 0.25 : 1.5 },
+        count: 1,
+      })
+    }, 100)
+    window.addEventListener('pointermove', onMove)
     return () => {
-      face?.dispose()
-      faceRef.current = null
-      delete debugWindow.__viki
-      delete debugWindow.__vikiFace
+      window.clearInterval(timer)
+      window.removeEventListener('pointermove', onMove)
     }
-  }, [cfg.style])
+  }, [])
 
-  // A scene switch shuts the previous head down: preview off, session closed.
-  // Each head is woken in its own scene and never inherits a running one.
-  const chooseStyle = (next: Parameters<typeof cfg.chooseStyle>[0]) => {
-    setPreviewSpeech(false)
-    voice.disconnect()
-    cfg.chooseStyle(next)
-  }
-
-  // Map voice status → formation of the lattice + mouth source.
-  // While the configurator is open the face is forced into its active look.
   useEffect(() => {
-    const face = faceRef.current
-    const lipRef = voice.lipRef
-    if (!face || PREVIEW) return
-    face.setActive(cfg.configOpen || previewSpeech || (status !== 'idle' && status !== 'error'))
-    if (cfg.configOpen) {
-      face.setTarget({ face: 1, turb: 0, forward: 1 })
-      face.setExpression('neutral')
-      const t0 = performance.now()
-      face.setMouthSource(
-        lipRef.current ? () => lipRef.current?.sample() ?? null : testSpeech ? () => fakeTalk(t0) : null,
-      )
-      return
+    const onKey = (event: KeyboardEvent) => {
+      if (event.key === 'd' || event.key === 'D') setPreview((v) => !v)
+      if (event.key === 'f' || event.key === 'F') {
+        if (document.fullscreenElement) void document.exitFullscreen()
+        else void document.documentElement.requestFullscreen().catch(() => {})
+      }
     }
-    if (previewSpeech) {
-      face.setTarget(STATE_FORM.speaking)
-      face.setExpression('neutral')
-      const t0 = performance.now()
-      face.setMouthSource(() => fakeTalk(t0))
-      return
-    }
-    face.setTarget(STATE_FORM[status])
-    if (status === 'thinking') face.setExpression('thinking')
-    // Audio can still be playing after the server's buffer-stopped event.
-    // Let the detector's audio clock carry the final lips and close on silence.
-    face.setMouthSource(lipRef.current && !['idle', 'error', 'connecting'].includes(status) ? () => lipRef.current?.sample() ?? null : null)
-  }, [status, cfg.style, cfg.configOpen, testSpeech, previewSpeech, voice.lipRef])
-
-  // Flip between the two halls behind the VIKI scene
-  const toggleBackdrop = () => {
-    const next = backdrop === 'viki-hall-main' ? 'viki-hall' : 'viki-hall-main'
-    setBackdrop(next)
-    try {
-      localStorage.setItem('viki.backdrop', next)
-    } catch {
-      /* ignore */
-    }
-    faceRef.current?.setBackdrop(next)
-  }
-
-  // The speech delay slider acts on the live output line
-  useEffect(() => {
-    voice.lipRef.current?.setDelay(cfg.draft.speechDelay)
-  }, [cfg.draft.speechDelay, voice.lipRef])
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [])
 
   return (
-    <div className={`hero${!visualUnavailable && cfg.style === 'lattice' && cfg.draft.optical ? ' film-look' : ''}${cfg.configOpen ? ' configuring' : ''}${status === 'idle' && !PREVIEW && !previewSpeech ? ' dormant' : ''}`}>
-      <canvas ref={canvasRef} style={visualUnavailable ? { display: 'none' } : undefined} />
-
-      <div className={`hud${cfg.configOpen ? ' config-open' : ''}`}>
-        <HudHeader
-          title={STYLES.find((s) => s.id === cfg.style)?.title ?? 'V.I.K.I.'}
-          subtitle={STYLES.find((s) => s.id === cfg.style)?.subtitle ?? ''}
-          statusClass={status}
-          statusLabel={PREVIEW || previewSpeech ? 'ANIMATION PREVIEW' : STATUS_LABEL[status]}
-          configOpen={cfg.configOpen}
-          onConfigure={cfg.openConfig}
-          onBackdrop={cfg.style === 'viki' ? toggleBackdrop : undefined}
-        />
-
-        <RadialMenu style={cfg.style} onSelect={chooseStyle} onDocs={() => setDocsOpen(true)} />
-
-        <Captions userText={voice.userText} assistantText={voice.assistantText} hold={status === 'thinking' || status === 'speaking'} />
-
-        <footer className="hud-bottom">
-          {visualUnavailable && (
-            <p className="visual-notice" role="status">
-              3D visualization unavailable in this browser. You can still use the microphone and captions.
-            </p>
-          )}
-          {voice.error && <p className="error">{voice.error}</p>}
-          <MicControl
-            connected={voice.connected}
-            busy={voice.busy}
-            hidePreview={Boolean(PREVIEW)}
-            visualUnavailable={visualUnavailable}
-            simpleHead={cfg.style === 'leira'}
-            previewSpeech={previewSpeech}
-            orbRef={voice.orbRef}
-            onToggle={
-              voice.connected || voice.busy
-                ? voice.disconnect
-                : () => {
-                    setPreviewSpeech(false)
-                    void voice.connect()
-                  }
-            }
-            onTogglePreview={() => setPreviewSpeech((v) => !v)}
-          />
-        </footer>
-
-        {cfg.configOpen && (
-          <ConfigPanel
-            style={cfg.style}
-            draft={cfg.draft}
-            dirty={cfg.dirty}
-            testSpeech={testSpeech}
-            onChange={(patch) => cfg.setDraft((d) => ({ ...d, ...patch }))}
-            onTestSpeech={setTestSpeech}
-            onSave={cfg.saveDraft}
-            onReset={cfg.resetConfig}
-            onClose={() => {
-              setTestSpeech(false)
-              cfg.closeConfig()
-            }}
-          />
-        )}
-      </div>
-
-      <Imprint />
-
-      {docsOpen && <DocsPage onClose={() => setDocsOpen(false)} />}
-
-    </div>
+    <main className={SETTINGS.wall ? 'wall' : 'single'}>
+      {SETTINGS.slot === null
+        ? SLOTS.map((_, slot) => <Slot key={slot} slot={slot} />)
+        : <Slot slot={SETTINGS.slot} />}
+      {SETTINGS.camera && preview && <TrackerPanel state={trackerState} video={tracker?.video ?? null} />}
+    </main>
   )
 }

@@ -334,7 +334,7 @@ export function createHeadUniforms() {
 
 /** Push the shape part of a config into the shared uniforms. */
 export function applyShapeConfig(u: HeadUniforms, cfg: HeadConfig) {
-  u.uLighting.value = cfg.lighting === 'soft' ? 0 : cfg.lighting === 'viki' ? 2 : 1
+  u.uLighting.value = cfg.lighting === 'soft' ? 0 : 1
   u.uLightFill.value = cfg.lightFill
   const elevation = THREE.MathUtils.degToRad(cfg.lightElevation)
   u.uKeyDirection.value.set(cfg.lighting === 'cinema' ? -0.10 : 0, Math.sin(elevation), Math.cos(elevation)).normalize()

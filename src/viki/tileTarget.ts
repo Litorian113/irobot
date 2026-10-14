@@ -1,10 +1,10 @@
-/** Shared target sampling keeps simulated tiles attached to the live speaking face. */
+/** Where each tile sits on the live face. Tiles outside the head are not drawn. */
 export const TILE_TARGET_GLSL = /* glsl */ `
 uniform sampler2D uFront, uBack;
-uniform float uCell, uFill, uStep, uTime, uVariation, uExtent, uCenterY, uFloor;
+uniform float uCell, uFill, uStep, uTime, uVariation, uExtent, uCenterY;
 uniform vec3 uHeadOffset, uHeadScale;
 float hash(vec2 p) { return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453); }
-struct TileTarget { vec3 head; vec3 rest; float valid; float free; float seed; };
+struct TileTarget { vec3 head; float valid; float free; float seed; };
 TileTarget tileTarget(vec2 aCell, float aBack) {
   vec2 uv = aCell * 0.5 + 0.5;
   vec4 face = texture2D(uFront, uv);
@@ -19,7 +19,7 @@ TileTarget tileTarget(vec2 aCell, float aBack) {
   float zBack = floor(rear.r / uStep) * uStep;
   if (aBack > 0.5) valid *= step(0.35, rear.b);
   vec3 assembled = vec3(cellPosition, mix(zFront, zBack, aBack));
-  // The crown opens into scattered flakes; the facial landmarks stay intact.
+  // The crown opens into a few flakes hovering around the head; the facial landmarks stay intact.
   float crown = smoothstep(0.85, 1.15, localY);
   float loose = step(seed, crown * (0.65 + uVariation * 0.45));
   loose = max(loose, step(0.996, r3));
@@ -28,49 +28,10 @@ TileTarget tileTarget(vec2 aCell, float aBack) {
     uCenterY + sin(orbit) * uExtent * 0.72, (r3 - 0.5) * 0.7);
   floating += vec3(sin(uTime * 0.32 + r2 * 30.0),
     sin(uTime * 0.5 + r3 * 20.0), cos(uTime * 0.3 + r2 * 10.0)) * 0.025;
-  // One wide, flat carpet of tiles. Every tile keeps its resting place.
-  float radius = sqrt(seed) * uExtent * 0.92;
-  float angle = r2 * 6.283185;
-  vec3 resting = vec3(cos(angle) * radius,
-    uFloor + 0.02 + hash(aCell + 25.0) * 0.05,
-    sin(angle) * radius * 0.55);
-  // Most missing crown pieces stay on the floor; only a few hover nearby.
   float hovering = step(0.84, hash(aCell + 42.9 + aBack));
-  assembled = mix(assembled, mix(resting, floating, hovering), loose);
-
-  // Cells far outside the head carpet the whole scene width instead: they ride
-  // the levitation up and rain back down, so the ground reads as one plane.
-  // The 0.06..0.35 mask band stays hidden - speech only wobbles the silhouette
-  // there, and those cells must never flip between head and floor.
-  // The outside test is dilated by three cells in every direction on both
-  // depth maps: speech moves the jaw silhouette a little, and a dweller whose
-  // classification flickered with the mouth would leap between floor and face.
-  float e = 3.0 * uCell / (2.0 * uExtent);
-  float mask = max(face.b, rear.b);
-  mask = max(mask, max(texture2D(uFront, uv + vec2(e, 0.0)).b, texture2D(uFront, uv - vec2(e, 0.0)).b));
-  mask = max(mask, max(texture2D(uFront, uv + vec2(0.0, e)).b, texture2D(uFront, uv - vec2(0.0, e)).b));
-  vec2 ruv = vec2(1.0 - uv.x, uv.y);
-  mask = max(mask, max(texture2D(uBack, ruv + vec2(e, 0.0)).b, texture2D(uBack, ruv - vec2(e, 0.0)).b));
-  mask = max(mask, max(texture2D(uBack, ruv + vec2(0.0, e)).b, texture2D(uBack, ruv - vec2(0.0, e)).b));
-  // Only a sparse handful of the outside cells become dwellers, and their
-  // spread varies per tile so the scatter reads as random debris, not a block.
-  float keep = step(0.85, hash(aCell + 63.3 + aBack));
-  float dweller = max(step(mask, 0.06), 1.0 - step(-0.11, localY)) * keep;
-  float u1 = hash(aCell + 31.7 + aBack);
-  float u2 = hash(aCell.yx + 57.1 + aBack);
-  float u3 = hash(aCell * 1.7 + 9.1 + aBack);
-  vec3 planeRest = vec3((u1 - 0.5) * uExtent * (4.2 + u3 * 1.8),
-    uFloor + 0.02 + u3 * 0.05,
-    (u2 - 0.5) * uExtent * (1.0 + u1 * 1.6));
-  resting = mix(resting, planeRest, dweller);
-  assembled = mix(assembled, planeRest, dweller);
-  valid = max(valid, dweller);
-
-  return TileTarget(assembled, resting, valid, loose * hovering * (1.0 - dweller), seed);
-}
-// A flat collision bed: tiles land and stay wherever they hit the ground,
-// so the carpet spreads evenly instead of forming mounds or craters.
-float tileFloor(vec2 p) {
-  return uFloor + uCell * 0.75;
+  assembled = mix(assembled, floating, loose);
+  // Loose pieces that do not hover are simply left out.
+  valid *= 1.0 - loose * (1.0 - hovering);
+  return TileTarget(assembled, valid, loose, seed);
 }
 `;

@@ -5,6 +5,8 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
+    "dev:lan": "vite --host 0.0.0.0",
+    "wall": "npm run build && vite preview --host 0.0.0.0 --port 8080 --strictPort",
     "dev:https": "VIKI_HTTPS=1 vite --host 0.0.0.0",
     "build": "tsc -b && vite build",
     "lint": "oxlint",
@@ -12,6 +14,7 @@
     "preview": "vite preview"
   },
   "dependencies": {
+    "onnxruntime-web": "^1.30.0",
     "react": "^19.2.8",
     "react-dom": "^19.2.8",
     "three": "^0.180.0"
@@ -21,10 +24,12 @@
     "@types/react": "^19.2.18",
     "@types/react-dom": "^19.2.4",
     "@types/three": "^0.180.0",
+    "@types/ws": "^8.18.2",
     "@vitejs/plugin-basic-ssl": "^2.3.0",
     "@vitejs/plugin-react": "^6.1.0",
     "oxlint": "^1.79.0",
     "typescript": "~6.0.2",
-    "vite": "^8.2.2"
+    "vite": "^8.2.2",
+    "ws": "^8.22.0"
   }
 }

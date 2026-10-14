@@ -67,9 +67,9 @@ export class SceneBackdrop {
     this.mesh.visible = false
   }
 
-  /** Only the Dust studio uses the line-art wall; Max and VIKI have photo backdrops. */
-  setStyle(style: string) {
-    this.mesh.visible = style === 'dust'
+  /** Both heads stand in front of the same quiet line-art wall. */
+  setStyle() {
+    this.mesh.visible = true
     const u = this.material.uniforms
     ;(u.uBase.value as THREE.Color).set(0x02050c)
     ;(u.uLine.value as THREE.Color).set(0x0a1322)

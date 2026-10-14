@@ -14,6 +14,7 @@ ${HEAD_DEFORM_GLSL}
 ${HEAD_MORPH_GLSL}
 varying vec3 vNormal;
 varying vec3 vPos;
+varying vec3 vHead;
 varying vec3 vLocal;
 varying float vHair;
 void main() {
@@ -21,11 +22,15 @@ void main() {
   float hair;
   ${HEAD_MORPH_INPUT_GLSL}
   deformHead(transformed, objectNormal, q, l, nw, hair);
-  vPos = q;
+  // The model matrix turns the head towards its gaze. Lighting and the key
+  // shadow stay in the unturned head frame, so the light travels with the face.
+  vec4 turned = modelMatrix * vec4(q, 1.0);
+  vPos = turned.xyz;
+  vHead = q;
   vLocal = l;
   vNormal = nw;
   vHair = hair;
-  gl_Position = projectionMatrix * viewMatrix * vec4(q, 1.0);
+  gl_Position = projectionMatrix * viewMatrix * turned;
 }
 `
 
@@ -35,12 +40,13 @@ ${HEAD_PAINT_GLSL}
 varying float vFeature;
 varying vec3 vNormal;
 varying vec3 vPos;
+varying vec3 vHead;
 varying vec3 vLocal;
 varying float vHair;
 void main() {
   if (headCoverage(vLocal) < 0.5) discard;
   float cav, maskv;
-  float lum = paintLum(vLocal, normalize(vNormal), vPos, vHair, vFeature, cav, maskv);
+  float lum = paintLum(vLocal, normalize(vNormal), vHead, vHair, vFeature, cav, maskv);
   float depth = vPos.z - 0.2 * cav;
   gl_FragColor = vec4(depth, lum * maskv, maskv, vPos.x);
 }
@@ -58,6 +64,7 @@ export class FacePass {
   private scene = new THREE.Scene()
   private material: THREE.ShaderMaterial
   private head: THREE.Mesh | null = null
+  private look = new THREE.Matrix4()
   private tmpColor = new THREE.Color()
 
   constructor(uniforms: HeadUniforms, size = 256) {
@@ -91,8 +98,16 @@ export class FacePass {
     const head = new THREE.Mesh(geometry, this.material)
     if (influences) head.morphTargetInfluences = influences
     head.frustumCulled = false
+    head.matrixAutoUpdate = false
+    head.matrix.copy(this.look)
     this.head = head
     this.scene.add(head)
+  }
+
+  /** Turn the captured head (pivot already baked into the matrix). */
+  setLook(matrix: THREE.Matrix4) {
+    this.look.copy(matrix)
+    this.head?.matrix.copy(matrix)
   }
 
   setFraming(extent: number, centerY: number) {
