@@ -17,7 +17,14 @@ export type DetectorResponse =
   | { type: 'result'; boxes: Box[]; ms: number }
   | { type: 'error'; message: string }
 
+// ONNX Runtime would start its CPU threads as extra workers from *this* bundled
+// file, which then never answer and the session hangs. One thread is plenty
+// for a 320px nano model, and WebGPU does not need them at all.
+ort.env.wasm.numThreads = 1
+
 const PERSON = 0
+/** A backend that has not started by then is skipped. */
+const START_TIMEOUT_MS = 20000
 const SCORE = 0.4
 const NMS_IOU = 0.45
 
@@ -40,9 +47,7 @@ async function init(modelUrl: string, inputSize: number) {
   let lastError: unknown = null
   for (const provider of providers) {
     try {
-      session = await ort.InferenceSession.create(model, { executionProviders: [provider], graphOptimizationLevel: 'all' })
-      // One warm-up run compiles the GPU kernels before the first real frame.
-      await session.run({ [session.inputNames[0]]: new ort.Tensor('float32', input, [1, 3, size, size]) })
+      session = await withTimeout(start(model, provider), `${provider} did not start`)
       post({ type: 'ready', provider })
       return
     } catch (error) {
@@ -51,6 +56,20 @@ async function init(modelUrl: string, inputSize: number) {
     }
   }
   throw lastError
+}
+
+async function start(model: Uint8Array, provider: string) {
+  const created = await ort.InferenceSession.create(model, { executionProviders: [provider], graphOptimizationLevel: 'all' })
+  // One warm-up run compiles the GPU kernels before the first real frame.
+  await created.run({ [created.inputNames[0]]: new ort.Tensor('float32', input!, [1, 3, size, size]) })
+  return created
+}
+
+function withTimeout<T>(promise: Promise<T>, message: string) {
+  return new Promise<T>((resolve, reject) => {
+    const timer = setTimeout(() => reject(new Error(message)), START_TIMEOUT_MS)
+    promise.then((value) => { clearTimeout(timer); resolve(value) }, (error: unknown) => { clearTimeout(timer); reject(error) })
+  })
 }
 
 async function detect(bitmap: ImageBitmap) {

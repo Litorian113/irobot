@@ -11,17 +11,27 @@
     <script>
       // Plain ES5 on purpose: old browsers stop at the app's syntax and stay black.
       // Tell whoever stands in front of the screen what to do instead.
+      // WebGL 1 is enough: the 2009/2010 iMac GPUs cannot do WebGL 2 at all.
       (function () {
-        var webgl2 = false
+        var webgl = false
         var modern = false
-        try { webgl2 = !!document.createElement('canvas').getContext('webgl2') } catch (e) {}
+        try {
+          var canvas = document.createElement('canvas')
+          webgl = !!(canvas.getContext('webgl2') || canvas.getContext('webgl'))
+        } catch (e) {}
         try { new Function('var a = {}; return a?.b ?? 1')(); modern = true } catch (e) {}
-        if (webgl2 && modern) return
+        if (webgl && modern) return
+        var problem = !modern
+          ? 'Dieser Browser ist zu alt.'
+          : '3D-Grafik (WebGL) ist in diesem Browser gesperrt.'
+        var fix = !modern
+          ? 'Bitte diese Seite in <b>Firefox ESR 78</b> öffnen. Safari auf OS X 10.11 kann sie nicht darstellen.'
+          : 'In Firefox: <b>about:config</b> öffnen, <b>webgl.force-enabled</b> auf <b>true</b> setzen und neu laden.'
         var box = document.createElement('div')
         box.setAttribute('style', 'position:fixed;top:0;right:0;bottom:0;left:0;padding:8vh 8vw;background:#fff;color:#111;font:24px/1.4 Helvetica,Arial,sans-serif;z-index:99')
-        box.innerHTML = '<h1 style="margin:0 0 0.6em;font-size:40px">Dieser Browser ist zu alt.</h1>'
-          + '<p>Bitte diese Seite in <b>Firefox ESR 78</b> (oder Chrome 103) öffnen. Safari auf OS X 10.11 kann die 3D-Köpfe nicht darstellen.</p>'
-          + '<p style="color:#666;font-size:18px">' + (webgl2 ? 'WebGL 2: ja' : 'WebGL 2: nein') + ' · ' + (modern ? 'JavaScript: ok' : 'JavaScript: zu alt') + '<br>' + navigator.userAgent + '</p>'
+        box.innerHTML = '<h1 style="margin:0 0 0.6em;font-size:40px">' + problem + '</h1>'
+          + '<p>' + fix + '</p>'
+          + '<p style="color:#666;font-size:18px">' + (webgl ? 'WebGL: ja' : 'WebGL: nein') + ' · ' + (modern ? 'JavaScript: ok' : 'JavaScript: zu alt') + '<br>' + navigator.userAgent + '</p>'
         document.body.appendChild(box)
       })()
     </script>

@@ -33,8 +33,9 @@ export class DustRadialBlur extends ShaderPass {
         varying vec2 vUv;
 
         void main() {
-          // Integer fetch avoids even a subpixel resample in the protected center.
-          vec4 original = texelFetch(tDiffuse, ivec2(gl_FragCoord.xy), 0);
+          // Sampling the exact texel center avoids even a subpixel resample in the
+          // protected center (texelFetch would need WebGL 2).
+          vec4 original = texture2D(tDiffuse, (floor(gl_FragCoord.xy) + 0.5) * uTexel);
           vec2 ray = vUv - uCenter;
           float radius = length(ray / uRadius);
           float edge = smoothstep(0.58, 1.15, radius);

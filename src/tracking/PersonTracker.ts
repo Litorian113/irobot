@@ -40,7 +40,7 @@ const VIDEO = { width: { ideal: 1280 }, height: { ideal: 720 }, frameRate: { ide
  */
 export class PersonTracker {
   readonly video = document.createElement('video')
-  private worker: Worker
+  private worker: Worker | null = null
   private stream: MediaStream | null = null
   private stopped = false
   private busy = false
@@ -54,13 +54,13 @@ export class PersonTracker {
     this.opts = opts
     this.video.muted = true
     this.video.playsInline = true
-    this.worker = new Worker(new URL('./detector.worker.ts', import.meta.url), { type: 'module' })
-    this.worker.onmessage = (event: MessageEvent<DetectorResponse>) => this.onWorker(event.data)
-    this.worker.onerror = (event) => this.fail(event.message || 'Detector worker failed')
   }
 
   async start() {
     try {
+      this.worker = new Worker(new URL('./detector.worker.ts', import.meta.url), { type: 'module' })
+      this.worker.onmessage = (event: MessageEvent<DetectorResponse>) => this.onWorker(event.data)
+      this.worker.onerror = (event) => this.fail(event.message || 'Detector worker failed')
       this.send({ type: 'init', modelUrl: new URL(MODEL_URL, location.href).href, size: MODEL_SIZE })
       this.stream = await navigator.mediaDevices.getUserMedia({ video: VIDEO, audio: false })
       // Camera names are only readable after permission, so choose once the first one is open.
@@ -89,7 +89,7 @@ export class PersonTracker {
   stop() {
     this.stopped = true
     clearTimeout(this.timer)
-    this.worker.terminate()
+    this.worker?.terminate()
     this.releaseCamera()
   }
 
@@ -100,7 +100,7 @@ export class PersonTracker {
   }
 
   private send(message: DetectorRequest, transfer: Transferable[] = []) {
-    this.worker.postMessage(message, transfer)
+    this.worker?.postMessage(message, transfer)
   }
 
   private fail(message: string) {

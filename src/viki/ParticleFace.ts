@@ -360,6 +360,7 @@ export class ParticleFace {
   debug() {
     return {
       style: this.style,
+      webgl: this.renderer.capabilities.isWebGL2 ? 2 : 1,
       headLoaded: this.headLoaded,
       yaw: Number(this.yaw.toFixed(3)),
       pitch: Number(this.pitch.toFixed(3)),

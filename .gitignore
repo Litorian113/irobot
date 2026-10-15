@@ -25,3 +25,6 @@ dist-ssr
 
 .env
 
+
+# Firefox download for the USB stick (npm run usb)
+kiosk/.cache

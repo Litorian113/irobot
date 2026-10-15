@@ -8,12 +8,6 @@ import { WebSocket, WebSocketServer } from 'ws'
 /** The middle screen (see src/wall.ts): the promo, with the camera above it. */
 const PROMO_SLOT = 4
 
-// Cross-origin isolation lets the detector use several CPU threads when WebGPU is missing.
-const isolation = {
-  'Cross-Origin-Opener-Policy': 'same-origin',
-  'Cross-Origin-Embedder-Policy': 'require-corp',
-}
-
 /**
  * The gaze relay: the camera window sends where the person is to `/gaze`,
  * and every screen on the network receives it. Runs inside `vite` and `vite preview`.
@@ -68,8 +62,6 @@ export default defineConfig(({ mode }) => {
   const https = env.VIKI_HTTPS === '1' || process.env.VIKI_HTTPS === '1'
   return {
     plugins: [react(), gazeRelay(), ...(https ? [basicSsl()] : [])],
-    server: { headers: isolation },
-    preview: { headers: isolation },
     // The iMacs run OS X 10.11: Chrome 103 at most (Firefox ESR 78 as a fallback).
     build: { target: ['chrome87', 'firefox78', 'safari14'] },
     // ONNX Runtime locates its .wasm files next to its own module; pre-bundling would move it.

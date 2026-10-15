@@ -15,7 +15,7 @@ const heads = new Map<number, ParticleFace>()
 
 export default function HeadCell({ slot, preset }: { slot: number; preset: SlotPreset }) {
   const canvasRef = useRef<HTMLCanvasElement>(null)
-  const [fps, setFps] = useState<number | null>(null)
+  const [stats, setStats] = useState<string | null>(null)
 
   useEffect(() => {
     if (!canvasRef.current) return
@@ -62,7 +62,10 @@ export default function HeadCell({ slot, preset }: { slot: number; preset: SlotP
     }
     const timer = window.setInterval(steer, 1000 / 15)
     steer()
-    const statsTimer = SETTINGS.stats ? window.setInterval(() => setFps(face.debug().renderedFps), 1000) : 0
+    const statsTimer = SETTINGS.stats ? window.setInterval(() => {
+      const info = face.debug()
+      setStats(`WebGL ${info.webgl} · ${info.renderedFps} fps`)
+    }, 1000) : 0
 
     return () => {
       window.clearInterval(timer)
@@ -76,7 +79,7 @@ export default function HeadCell({ slot, preset }: { slot: number; preset: SlotP
   return (
     <div className="cell">
       <canvas ref={canvasRef} />
-      {fps !== null && <span className="cell-stats">{fps} fps</span>}
+      {stats && <span className="cell-stats">{stats}</span>}
     </div>
   )
 }

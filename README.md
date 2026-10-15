@@ -41,7 +41,25 @@ Auf jedem iMac den passenden Link öffnen und mit `F` auf Vollbild schalten. Die
 von selbst neu, wenn der Server kurz weg war.
 
 Netzwerk: Die iMacs hängen über den Switch in einem eigenen Netz (192.168.0.x, feste IPs). Der Kamera-Rechner
-braucht dort per Kabel eine feste Adresse, z.B. 192.168.0.100 / 255.255.255.0, ohne Router.
+braucht dort per Kabel immer die Adresse **192.168.0.100** / 255.255.255.0, ohne Router. Auf diese Adresse
+sind alle Bildschirme eingerichtet.
+
+## iMacs einrichten (USB-Stick, nur Maus)
+
+```
+npm run usb -- /Volumes/MEINSTICK
+```
+
+legt `HfG-Koepfe/` mit Firefox 78 und `HfG-Koepfe-Setup.command` auf den Stick. Am iMac: Stick einstecken,
+`HfG-Koepfe-Setup.command` doppelklicken, Platz auswählen (bekannte iMacs sind anhand der IP vorausgewählt,
+siehe `known_slot` im Skript). Das Skript
+
+- installiert Firefox 78 nach `~/Applications/Firefox HfG.app`, ohne Updates und Begrüßung, mit freigeschaltetem WebGL,
+- legt **HfG Köpfe** und **HfG Köpfe beenden** auf den Schreibtisch,
+- startet die Seite bei jeder Anmeldung im Vollbild, wartet dafür auf den Server, hält den Bildschirm wach
+  und startet Firefox nach einem Absturz neu (nach Cmd+Q nicht).
+
+Erneut ausführen, um den Platz zu ändern. Kein Admin-Passwort nötig.
 
 ## Am Laptop ausprobieren
 

@@ -59,6 +59,8 @@ export class SceneBackdrop {
           gl_FragColor = vec4(color, 1.0);
         }`,
       depthWrite: false,
+      // fwidth() is an extension under WebGL 1 (the old iMac GPUs).
+      extensions: { derivatives: true },
     })
     this.mesh = new THREE.Mesh(new THREE.PlaneGeometry(30, 16), this.material)
     this.mesh.position.z = -6

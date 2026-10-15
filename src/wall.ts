@@ -62,8 +62,12 @@ const cameraY = numberParam('cameray', wall ? 0.11 : 0.3)
 export const SETTINGS = {
   slot,
   wall,
-  /** Run the camera + detector in this window. */
-  camera: flagParam('camera', wall),
+  /**
+   * Run the camera + detector in this window. Only where a camera can open at all
+   * (http://localhost on the camera machine): a screen reached over the network
+   * just shows its slot, whatever the link says.
+   */
+  camera: flagParam('camera', wall) && window.isSecureContext && Boolean(navigator.mediaDevices),
   /** The pointer stands in for a person (testing without a camera). */
   mouse: flagParam('mouse', false),
   /** Show the camera preview with detections (toggle with D). */
