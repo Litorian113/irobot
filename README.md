@@ -67,8 +67,16 @@ Erneut ausführen, um den Platz zu ändern. Kein Admin-Passwort nötig.
 npm run dev
 ```
 
-`http://localhost:5173/` zeigt die ganze Wand auf einem Bildschirm, mit Kameravorschau unten links.
-Die externe Webcam wird automatisch der eingebauten vorgezogen.
+`http://localhost:5173/` öffnet die Arbeitsseite mit zwei Tabs:
+
+- **Köpfe**: die 8 Köpfe der Wand, immer nur einer gerendert, im iMac-Format 16:9. Der Kopf folgt der Maus.
+  „WebGL 1 testen" rendert wie auf den alten iMacs. Leere Plätze zeigen, welcher Kopf dort fehlt.
+- **Wand**: alle 9 Bildschirme mit Kamera und Kameravorschau unten links. Die externe Webcam wird
+  der eingebauten vorgezogen. Kamera und Erkennung laufen nur, solange dieser Tab offen ist.
+
+Neue Köpfe kommen in `src/heads/designs.ts`: ein Eintrag mit Name und einer `create`-Funktion, die ein
+`HeadView` liefert (`src/heads/types.ts`). Bis ein Platz gebaut ist, zeigt die Wand dort eine
+M.A.X.- oder D.U.S.T.-Variante.
 
 ## URL-Parameter
 
@@ -91,7 +99,8 @@ Tasten: `D` Kameravorschau, `F` Vollbild.
 
 | | |
 |---|---|
-| `src/wall.ts` | welcher Kopf wo, Abstände, URL-Parameter |
+| `src/heads/designs.ts` | die 8 Köpfe: Name, Platz, Renderer |
+| `src/wall.ts` | Platzhalter-Varianten, Abstände, URL-Parameter |
 | `src/Promo.tsx` | alle Texte der Mitte |
 | `src/tracking/` | Kamera, YOLO-Worker, Blick-Geometrie, Sync |
 | `src/viki/ParticleFace.ts` | ein Kopf, der sich zu einem Punkt dreht |

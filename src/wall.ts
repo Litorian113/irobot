@@ -1,8 +1,17 @@
 import type { HeadConfig, HeadStyle } from './viki/config'
 import type { Vec3 } from './tracking/gaze'
+import { DESIGNS } from './heads/designs'
+import type { CreateHead, HeadDesign } from './heads/types'
+import { ParticleFace } from './viki/ParticleFace'
 
 /** The middle screen carries the HfG message instead of a head. */
 export const PROMO_SLOT = 4
+
+export const SLOT_NAMES = [
+  'oben links', 'oben Mitte', 'oben rechts',
+  'Mitte links', 'Mitte (Werbung)', 'Mitte rechts',
+  'unten links', 'unten Mitte', 'unten rechts',
+]
 
 export interface SlotPreset {
   style: HeadStyle
@@ -15,6 +24,7 @@ export interface SlotPreset {
 /**
  * The 3x3 wall, top-left to bottom-right: white Max and purple Dust in a
  * checkerboard, each with its own face so no two heads are the same.
+ * They stand in on every screen whose head (src/heads/designs.ts) is not built yet.
  */
 export const SLOTS: (SlotPreset | null)[] = [
   { style: 'lattice', stiffness: 5.0, delay: 0.05 },
@@ -84,3 +94,26 @@ export const SETTINGS = {
   /** `?style=dust` / `lattice` overrides the head of a single slot. */
   style: (['lattice', 'dust'] as const).find((s) => s === params.get('style')) ?? null,
 }
+
+/** What one screen of the wall shows. */
+export interface WallHead {
+  create: CreateHead
+  /** The designed head, or null while a Max / Dust variant stands in. */
+  design: HeadDesign | null
+  stiffness: number
+  delay: number
+}
+
+/** Built once per page: a new object would rebuild that head. */
+export const WALL_HEADS: (WallHead | null)[] = SLOTS.map((preset, slot) => {
+  if (!preset) return null
+  const design = SETTINGS.style ? undefined : DESIGNS.find((d) => d.slot === slot && d.create)
+  const style = SETTINGS.style ?? preset.style
+  const config = SETTINGS.style ? undefined : preset.config
+  return {
+    create: design?.create ?? ((canvas, options) => new ParticleFace(canvas, { ...options, style, config })),
+    design: design ?? null,
+    stiffness: preset.stiffness,
+    delay: preset.delay,
+  }
+})

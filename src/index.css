@@ -22,9 +22,68 @@ body,
   overflow: hidden;
 }
 
+/* ---------------------------------------------------------------- workbench */
+
+.app {
+  position: fixed;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.topbar {
+  display: flex;
+  align-items: center;
+  gap: 28px;
+  height: 44px;
+  padding: 0 16px;
+  border-bottom: 1px solid var(--ink-faint);
+  background: #000;
+  font-size: 12px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.brand {
+  color: var(--ink-dim);
+}
+
+.tabs {
+  display: flex;
+  gap: 4px;
+  height: 100%;
+}
+
+.tabs button {
+  padding: 0 14px;
+  border: 0;
+  border-bottom: 2px solid transparent;
+  background: none;
+  color: var(--ink-dim);
+  font: inherit;
+  letter-spacing: inherit;
+  text-transform: inherit;
+  cursor: pointer;
+}
+
+.tabs button:hover {
+  color: var(--ink);
+}
+
+.tabs button.active {
+  border-bottom-color: var(--ink);
+  color: var(--ink);
+}
+
+.app-content {
+  position: relative;
+  flex: 1;
+  min-height: 0;
+}
+
 /* The whole wall on one screen: a 3x3 grid with thin shelf-like gaps. */
 .wall {
-  position: fixed;
+  position: absolute;
   inset: 0;
   display: grid;
   grid-template: repeat(3, 1fr) / repeat(3, 1fr);
@@ -209,5 +268,189 @@ body,
 
 .tracker-hint {
   margin: 6px 0 0;
+  color: var(--ink-faint);
+}
+
+/* ------------------------------------------------------------------- studio */
+
+.studio {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  grid-template-columns: minmax(220px, 280px) 1fr;
+}
+
+.studio-list {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 12px;
+  overflow-y: auto;
+  border-right: 1px solid var(--ink-faint);
+}
+
+.studio-item {
+  display: grid;
+  grid-template-columns: 24px 1fr auto;
+  align-items: center;
+  gap: 10px;
+  padding: 10px;
+  border: 1px solid transparent;
+  background: none;
+  color: var(--ink);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.studio-item:hover {
+  background: rgba(255, 255, 255, 0.04);
+}
+
+.studio-item.active {
+  border-color: var(--ink-faint);
+  background: rgba(255, 255, 255, 0.07);
+}
+
+.studio-item.empty {
+  color: var(--ink-dim);
+}
+
+.studio-num {
+  font-size: 18px;
+  text-align: center;
+}
+
+.studio-text {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.studio-name {
+  font-size: 13px;
+}
+
+.studio-desc {
+  overflow: hidden;
+  font-size: 11px;
+  color: var(--ink-dim);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.slot-map {
+  display: grid;
+  grid-template-columns: repeat(3, 6px);
+  gap: 2px;
+}
+
+.slot-map span {
+  width: 6px;
+  height: 6px;
+  background: rgba(255, 255, 255, 0.15);
+}
+
+.slot-map span.promo {
+  background: rgba(255, 255, 255, 0.45);
+}
+
+.slot-map span.on {
+  background: #d58cff;
+}
+
+.studio-main {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  min-width: 0;
+  padding: 16px 24px;
+  overflow-y: auto;
+}
+
+.studio-bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.studio-bar h2 {
+  margin: 0;
+  font-size: 18px;
+  font-weight: 500;
+}
+
+.studio-bar p {
+  margin: 4px 0 0;
+  font-size: 12px;
+  color: var(--ink-dim);
+}
+
+.studio-toggle {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 12px;
+  cursor: pointer;
+}
+
+/* An iMac screen: 16:9, as large as the window allows. */
+.studio-screen {
+  position: relative;
+  width: min(100%, (100vh - 190px) * 16 / 9);
+  aspect-ratio: 16 / 9;
+  background: var(--bg);
+  outline: 1px solid var(--ink-faint);
+}
+
+.studio-screen canvas {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  display: block;
+}
+
+.studio-stats {
+  position: absolute;
+  top: 8px;
+  left: 10px;
+  font-size: 13px;
+  color: #7dff9a;
+}
+
+.studio-empty {
+  position: absolute;
+  inset: 24px;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  gap: 6px;
+  border: 1px dashed var(--ink-faint);
+  color: var(--ink-dim);
+  font-size: 13px;
+  text-align: center;
+}
+
+.studio-empty p {
+  margin: 0;
+}
+
+.studio-empty-title {
+  color: var(--ink);
+  font-size: 20px;
+}
+
+.studio-empty-code {
+  margin-top: 12px !important;
+  font-size: 12px;
+}
+
+.studio-hint {
+  margin: 0;
+  font-size: 11px;
   color: var(--ink-faint);
 }

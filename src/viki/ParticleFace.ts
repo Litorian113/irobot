@@ -14,6 +14,7 @@ import { LayeredPortrait } from './LayeredPortrait'
 import { HeadRig } from './HeadRig'
 import { HeadLight } from './HeadLight'
 import { DustRadialBlur } from './DustRadialBlur'
+import type { HeadView, HeadViewOptions } from '../heads/types'
 
 export type Expression = 'neutral' | 'happy' | 'curious'
 
@@ -25,17 +26,10 @@ export const EXPRESSIONS: Record<Expression, { smile: number; brow: number; eyeO
 
 type FaceState = (typeof EXPRESSIONS)[Expression]
 
-export interface FaceOptions {
+export interface FaceOptions extends HeadViewOptions {
   style: HeadStyle
   /** Per-head tweaks on top of the style defaults (shape, colours). */
   config?: Partial<HeadConfig>
-  /** Upper frame rate; several heads on one page share the GPU. */
-  fps?: number
-  maxPixelRatio?: number
-  /** Gaze spring: angular frequency in rad/s (higher = snappier). */
-  stiffness?: number
-  /** Seconds this head lags behind the gaze target, so the wall never moves in lockstep. */
-  delay?: number
 }
 
 const CAM_DIST = 4.2
@@ -81,7 +75,7 @@ const SoftClampShader = {
 const RATES: Record<keyof FaceState, number> = { smile: 3.0, brow: 3.0, eyeOpen: 6.0 }
 
 /** A single, always-formed head that turns to look at a point. */
-export class ParticleFace {
+export class ParticleFace implements HeadView {
   private renderer: THREE.WebGLRenderer
   private scene = new THREE.Scene()
   private camera: THREE.PerspectiveCamera
@@ -141,7 +135,10 @@ export class ParticleFace {
     this.delay = opts.delay ?? 0
     this.nextBlink = 1 + Math.random() * 4
 
-    this.renderer = new THREE.WebGLRenderer({ canvas, antialias: false, alpha: false, powerPreference: 'high-performance' })
+    const attributes: WebGLContextAttributes = { antialias: false, alpha: false, powerPreference: 'high-performance' }
+    // A WebGL 1 context handed in keeps three.js on its WebGL 1 path, as on the old iMacs.
+    const context = opts.webgl1 ? canvas.getContext('webgl', attributes) ?? undefined : undefined
+    this.renderer = new THREE.WebGLRenderer({ canvas, context, ...attributes })
     this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, opts.maxPixelRatio ?? 1.5))
     this.renderer.toneMapping = THREE.ACESFilmicToneMapping
     this.renderer.toneMappingExposure = 0.95

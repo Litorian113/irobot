@@ -1,33 +1,31 @@
 import { useEffect, useRef, useState } from 'react'
-import { ParticleFace } from './viki/ParticleFace'
+import type { HeadView } from './heads/types'
 import { subscribe, type GazeMessage } from './tracking/bus'
 import { lookAngles, slotPosition } from './tracking/gaze'
-import { SETTINGS, type SlotPreset } from './wall'
+import { SETTINGS, type WallHead } from './wall'
 
 /** Gaze messages older than this mean the camera window is gone. */
 const STALE_MS = 2000
 /** First they notice you (brows up), then they smile. */
 const NOTICE_MS = 1500
 
-const heads = new Map<number, ParticleFace>()
+const heads = new Map<number, HeadView>()
 ;(window as unknown as { __heads?: () => unknown }).__heads = () =>
   Object.fromEntries([...heads].map(([slot, face]) => [slot, face.debug()]))
 
-export default function HeadCell({ slot, preset }: { slot: number; preset: SlotPreset }) {
+export default function HeadCell({ slot, head }: { slot: number; head: WallHead }) {
   const canvasRef = useRef<HTMLCanvasElement>(null)
   const [stats, setStats] = useState<string | null>(null)
 
   useEffect(() => {
     if (!canvasRef.current) return
-    let face: ParticleFace
+    let face: HeadView
     try {
-      face = new ParticleFace(canvasRef.current, {
-        style: preset.style,
-        config: preset.config,
+      face = head.create(canvasRef.current, {
         fps: SETTINGS.fps,
         maxPixelRatio: SETTINGS.wall ? 1 : 1.5,
-        stiffness: preset.stiffness,
-        delay: preset.delay,
+        stiffness: head.stiffness,
+        delay: head.delay,
       })
     } catch (error) {
       console.warn(`[head ${slot}] WebGL unavailable`, error)
@@ -74,7 +72,7 @@ export default function HeadCell({ slot, preset }: { slot: number; preset: SlotP
       heads.delete(slot)
       face.dispose()
     }
-  }, [slot, preset])
+  }, [slot, head])
 
   return (
     <div className="cell">
