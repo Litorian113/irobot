@@ -313,13 +313,16 @@ for k, centre in enumerate(centres):
 # neck, then shoulders that slope down and out of the frame - no tube, no cut-off edges.
 SHOULDER_RINGS = [
     # (outward from the neck, height relative to the cut, widening to the sides, widening front/back)
-    (0.03, 0.32, 0.0, 0.0),
-    (0.12, 0.34, 0.0, 0.0),
-    (0.14, -0.02, 0.0, 0.0),
-    (0.14, -0.25, 0.75, 0.12),
-    (0.14, -0.6, 1.45, 0.28),
-    (0.14, -1.1, 1.95, 0.42),
-    (0.14, -2.2, 2.3, 0.55),
+    # A slim roll collar, then shoulders that slope gently and round off into the arms.
+    (0.02, 0.26, 0.0, 0.0),
+    (0.06, 0.28, 0.0, 0.0),
+    (0.07, 0.0, 0.0, 0.0),
+    (0.07, -0.1, 0.3, 0.06),
+    (0.07, -0.24, 0.7, 0.14),
+    (0.07, -0.38, 0.95, 0.2),
+    (0.07, -0.58, 1.08, 0.25),
+    (0.07, -0.95, 1.12, 0.28),
+    (0.07, -2.2, 1.08, 0.28),
 ]
 neck_loop = min((loop for loop in boundary_loops(low_tris.tolist())), key=lambda loop: low[loop][:, 1].mean())
 rim = low[neck_loop]

@@ -2,8 +2,9 @@ import * as THREE from 'three'
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js'
 import { GazeSpring } from '../GazeSpring'
 import type { Expression, HeadView, HeadViewOptions } from '../types'
-import { drawFace, drawTorso, FACE_WIDTH, faceScale, TORSO_SIZE, type FaceState } from './prints'
-import { PASS_VERTEX, PLATE_FRAGMENT, SMOKE_FRAGMENT, SMOKE_VERTEX } from './shaders'
+import { drawFace, drawTorso, FACE_SIZE, TORSO_SIZE, type FaceState } from './prints'
+import { PASS_VERTEX, SMOKE_FRAGMENT, SMOKE_VERTEX, STUDIO_FRAGMENT } from './shaders'
+import { colaniTruck } from './truck'
 
 /**
  * C.O.L.A.N.I. - Luigi Colani as a building-brick minifigure: the classic
@@ -11,7 +12,8 @@ import { PASS_VERTEX, PLATE_FRAGMENT, SMOKE_FRAGMENT, SMOKE_VERTEX } from './sha
  * eyes, the huge drooping moustache), sculpted hair combed back into long
  * locks going grey at the temples, a fat cigar in the corner of his mouth, a
  * white turtleneck. The face changes the way a minifigure's does - a
- * different print - and now and then he spins his head right round.
+ * different print - and now and then he spins his head right round. Behind
+ * him, on a pale wall of his round forms, his truck stands parked.
  * WebGL 1 safe: Phong plastic, canvas prints, plain GLSL ES 1.0.
  */
 
@@ -21,7 +23,7 @@ const CAM = new THREE.Vector3(0, 0.16, 2.9)
 const LOOK = new THREE.Vector3(0, 0.08, 0)
 /** The head: widest radius and height; the outline is a rounded barrel (superellipse). */
 const R = 0.5
-const H = 0.7
+const H = 0.82
 const ROUNDNESS = 4.2
 const NECK = 0.1
 const TORSO_TOP = -H / 2 - NECK
@@ -31,9 +33,8 @@ const SWEATER = 0xf3f1ea
 const HAIR = new THREE.Color('#3b2618')
 const HAIR_DEEP = new THREE.Color('#24170e')
 const GREY_HAIR = new THREE.Color('#bdb6ab')
-const PLATE = new THREE.Color(0.38, 0.55, 0.76)
 /** The hair sits around this point; locks lie on a shell around it. */
-const HAIR_CENTER = new THREE.Vector3(0, 0.06, -0.02)
+const HAIR_CENTER = new THREE.Vector3(0, 0.12, -0.02)
 const LOCKS = 14
 
 /** Mouth corner the cigar sits in (head units), and where it points: out, forward, jauntily up. */
@@ -54,6 +55,13 @@ const PUFF_EVERY = [6, 12]
 /** Now and then the head spins once all the way round (seconds). */
 const SPIN_EVERY = [25, 45]
 const SPIN_LENGTH = 1.4
+/** The parked truck: how far back, its floor, and how far left (the cab peeks out beside him). */
+const TRUCK_Z = -6
+const TRUCK_Y = -1.25
+const TRUCK_X = -1.85
+/** The wall behind the truck, and where its floor line meets that wall (seen from the camera). */
+const WALL_Z = -8
+const WALL_SIZE = new THREE.Vector2(32, 18)
 
 const between = ([lo, hi]: number[]) => lo + Math.random() * (hi - lo)
 const smoothstep = (a: number, b: number, x: number) => {
@@ -299,21 +307,27 @@ export class ColaniHead implements HeadView {
     const context = opts.webgl1 ? canvas.getContext('webgl', attributes) ?? undefined : undefined
     this.renderer = new THREE.WebGLRenderer({ canvas, context, ...attributes })
     this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, opts.maxPixelRatio ?? 1.5))
-    this.renderer.setClearColor(0x3d5873, 1)
+    this.renderer.setClearColor(0xd5dbe1, 1)
 
     this.camera.position.copy(CAM)
     this.camera.lookAt(LOOK)
 
-    // --- the baseplate behind him and the light -----------------------------
-    const plate = new THREE.Mesh(new THREE.PlaneGeometry(14, 8), new THREE.ShaderMaterial({
-      uniforms: { uSize: { value: new THREE.Vector2(14, 8) }, uColor: { value: PLATE } },
+    // --- the studio wall behind him, the truck, and the light ---------------
+    // The floor line on the wall lines up, seen from the camera, with the truck's floor.
+    const horizon = CAM.y + (TRUCK_Y - CAM.y) * (CAM.z - WALL_Z) / (CAM.z - TRUCK_Z)
+    const wall = new THREE.Mesh(new THREE.PlaneGeometry(WALL_SIZE.x, WALL_SIZE.y), new THREE.ShaderMaterial({
+      uniforms: { uSize: { value: WALL_SIZE }, uHorizon: { value: horizon } },
       vertexShader: PASS_VERTEX,
-      fragmentShader: PLATE_FRAGMENT,
+      fragmentShader: STUDIO_FRAGMENT,
       depthWrite: false,
     }))
-    plate.position.z = -3
-    plate.renderOrder = -10
-    this.scene.add(plate)
+    wall.position.z = WALL_Z
+    wall.renderOrder = -10
+    this.scene.add(wall)
+    const truck = colaniTruck()
+    truck.mesh.position.set(TRUCK_X, TRUCK_Y, TRUCK_Z)
+    this.textures.push(truck.texture)
+    this.scene.add(truck.mesh)
 
     this.scene.add(new THREE.HemisphereLight(0xffffff, 0x8890a0, 0.9))
     const key = new THREE.DirectionalLight(0xfff4e6, 2.2)
@@ -326,18 +340,26 @@ export class ColaniHead implements HeadView {
 
     // --- head -----------------------------------------------------------------
     const profile = headProfile()
-    this.faceScale = faceScale(R)
-    this.faceCanvas.width = FACE_WIDTH
-    this.faceCanvas.height = Math.round(profile.length * this.faceScale)
+    const yellow = new THREE.MeshPhongMaterial({ color: YELLOW, ...PLASTIC })
+    const skull = new THREE.Mesh(new THREE.LatheGeometry(profile.points, 96), yellow)
+    // The face: a decal a hair's breadth over the front of the head, the band of the
+    // outline between the rounded top and bottom, as wide round the head as it is tall -
+    // so the square canvas has the same scale across and down, and all its pixels go to the face.
+    const step = profile.length / (profile.points.length - 1)
+    const band = profile.points.filter((p) => Math.abs(p.y) < H / 2 - 0.03)
+    const bandLength = (band.length - 1) * step
+    const sector = bandLength / R
+    this.faceScale = FACE_SIZE / bandLength
+    this.faceCanvas.width = this.faceCanvas.height = FACE_SIZE
     this.faceTexture = new THREE.CanvasTexture(this.faceCanvas)
     this.faceTexture.colorSpace = THREE.SRGBColorSpace
-    this.faceTexture.anisotropy = 4
+    this.faceTexture.anisotropy = this.renderer.capabilities.getMaxAnisotropy()
     this.textures.push(this.faceTexture)
     this.drawFace({ happy: 0, curious: 0, blink: false })
-    const yellow = new THREE.MeshPhongMaterial({ color: YELLOW, ...PLASTIC })
-    // Front at u = 0.5: the print's middle faces the viewer.
-    const skull = new THREE.Mesh(new THREE.LatheGeometry(profile.points, 96, -Math.PI, Math.PI * 2),
-      new THREE.MeshPhongMaterial({ map: this.faceTexture, ...PLASTIC }))
+    const decal = new THREE.Mesh(
+      new THREE.LatheGeometry(band.map((p) => new THREE.Vector2(p.x * 1.002, p.y)), 48, -sector / 2, sector),
+      new THREE.MeshPhongMaterial({ map: this.faceTexture, transparent: true, depthWrite: false, polygonOffset: true, polygonOffsetFactor: -1, ...PLASTIC }),
+    )
     // The stud on top (under the hair, but it is there), and the neck ring below.
     const stud = new THREE.Mesh(lathe([[0, H / 2 + 0.13], [0.2, H / 2 + 0.13], [0.235, H / 2 + 0.11], [0.24, H / 2 + 0.08], [0.24, H / 2 - 0.05]]), yellow)
     const neck = new THREE.Mesh(lathe([[0.27, -H / 2 + 0.05], [0.27, -H / 2 - NECK + 0.03], [0.3, -H / 2 - NECK + 0.02], [0.3, -H / 2 - NECK], [0, -H / 2 - NECK]]), yellow)
@@ -345,7 +367,7 @@ export class ColaniHead implements HeadView {
     const locks = new THREE.Mesh(locksGeometry(), new THREE.MeshPhongMaterial({ vertexColors: true, shininess: 70, specular: new THREE.Color(0x4a4a4a) }))
     this.halo = new THREE.Sprite(new THREE.SpriteMaterial({ map: glowTexture(), blending: THREE.AdditiveBlending, depthWrite: false, transparent: true }))
     this.textures.push(this.halo.material.map!)
-    this.head.add(skull, stud, cap, locks, this.makeCigar())
+    this.head.add(skull, decal, stud, cap, locks, this.makeCigar())
     this.mouth.position.set(0, -0.13, R + 0.02)
     this.head.add(this.mouth)
     this.scene.add(this.head, neck)

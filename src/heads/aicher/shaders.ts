@@ -1,3 +1,5 @@
+import { ATLAS_CELLS, PICTOGRAMS } from './pictograms'
+
 /**
  * O.T.L.'s shaders. GLSL ES 1.0 only: they run unchanged on WebGL 1
  * (the 2009/2010 iMacs), so no derivatives - the flat facet normals come
@@ -36,8 +38,8 @@ void main() {
  * Painted facets: brightness from a key light top-right, each facet nudged a
  * little, stepped into a few flat tones and looked up in a palette - mint,
  * teal, steel blue, indigo - like a low-poly bust painted with a few colours.
- * Hair is a pale grey crop, brows, eyes and shirt darker. The red wall
- * bounces into the shadow side and rims the silhouette. uSweep is a band of
+ * Hair is a pale grey crop, brows, eyes and shirt darker. The white wall
+ * bounces into the shadow side, a light blue rims the silhouette. uSweep is a band of
  * light that passes over now and then.
  */
 export const BUST_FRAGMENT = /* glsl */ `
@@ -88,12 +90,12 @@ void main() {
   // The crop: grey-white facets, set apart from the mint skin.
   if (r > 0.5 && r < 1.5) col = mix(vec3(0.24, 0.23, 0.33), vec3(0.76, 0.76, 0.79), t);
 
-  // The red wall bounces into what faces away from the key.
+  // The white wall bounces a cool light into what faces away from the key.
   float bounce = smoothstep(0.1, 0.9, dot(n, normalize(vec3(-0.9, -0.25, 0.2))));
-  col = mix(col, col * vec3(1.5, 0.55, 0.6) + vec3(0.12, 0.0, 0.02), bounce * 0.45);
-  // A warm red rim where the surface turns away from the viewer.
+  col = mix(col, col * vec3(1.1, 1.15, 1.2) + vec3(0.04, 0.06, 0.09), bounce * 0.4);
+  // A light blue rim, the blue of the 1972 Games, where the surface turns away.
   float rim = pow(1.0 - clamp(n.z, 0.0, 1.0), 3.0) * (0.5 + 0.5 * smoothstep(0.2, -0.6, n.x));
-  col += vec3(0.75, 0.16, 0.14) * rim * 0.35;
+  col += vec3(0.25, 0.5, 0.75) * rim * 0.3;
   gl_FragColor = vec4(col, 1.0);
 }
 `
@@ -106,27 +108,40 @@ void main() {
 }
 `
 
-/** The red wall: painted, with brush strokes, lighter behind the head, darker at the edges. */
+/**
+ * The wall: white paper with a section of a sheet of sport pictograms in
+ * square fields (atlas: red = figure, green = frame and number). Now and then
+ * one figure takes on a colour of the 1972 Games and lets it go again.
+ */
 export const WALL_FRAGMENT = /* glsl */ `
-uniform float uTime;
+uniform sampler2D uAtlas;
+uniform float uHi, uHiAmount;
+uniform vec3 uHiColor;
 varying vec2 vUv;
 
-float hash(vec2 p) { return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453); }
-float noise(vec2 p) {
-  vec2 i = floor(p), f = fract(p);
-  f = f * f * (3.0 - 2.0 * f);
-  return mix(mix(hash(i), hash(i + vec2(1.0, 0.0)), f.x), mix(hash(i + vec2(0.0, 1.0)), hash(i + 1.0), f.x), f.y);
-}
+const float PITCH = 1.3;
+const float COUNT = ${PICTOGRAMS.toFixed(1)};
+const float CELLS = ${ATLAS_CELLS.toFixed(1)};
 
 void main() {
   vec2 p = (vUv - 0.5) * vec2(16.0, 9.0);
-  vec3 col = vec3(0.5, 0.06, 0.08);
-  // Brush strokes: long smears, mostly vertical, in two layers.
-  float strokes = noise(vec2(p.x * 3.0, p.y * 0.35)) * 0.6 + noise(vec2(p.x * 0.6 + p.y * 0.3, p.y * 2.5)) * 0.4;
-  col *= 0.86 + 0.28 * strokes;
-  // A warm halo behind the head.
-  col += vec3(0.16, 0.03, 0.03) * exp(-dot(p - vec2(0.0, 0.3), p - vec2(0.0, 0.3)) * 0.08);
-  col *= 1.0 - 0.35 * smoothstep(3.0, 9.0, length(p * vec2(0.8, 1.2)));
+  vec2 g = (p - vec2(-0.45, 0.2)) / PITCH;
+  vec2 tile = floor(g);
+  vec2 f = fract(g);
+  // Each field its own figure; along a row they run on like on the sheet.
+  float k = mod(tile.x + tile.y * 5.0, COUNT);
+  vec2 cell = vec2(mod(k, CELLS), floor(k / CELLS));
+  vec4 sheet = texture2D(uAtlas, vec2((cell.x + f.x) / CELLS, 1.0 - (cell.y + 1.0 - f.y) / CELLS));
+
+  vec3 paper = vec3(0.955, 0.95, 0.935);
+  float hi = uHiAmount * (1.0 - step(0.5, abs(k - uHi)));
+  vec3 ink = mix(vec3(0.74, 0.76, 0.79), uHiColor, hi);
+  vec3 col = mix(paper, vec3(0.83, 0.84, 0.85), sheet.g);
+  col = mix(col, ink, sheet.r);
+  // A soft shadow of the head on the paper, and darker towards the corners.
+  vec2 s = (p - vec2(-0.35, 0.1)) * vec2(1.0, 0.75);
+  col *= 1.0 - 0.08 * exp(-dot(s, s) * 0.5);
+  col *= 1.0 - 0.12 * smoothstep(3.0, 9.0, length(p * vec2(0.8, 1.2)));
   gl_FragColor = vec4(col, 1.0);
 }
 `

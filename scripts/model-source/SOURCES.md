@@ -65,3 +65,10 @@ and shoulders that slope out of the frame are then built straight onto the low-p
 morphs (`smile` with squinting eyes, `blink`, `browUp`, `browDown`) are carried over to the low-poly mesh by
 projecting each vertex onto the full-resolution surface. Each facet stores a region (skin, hair, brow, eye, shirt)
 that the runtime shader colours; facet normals are computed at runtime, so the asset holds no normals.
+
+## Avicii head (`public/models/AviciiHead.*`)
+
+Built by `scripts/build_avicii.py` (Blender 4.1.1, no network) from the MakeHuman base mesh and face units above, plus
+`makehuman-avicii.zip`: thirty-five young-male and face shape targets from `makehuman/data/targets` at the same pinned revision
+`a8bc2d54ff0ac92e78ff71431b1023eda42bf482` (CC0, see `LICENSE-CC0.md`), with `revision.txt`. The cap and its brim
+are built by the script itself.

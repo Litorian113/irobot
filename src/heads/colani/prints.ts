@@ -1,16 +1,18 @@
 /**
  * C.O.L.A.N.I.'s prints, drawn on canvases like the pad printing on a real
- * minifigure: Luigi Colani's face on the yellow head, the white sweater with
+ * minifigure: Luigi Colani's face on a decal over the yellow head, the white sweater with
  * its scarf on the torso. Flat colours, black outlines, white highlights.
  */
 
 /**
- * The head canvas wraps once around the head; the face sits in the middle
- * (u = 0.5). Its height follows the length of the head's outline, so a head
- * unit is faceScale(radius) pixels across and down alike.
+ * The face is a decal over the front of the head: a square canvas, the face's
+ * centre in its middle. The strokes below are sized for BASE pixels per head
+ * unit and scaled to the canvas, so a bigger canvas is a sharper print.
  */
-export const FACE_WIDTH = 1024
-export const faceScale = (radius: number) => FACE_WIDTH / (2 * Math.PI * radius)
+export const FACE_SIZE = 1024
+const BASE = 325
+/** The print a touch taller than wide: the minifigure's face, not a caricature's. */
+const STRETCH = 1.12
 
 export interface FaceState {
   /** 0 neutral, 1 a broad grin with squinting eyes. */
@@ -25,12 +27,15 @@ const MOUSTACHE = '#4a2e1c'
 const MOUSTACHE_LIGHT = '#8b6a52'
 const LINE = 'rgba(120, 70, 10, 0.55)'
 
+/** Draws the face on a clear canvas; `scale` is the canvas's pixels per head unit. */
 export function drawFace(ctx: CanvasRenderingContext2D, state: FaceState, scale: number) {
   const { width: w, height: h } = ctx.canvas
-  /** Head units (x right, y up, 0 at the face's centre) to canvas pixels. */
-  const px = (x: number, y: number): [number, number] => [w / 2 + x * scale, h / 2 - y * scale]
-  ctx.fillStyle = '#f2c81d'
-  ctx.fillRect(0, 0, w, h)
+  ctx.setTransform(1, 0, 0, 1, 0, 0)
+  ctx.clearRect(0, 0, w, h)
+  const k = scale / BASE
+  ctx.setTransform(k, 0, 0, k * STRETCH, w / 2, h / 2)
+  /** Head units (x right, y up, 0 at the face's centre) to drawing units. */
+  const px = (x: number, y: number): [number, number] => [x * BASE, -y * BASE]
   ctx.lineCap = 'round'
   ctx.lineJoin = 'round'
   const happy = state.happy > 0.5

@@ -6,6 +6,7 @@ import { WalleHead } from './walle/WalleHead'
 import { AicherHead } from './aicher/AicherHead'
 import { RamsHead } from './rams/RamsHead'
 import { GlassHead } from './glass/GlassHead'
+import { AviciiHead } from './avicii/AviciiHead'
 import { ColaniHead } from './colani/ColaniHead'
 import { FluxHead } from './flux/FluxHead'
 import type { HeadDesign } from './types'
@@ -95,5 +96,12 @@ export const DESIGNS: HeadDesign[] = [
     // No screen of its own on the main wall: pick it in "Eigene Wand".
     slot: null,
     create: (canvas, options) => new FluxHead(canvas, options),
+  },
+  {
+    id: 12,
+    name: 'A.V.I.C.I.I.',
+    description: 'Low-Poly-Porträt in Grautönen: Cap verkehrt herum, Facetten blitzen im 128-BPM-Takt',
+    slot: null,
+    create: (canvas, options) => new AviciiHead(canvas, options),
   },
 ]

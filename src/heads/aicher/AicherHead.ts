@@ -1,11 +1,13 @@
 import * as THREE from 'three'
 import { GazeSpring } from '../GazeSpring'
 import type { Expression, HeadView, HeadViewOptions } from '../types'
+import { pictogramAtlas, PICTOGRAMS } from './pictograms'
 import { BUST_FRAGMENT, BUST_VERTEX, PASS_VERTEX, WALL_FRAGMENT } from './shaders'
 
 /**
  * O.T.L. - Otl Aicher's head, cut into large painted facets: mint where the
- * light falls, teal and blue into indigo in the shadows, on a red wall, the
+ * light falls, teal and blue into indigo in the shadows, in front of white
+ * paper with a section of his kind of sport pictograms (Munich 1972), the
  * neck running out of the frame into a dark shirt collar. The head turns on
  * the neck, the brows rise and fall, and when he is pleased he smiles until
  * his eyes are slits.
@@ -43,6 +45,11 @@ interface AicherModel {
 }
 
 const between = ([lo, hi]: number[]) => lo + Math.random() * (hi - lo)
+/** Now and then one pictogram takes on a colour of the 1972 Games (seconds). */
+const HIGHLIGHT_EVERY = [2.5, 5]
+const HIGHLIGHT_LENGTH = 3.2
+/** Light blue, green, orange: the Munich palette. */
+const GAMES = ['#3d8fd1', '#2e9e5b', '#ef7d22'].map((c) => new THREE.Color(c))
 
 export class AicherHead implements HeadView {
   private renderer: THREE.WebGLRenderer
@@ -64,6 +71,9 @@ export class AicherHead implements HeadView {
   private blinkUntil = -1
   private nextSweep = between([2, 4])
   private sweepAt = -100
+  private nextHighlight = between([1, 2])
+  private highlightAt = -100
+  private atlas: THREE.CanvasTexture
   private clock = new THREE.Clock()
   private resizeObserver: ResizeObserver
   private canvas: HTMLCanvasElement
@@ -86,13 +96,19 @@ export class AicherHead implements HeadView {
     const context = opts.webgl1 ? canvas.getContext('webgl', attributes) ?? undefined : undefined
     this.renderer = new THREE.WebGLRenderer({ canvas, context, ...attributes })
     this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, opts.maxPixelRatio ?? 1.5))
-    this.renderer.setClearColor(0x5a0a0d, 1)
+    this.renderer.setClearColor(0xf2f1ed, 1)
 
     this.camera.position.copy(CAM)
     this.camera.lookAt(LOOK)
 
+    this.atlas = new THREE.CanvasTexture(pictogramAtlas())
+    // No mipmaps: they would bleed between the cells as lines along the fields' edges.
+    this.atlas.generateMipmaps = false
+    this.atlas.minFilter = THREE.LinearFilter
     this.wall = new THREE.ShaderMaterial({
-      uniforms: { uTime: { value: 0 } },
+      uniforms: {
+        uAtlas: { value: this.atlas }, uHi: { value: -1 }, uHiAmount: { value: 0 }, uHiColor: { value: GAMES[0].clone() },
+      },
       vertexShader: PASS_VERTEX,
       fragmentShader: WALL_FRAGMENT,
       depthWrite: false,
@@ -250,7 +266,14 @@ export class AicherHead implements HeadView {
     this.material.uniforms.uYaw.value = pose.yaw * TURN
     this.material.uniforms.uPitch.value = pose.pitch * TURN
     this.material.uniforms.uTime.value = t
-    this.wall.uniforms.uTime.value = t
+    if (t > this.nextHighlight) {
+      this.highlightAt = t
+      this.nextHighlight = t + HIGHLIGHT_LENGTH + between(HIGHLIGHT_EVERY)
+      this.wall.uniforms.uHi.value = Math.floor(Math.random() * PICTOGRAMS)
+      ;(this.wall.uniforms.uHiColor.value as THREE.Color).copy(GAMES[Math.floor(Math.random() * GAMES.length)])
+    }
+    const age = (t - this.highlightAt) / HIGHLIGHT_LENGTH
+    this.wall.uniforms.uHiAmount.value = age < 1 ? Math.sin(age * Math.PI) ** 0.6 : 0
 
     this.renderer.render(this.scene, this.camera)
     this.fpsCount++
@@ -286,6 +309,7 @@ export class AicherHead implements HeadView {
     })
     this.material.dispose()
     this.wall.dispose()
+    this.atlas.dispose()
     this.renderer.dispose()
   }
 }
