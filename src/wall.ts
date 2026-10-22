@@ -1,6 +1,8 @@
 import type { HeadConfig, HeadStyle } from './viki/config'
 import type { Vec3 } from './tracking/gaze'
 import { DESIGNS } from './heads/designs'
+import { HALLOWEEN } from './heads/halloween'
+import { catalogEntry, PROMO_KEY, type WallKeys } from './heads/catalog'
 import type { CreateHead, HeadDesign } from './heads/types'
 import { ParticleFace } from './viki/ParticleFace'
 
@@ -91,6 +93,8 @@ export const SETTINGS = {
   fps: numberParam('fps', wall ? 30 : 60),
   /** Show the rendered frame rate on each head (`?stats=1`). */
   stats: flagParam('stats', false),
+  /** `?wall=halloween` loads the Halloween wall instead of the main one. */
+  wallSet: ((['halloween', 'custom'] as const).find((w) => w === params.get('wall')) ?? 'main') as WallSet | 'custom',
   /** `?style=dust` / `lattice` overrides the head of a single slot. */
   style: (['lattice', 'dust'] as const).find((s) => s === params.get('style')) ?? null,
 }
@@ -117,3 +121,36 @@ export const WALL_HEADS: (WallHead | null)[] = SLOTS.map((preset, slot) => {
     delay: preset.delay,
   }
 })
+
+export type WallSet = 'main' | 'halloween'
+
+/** One screen of a wall: the promo, a head, or a place still waiting for its head. */
+export type WallScreen =
+  | { kind: 'promo' }
+  | { kind: 'head'; head: WallHead }
+  | { kind: 'empty'; design: HeadDesign }
+
+/** Built once per page, like WALL_HEADS. */
+export const SCREENS: Record<WallSet, WallScreen[]> = {
+  main: WALL_HEADS.map((head) => (head ? { kind: 'head', head } : { kind: 'promo' })),
+  halloween: HALLOWEEN.map((design) => {
+    const motion = SLOTS[design.slot] ?? { stiffness: 5, delay: 0.1 }
+    return design.create
+      ? { kind: 'head', head: { create: design.create, design, stiffness: motion.stiffness, delay: motion.delay } }
+      : { kind: 'empty', design }
+  }),
+}
+
+/** Screens for a custom wall (keys from the catalog, see heads/catalog.ts). Build once per page. */
+export function screensFromKeys(keys: WallKeys): WallScreen[] {
+  return Array.from({ length: 9 }, (_, slot): WallScreen => {
+    const key = keys[slot] ?? null
+    if (key === PROMO_KEY) return { kind: 'promo' }
+    const entry = catalogEntry(key)
+    const motion = SLOTS[slot] ?? { stiffness: 5, delay: 0.1 }
+    if (entry?.create) {
+      return { kind: 'head', head: { create: entry.create, design: null, stiffness: motion.stiffness, delay: motion.delay } }
+    }
+    return { kind: 'empty', design: { id: slot + 1, name: 'Leer', description: '', slot, create: null } }
+  })
+}

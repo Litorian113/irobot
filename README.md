@@ -71,6 +71,13 @@ npm run dev
 
 - **Köpfe**: die 8 Köpfe der Wand, immer nur einer gerendert, im iMac-Format 16:9. Der Kopf folgt der Maus.
   „WebGL 1 testen" rendert wie auf den alten iMacs. Leere Plätze zeigen, welcher Kopf dort fehlt.
+- **Halloween**: eine zweite Wand mit 9 eigenen Plätzen (`src/heads/halloween.ts`), noch alle leer.
+  Kamera startet erst, wenn dort ein Kopf steht. Auf den iMacs: `?wall=halloween&slot=N`.
+- **Eigene Wand**: links alle fertigen Köpfe und die Werbung mit Vorschaubild, rechts die 9 Bildschirme.
+  Köpfe auf einen Bildschirm ziehen, Bildschirme untereinander tauschen, oder einen Bildschirm anklicken
+  und im Popup auswählen. **Speichern** legt die Wand auf dem Server ab (`walls/custom.json`); alle
+  Bildschirme mit `?wall=custom&slot=N` laden dann von selbst neu. Vorschaubilder neu machen, wenn sich
+  ein Kopf ändert: `npm run snapshots` (braucht Google Chrome).
 - **Wand**: alle 9 Bildschirme mit Kamera und Kameravorschau unten links. Die externe Webcam wird
   der eingebauten vorgezogen. Kamera und Erkennung laufen nur, solange dieser Tab offen ist.
 
@@ -112,3 +119,6 @@ Tasten: `D` Kameravorschau, `F` Vollbild.
 
 **Franz Anhäupl** · HfG Schwäbisch Gmünd. Kopf: MakeHuman CC0 + Face Units von Mika Suominen.
 Erkennung: Ultralytics YOLO26n über ONNX Runtime Web. Rendering: three.js.
+S.T.E.V.E.: Pixelporträt nach dem Foto „Steve Jobs Headshot 2010" von Matthew Yohe
+(Wikimedia Commons, CC BY-SA 3.0), erzeugt mit `scripts/portrait-from-photo.py`; das Porträt steht
+ebenfalls unter CC BY-SA 3.0.

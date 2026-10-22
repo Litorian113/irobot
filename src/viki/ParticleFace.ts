@@ -15,6 +15,7 @@ import { HeadRig } from './HeadRig'
 import { HeadLight } from './HeadLight'
 import { DustRadialBlur } from './DustRadialBlur'
 import type { HeadView, HeadViewOptions } from '../heads/types'
+import { GazeSpring } from '../heads/GazeSpring'
 
 export type Expression = 'neutral' | 'happy' | 'curious'
 
@@ -34,9 +35,6 @@ export interface FaceOptions extends HeadViewOptions {
 
 const CAM_DIST = 4.2
 const FOV = 40
-/** Limits of the neck, in radians. */
-const MAX_YAW = 0.95
-const MAX_PITCH = 0.42
 
 /** Bloom radius / threshold per style (strength comes from the config). */
 const BLOOM_SHAPE: Record<HeadStyle, { radius: number; threshold: number }> = {
@@ -109,15 +107,7 @@ export class ParticleFace implements HeadView {
   private current: FaceState = { ...EXPRESSIONS.neutral }
   private target: FaceState = { ...this.current }
 
-  // gaze: a damped spring per axis follows a delayed copy of the target
-  private stiffness: number
-  private delay: number
-  private gazeQueue: { at: number; yaw: number; pitch: number }[] = []
-  private gazeGoal = { yaw: 0, pitch: 0 }
-  private yaw = 0
-  private pitch = 0
-  private yawVel = 0
-  private pitchVel = 0
+  private gaze: GazeSpring
   private lookMatrix = new THREE.Matrix4()
   private pivot = new THREE.Vector3()
   private tmpMatrix = new THREE.Matrix4()
@@ -131,8 +121,7 @@ export class ParticleFace implements HeadView {
     this.style = opts.style
     this.config = { ...STYLE_DEFAULTS[opts.style], ...opts.config }
     this.fps = opts.fps ?? 30
-    this.stiffness = opts.stiffness ?? 5
-    this.delay = opts.delay ?? 0
+    this.gaze = new GazeSpring(opts.stiffness ?? 5, opts.delay ?? 0)
     this.nextBlink = 1 + Math.random() * 4
 
     const attributes: WebGLContextAttributes = { antialias: false, alpha: false, powerPreference: 'high-performance' }
@@ -263,34 +252,12 @@ export class ParticleFace implements HeadView {
 
   /** Where to look: yaw > 0 turns the face to screen-right, pitch > 0 looks up (radians). */
   setLook(yaw: number, pitch: number) {
-    const at = performance.now() / 1000 + this.delay
-    const queue = this.gazeQueue
-    queue.push({ at, yaw: THREE.MathUtils.clamp(yaw, -MAX_YAW, MAX_YAW), pitch: THREE.MathUtils.clamp(pitch, -MAX_PITCH, MAX_PITCH) })
-    if (queue.length > 240) queue.splice(0, queue.length - 240)
+    this.gaze.set(yaw, pitch)
   }
 
   private updateGaze(dt: number, t: number) {
-    const now = performance.now() / 1000
-    const queue = this.gazeQueue
-    while (queue.length && queue[0].at <= now) {
-      const next = queue.shift()!
-      this.gazeGoal.yaw = next.yaw
-      this.gazeGoal.pitch = next.pitch
-    }
-    // Critically damped spring: quick to start, no overshoot, frame-rate independent.
-    const w = this.stiffness
-    const steps = Math.max(1, Math.ceil(dt / (1 / 120)))
-    const h = dt / steps
-    for (let i = 0; i < steps; i++) {
-      this.yawVel += (w * w * (this.gazeGoal.yaw - this.yaw) - 2 * w * this.yawVel) * h
-      this.pitchVel += (w * w * (this.gazeGoal.pitch - this.pitch) - 2 * w * this.pitchVel) * h
-      this.yaw += this.yawVel * h
-      this.pitch += this.pitchVel * h
-    }
-    // A living head never holds perfectly still.
-    const swayYaw = Math.sin(t * 0.37 + this.delay * 9) * 0.015
-    const swayPitch = Math.sin(t * 0.23 + this.delay * 5) * 0.01
-    this.tmpEuler.set(-(this.pitch + swayPitch), this.yaw + swayYaw, 0, 'YXZ')
+    const pose = this.gaze.update(dt, t)
+    this.tmpEuler.set(-pose.pitch, pose.yaw, 0, 'YXZ')
     this.lookMatrix.makeTranslation(this.pivot.x, this.pivot.y, this.pivot.z)
       .multiply(this.tmpMatrix.makeRotationFromEuler(this.tmpEuler))
       .multiply(this.tmpMatrix.makeTranslation(-this.pivot.x, -this.pivot.y, -this.pivot.z))
@@ -359,9 +326,9 @@ export class ParticleFace implements HeadView {
       style: this.style,
       webgl: this.renderer.capabilities.isWebGL2 ? 2 : 1,
       headLoaded: this.headLoaded,
-      yaw: Number(this.yaw.toFixed(3)),
-      pitch: Number(this.pitch.toFixed(3)),
-      goal: { ...this.gazeGoal },
+      yaw: Number(this.gaze.yaw.toFixed(3)),
+      pitch: Number(this.gaze.pitch.toFixed(3)),
+      goal: { ...this.gaze.goal },
       expression: { ...this.current },
       renderedFps: this.renderedFps,
       cpuFrameMs: Number(this.frameMs.toFixed(2)),

@@ -39,3 +39,29 @@ bundled face-unit pack. The neutral geometry, normals and original nine poses ar
 Part labels `Skin`, `Eyes`, and `MouthInterior` keep shading on the appropriate geometry.
 
 The old Lee Perry-Smith model has its own CC BY 3.0 terms; this CC0 description applies only to the new VikiHead asset.
+
+# O.T.L. head source assets
+
+`public/models/AicherHead.bin` (with `AicherHead.json`) is Otl Aicher's faceted head, built locally by
+`scripts/build_aicher.py` from the same base mesh, eye proxy and face units as above, plus
+`makehuman-aicher.zip`: 50 shape targets from the same MakeHuman revision
+(`a8bc2d54ff0ac92e78ff71431b1023eda42bf482`, CC0, each file carries its CC0 header) - the old male macro
+targets and detail targets for head, forehead, nose, brows, eyes, ears, chin, cheeks, mouth, neck and torso.
+
+Source archive SHA-256:
+`6d1beed597aa26cd1f121915b28f0ec355b954e41ecc6599d5020159cd107e60`
+
+Current generated binary SHA-256:
+`a3a462c3895bcb29142d1ae53c5af76b90e72f82fd5fd1c50a4ece9138487ad2`
+
+## Rebuild
+
+```sh
+blender --background --factory-startup --python scripts/build_aicher.py
+```
+
+The script applies the likeness targets, cuts the head at the neck and runs the neck on as a column into a shirt
+collar, offsets the short-cropped hair a little from the scalp, and decimates to about 2600 facets. Four relative
+morphs (`smile` with squinting eyes, `blink`, `browUp`, `browDown`) are carried over to the low-poly mesh by
+projecting each vertex onto the full-resolution surface. Each facet stores a region (skin, hair, brow, eye, shirt)
+that the runtime shader colours; facet normals are computed at runtime, so the asset holds no normals.

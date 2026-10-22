@@ -1,7 +1,7 @@
 /** Where each tile sits on the live face. Tiles outside the head are not drawn. */
 export const TILE_TARGET_GLSL = /* glsl */ `
 uniform sampler2D uFront, uBack;
-uniform float uCell, uFill, uStep, uTime, uVariation, uExtent, uCenterY;
+uniform float uCell, uFill, uStep, uTime, uVariation, uExtent, uCenterY, uMinY;
 uniform vec3 uHeadOffset, uHeadScale;
 float hash(vec2 p) { return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453); }
 struct TileTarget { vec3 head; float valid; float free; float seed; };
@@ -11,7 +11,7 @@ TileTarget tileTarget(vec2 aCell, float aBack) {
   vec4 rear = texture2D(uBack, vec2(1.0 - uv.x, uv.y));
   vec2 cellPosition = aCell * uExtent + vec2(0.0, uCenterY);
   float localY = (cellPosition.y - uHeadOffset.y) * 0.29 / uHeadScale.y;
-  float valid = step(0.35, face.b) * step(-0.11, localY);
+  float valid = step(0.35, face.b) * step(uMinY, localY);
   float seed = hash(aCell + aBack * 3.1);
   float r2 = hash(aCell.yx + 4.7 + aBack);
   float r3 = hash(aCell + 11.3 + aBack);

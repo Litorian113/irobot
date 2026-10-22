@@ -11,6 +11,7 @@
     "setup-server": "bash scripts/setup-server.sh",
     "dev:https": "VIKI_HTTPS=1 vite --host 0.0.0.0",
     "build": "tsc -b && vite build",
+    "snapshots": "node scripts/snapshots.mjs",
     "lint": "oxlint",
     "test": "node --experimental-strip-types --test scripts/*.test.mjs",
     "preview": "vite preview"
@@ -30,6 +31,7 @@
     "@vitejs/plugin-basic-ssl": "^2.3.0",
     "@vitejs/plugin-react": "^6.1.0",
     "oxlint": "^1.79.0",
+    "puppeteer-core": "^25.15.0",
     "typescript": "~6.0.2",
     "vite": "^8.2.2",
     "ws": "^8.22.0"

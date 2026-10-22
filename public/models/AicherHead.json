@@ -1,0 +1,22 @@
+{
+  "vertices": 1317,
+  "triangles": 2596,
+  "morphs": [
+    "smile",
+    "blink",
+    "browUp",
+    "browDown"
+  ],
+  "regions": [
+    "skin",
+    "hair",
+    "brow",
+    "eye",
+    "shirt"
+  ],
+  "layout": "float32 positions, float32 morph deltas in order, uint16 triangles, uint8 region per triangle",
+  "eyeY": 0.4921090006828308,
+  "chinY": -0.03940899297595024,
+  "topY": 0.9605910181999207,
+  "sourceRevision": "a8bc2d54ff0ac92e78ff71431b1023eda42bf482"
+}

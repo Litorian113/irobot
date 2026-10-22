@@ -19,6 +19,10 @@ type Listener = (message: GazeMessage) => void
 const listeners = new Set<Listener>()
 const notify = (message: GazeMessage) => { for (const listener of listeners) listener(message) }
 
+/** The server says a custom wall was saved (see vite.config.ts). */
+type WallListener = (wall: string) => void
+const wallListeners = new Set<WallListener>()
+
 let socket: WebSocket | null = null
 
 /** Connect, and keep reconnecting: screens survive a server restart on their own. */
@@ -28,7 +32,12 @@ function connect() {
   socket = ws
   ws.onmessage = (event) => {
     try {
-      notify(JSON.parse(String(event.data)) as GazeMessage)
+      const data = JSON.parse(String(event.data)) as GazeMessage | { kind: 'wall-saved'; wall: string }
+      if ('kind' in data) {
+        if (data.kind === 'wall-saved') for (const listener of wallListeners) listener(data.wall)
+        return
+      }
+      notify(data)
     } catch {
       /* ignore malformed messages */
     }
@@ -49,4 +58,9 @@ export function publish(message: GazeMessage) {
 export function subscribe(listener: Listener) {
   listeners.add(listener)
   return () => { listeners.delete(listener) }
+}
+
+export function onWallSaved(listener: WallListener) {
+  wallListeners.add(listener)
+  return () => { wallListeners.delete(listener) }
 }

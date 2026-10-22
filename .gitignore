@@ -28,3 +28,6 @@ dist-ssr
 
 # Firefox download for the USB stick (npm run usb)
 kiosk/.cache
+
+# The custom wall saved from the editor tab (served to the iMacs)
+walls/

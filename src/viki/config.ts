@@ -45,6 +45,8 @@ export interface HeadConfig {
   mouthY: number
   mouthWidth: number
   lipFull: number
+  /** 0: the portrait ends under the chin; 1: a neck runs down out of the frame (Max). */
+  neck?: number
 }
 
 /** Shared shape defaults (the same face in every style). */
@@ -91,14 +93,15 @@ export const STYLE_DEFAULTS: Record<HeadStyle, HeadConfig> = {
     lighting: 'cinema',
     lightElevation: 40,
     lightFill: 0.06,
-    headScale: 0.38,
-    headY: -0.6,
+    headScale: 0.5,
+    headY: -0.8,
+    neck: 1,
     colorA: '#999999',
     colorB: '#eeeeee',
     colorC: '#ffffff',
     gain: 1.15,
     bloom: 0,
-    density: 0.65,
+    density: 0.85,
     cellSize: 1.0,
     cage: 0,
     flicker: 0.35,

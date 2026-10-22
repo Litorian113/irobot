@@ -7,10 +7,7 @@ const COPY = {
   school: 'Hochschule für Gestaltung Schwäbisch Gmünd',
   idle: ['Hier schaut', 'Gestaltung zurück.'],
   seen: ['Ja, genau du.', 'Wir sehen dich.'],
-  programs: ['Interaktionsgestaltung', 'Kommunikationsgestaltung', 'Produktgestaltung'],
-  cta: 'Jetzt bewerben',
   url: 'hfg-gmuend.de',
-  privacy: 'Die Kamera erkennt nur, ob jemand da ist. Es wird nichts gespeichert.',
 }
 
 const STALE_MS = 2000
@@ -34,21 +31,13 @@ export default function Promo() {
   const headline = present ? COPY.seen : COPY.idle
   return (
     <div className={`cell promo${present ? ' seen' : ''}`}>
-      <div className="promo-inner">
-        <img className="promo-logo" src={COPY.logo} alt={COPY.school} />
-        <h1 className="promo-headline" key={headline[0]}>
-          {headline[0]}
-          <br />
-          {headline[1]}
-        </h1>
-        <ul className="promo-programs">
-          {COPY.programs.map((name) => <li key={name}>{name}</li>)}
-        </ul>
-        <p className="promo-cta">
-          {COPY.cta} <span aria-hidden="true">→</span> <strong>{COPY.url}</strong>
-        </p>
-      </div>
-      <p className="promo-privacy">{COPY.privacy}</p>
+      <img className="promo-logo" src={COPY.logo} alt={COPY.school} />
+      <h1 className="promo-headline" key={headline[0]}>
+        {headline[0]}
+        <br />
+        {headline[1]}
+      </h1>
+      <p className="promo-url">{COPY.url}</p>
     </div>
   )
 }

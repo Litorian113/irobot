@@ -85,6 +85,10 @@ function Stage({ design, webgl1 }: { design: HeadDesign; webgl1: boolean }) {
       return
     }
 
+    // Dev aid, like window.__heads on the wall.
+    const debugWindow = window as unknown as { __studioHead?: unknown }
+    debugWindow.__studioHead = face
+
     let pointer: { x: number; y: number } | null = null
     let since = 0
     const onMove = (event: PointerEvent) => {
@@ -120,6 +124,7 @@ function Stage({ design, webgl1 }: { design: HeadDesign; webgl1: boolean }) {
       window.clearInterval(statsTimer)
       canvas.removeEventListener('pointermove', onMove)
       canvas.removeEventListener('pointerleave', onLeave)
+      if (debugWindow.__studioHead === face) delete debugWindow.__studioHead
       face.dispose()
     }
   }, [design, webgl1])

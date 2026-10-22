@@ -26,7 +26,7 @@ export class LayeredPortrait {
         uCell: { value: 0.02 }, uFill: { value: 0.92 }, uStep: { value: 0.045 },
         uColor: { value: new THREE.Color('#eeeeee') }, uSide: { value: new THREE.Color('#888888') },
         uGain: { value: 1 }, uTime: { value: 0 }, uVariation: { value: 0.2 },
-        uExtent: { value: 1 }, uCenterY: { value: 0 },
+        uExtent: { value: 1 }, uCenterY: { value: 0 }, uMinY: { value: -0.11 },
         uHeadOffset: head.uHeadOffset, uHeadScale: head.uHeadScale,
         uHighlight: { value: new THREE.Color('#ffffff') },
         uKeyDirection: head.uKeyDirection,
@@ -96,8 +96,16 @@ export class LayeredPortrait {
   }
 
   applyConfig(config: HeadConfig) {
-    this.extent = config.headScale / 0.29 * (0.8 + config.hair * 0.12)
-    this.centerY = config.headY + config.headScale / 0.29 * 0.47
+    const s = config.headScale / 0.29
+    if (config.neck) {
+      // From just above the crown to just below the frame: the neck runs out of the picture.
+      const top = config.headY + 1.2 * s, bottom = config.headY - 0.6 * s
+      this.extent = (top - bottom) / 2
+      this.centerY = (top + bottom) / 2
+    } else {
+      this.extent = s * (0.8 + config.hair * 0.12)
+      this.centerY = config.headY + s * 0.47
+    }
     const count = Math.round(72 + config.density * 80)
     if (count !== this.resolution) {
       this.resolution = count
@@ -119,6 +127,8 @@ export class LayeredPortrait {
     u.uCell.value = 2 * this.extent / count
     u.uExtent.value = this.extent
     u.uCenterY.value = this.centerY
+    // Tiles stop under the chin unless the neck is shown.
+    u.uMinY.value = config.neck ? -10 : -0.11
     u.uFill.value = THREE.MathUtils.clamp(0.84 * config.cellSize, 0.65, 0.98)
     u.uStep.value = 0.026 + config.cubeDepth * 0.025
     u.uColor.value.set(config.colorB)

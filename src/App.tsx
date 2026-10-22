@@ -1,17 +1,25 @@
 import { useState } from 'react'
+import CustomWallEditor from './CustomWallEditor'
+import CustomWallLive from './CustomWallLive'
+import SnapshotView from './SnapshotView'
 import Studio from './Studio'
 import WallView from './WallView'
-import { SETTINGS } from './wall'
+import { SCREENS, SETTINGS } from './wall'
 
-type View = 'heads' | 'wall'
+type View = 'heads' | 'wall' | 'halloween' | 'custom'
 
 const TABS: { id: View; label: string }[] = [
   { id: 'heads', label: 'Köpfe' },
   { id: 'wall', label: 'Wand' },
+  { id: 'halloween', label: 'Halloween' },
+  { id: 'custom', label: 'Eigene Wand' },
 ]
 
+const SNAPSHOT = new URLSearchParams(window.location.search).get('snapshot')
+
 function initialView(): View {
-  return new URLSearchParams(window.location.search).get('view') === 'wall' ? 'wall' : 'heads'
+  const view = new URLSearchParams(window.location.search).get('view')
+  return TABS.find((tab) => tab.id === view)?.id ?? 'heads'
 }
 
 /** Working page: one head at a time, or the whole wall with camera - never both. */
@@ -44,12 +52,23 @@ function Workbench() {
           ))}
         </nav>
       </header>
-      <div className="app-content">{view === 'heads' ? <Studio /> : <WallView slot={null} />}</div>
+      <div className="app-content">
+        {view === 'heads' && <Studio />}
+        {view === 'custom' && <CustomWallEditor />}
+        {(view === 'wall' || view === 'halloween') && (
+          <WallView key={view} slot={null} screens={SCREENS[view === 'halloween' ? 'halloween' : 'main']} />
+        )}
+      </div>
     </div>
   )
 }
 
 export default function App() {
+  if (SNAPSHOT) return <SnapshotView entryKey={SNAPSHOT} />
+  // `?wall=custom`: the wall built in the editor, whole (no slot) or one screen of it.
+  if (SETTINGS.wallSet === 'custom') return <CustomWallLive slot={SETTINGS.slot} />
   // `?slot=N`: one screen of the wall, as the iMacs open it - no tabs.
-  return SETTINGS.slot === null ? <Workbench /> : <WallView slot={SETTINGS.slot} />
+  return SETTINGS.slot === null
+    ? <Workbench />
+    : <WallView slot={SETTINGS.slot} screens={SCREENS[SETTINGS.wallSet]} />
 }

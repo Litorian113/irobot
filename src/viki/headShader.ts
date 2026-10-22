@@ -44,6 +44,7 @@ uniform float uEyeSize;
 uniform float uEyeGlow;
 uniform float uMouthWidth;
 uniform float uLipFull;
+uniform float uNeck;
 
 float g2(float x, float y, float sx, float sy) {
   return exp(-((x * x) / (2.0 * sx * sx) + (y * y) / (2.0 * sy * sy)));
@@ -148,6 +149,9 @@ void deformHead(vec3 position, vec3 normal, out vec3 q, out vec3 l, out vec3 nw,
   hair = max(hair, (1.0 - smoothstep(-0.15, 0.15, l.z)) * smoothstep(-0.35, -0.05, l.y));
   q += nw * uHair * 0.07 * hair;
   hairOut = hair * uHair;
+
+  // The scan's neck is a short stub; uNeck stretches it down so it leaves the frame.
+  q.y -= max(-0.25 - l.y, 0.0) * 2.0 * uNeck * uHeadScale.y / ${REF_SCALE.toFixed(3)};
 }
 `
 
@@ -202,7 +206,7 @@ float paintLum(vec3 l, vec3 n, vec3 q, float hair, float feature, out float cav,
 
   if (uRigged > 0.5) {
     cav = 0.0;
-    maskv = smoothstep(-0.40, -0.16, l.y);
+    maskv = mix(smoothstep(-0.40, -0.16, l.y), 1.0, uNeck);
     maskv *= 1.0 - 0.5 * smoothstep(0.36, 0.56, ax);
     maskv *= 1.0 - 0.65 * smoothstep(0.85, 1.14, l.y);
     if (feature > 1.5) return uLighting > 1.5 ? 0.005 : 0.028;
@@ -329,6 +333,7 @@ export function createHeadUniforms() {
     uEyeGlow: { value: c.eyeGlow },
     uMouthWidth: { value: c.mouthWidth },
     uLipFull: { value: c.lipFull },
+    uNeck: { value: c.neck ?? 0 },
   }
 }
 
@@ -354,6 +359,7 @@ export function applyShapeConfig(u: HeadUniforms, cfg: HeadConfig) {
   u.uEyeGlow.value = cfg.eyeGlow
   u.uMouthWidth.value = cfg.mouthWidth
   u.uLipFull.value = cfg.lipFull
+  u.uNeck.value = cfg.neck ?? 0
 }
 
 /** Rest / active depth of the head inside the cube (it moves forward and grows when she wakes up). */

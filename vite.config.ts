@@ -1,4 +1,6 @@
-import type { Server } from 'node:http'
+import { mkdir, readFile, writeFile } from 'node:fs/promises'
+import type { IncomingMessage, Server, ServerResponse } from 'node:http'
+import { dirname } from 'node:path'
 import { networkInterfaces } from 'node:os'
 import basicSsl from '@vitejs/plugin-basic-ssl'
 import react from '@vitejs/plugin-react'
@@ -8,9 +10,59 @@ import { WebSocket, WebSocketServer } from 'ws'
 /** The middle screen (see src/wall.ts): the promo, with the camera above it. */
 const PROMO_SLOT = 4
 
+/** The custom wall built in the editor tab, shared by every screen (`?wall=custom`). */
+const CUSTOM_WALL_FILE = 'walls/custom.json'
+const WALL_KEY = /^[a-z0-9-]{1,40}$/
+
+function isWall(value: unknown): value is (string | null)[] {
+  return Array.isArray(value) && value.length === 9
+    && value.every((key) => key === null || (typeof key === 'string' && WALL_KEY.test(key)))
+}
+
+/** GET returns the saved wall (or null), PUT saves one and tells every screen. */
+function customWallApi(broadcast: (message: unknown) => void) {
+  return (request: IncomingMessage, response: ServerResponse) => {
+    const send = (status: number, body: unknown) => {
+      response.statusCode = status
+      response.setHeader('Content-Type', 'application/json')
+      response.setHeader('Cache-Control', 'no-store')
+      response.end(JSON.stringify(body))
+    }
+    if (request.method === 'GET') {
+      readFile(CUSTOM_WALL_FILE, 'utf8')
+        .then((text) => send(200, { keys: JSON.parse(text) as unknown }))
+        .catch(() => send(200, { keys: null }))
+      return
+    }
+    if (request.method !== 'PUT') return send(405, { error: 'GET or PUT' })
+    let body = ''
+    request.on('data', (chunk: Buffer) => {
+      body += chunk
+      if (body.length > 4096) request.destroy()
+    })
+    request.on('end', () => {
+      let keys: unknown
+      try {
+        keys = (JSON.parse(body) as { keys?: unknown }).keys
+      } catch {
+        return send(400, { error: 'invalid JSON' })
+      }
+      if (!isWall(keys)) return send(400, { error: 'expected nine keys or nulls' })
+      mkdir(dirname(CUSTOM_WALL_FILE), { recursive: true })
+        .then(() => writeFile(CUSTOM_WALL_FILE, JSON.stringify(keys, null, 2) + '\n'))
+        .then(() => {
+          broadcast({ kind: 'wall-saved', wall: 'custom' })
+          send(200, { keys })
+        })
+        .catch((error: unknown) => send(500, { error: String(error) }))
+    })
+  }
+}
+
 /**
  * The gaze relay: the camera window sends where the person is to `/gaze`,
- * and every screen on the network receives it. Runs inside `vite` and `vite preview`.
+ * and every screen on the network receives it. Also serves the custom wall.
+ * Runs inside `vite` and `vite preview`.
  */
 function gazeRelay(): Plugin {
   const relay = new WebSocketServer({ noServer: true })
@@ -21,6 +73,11 @@ function gazeRelay(): Plugin {
       }
     })
   })
+  const broadcast = (message: unknown) => {
+    const text = JSON.stringify(message)
+    for (const client of relay.clients) if (client.readyState === WebSocket.OPEN) client.send(text)
+  }
+  const api = customWallApi(broadcast)
   const attach = (httpServer: Server | null, label: string) => {
     httpServer?.on('upgrade', (request, socket, head) => {
       if (!request.url?.startsWith('/gaze')) return // Vite's own live-reload socket
@@ -33,13 +90,20 @@ function gazeRelay(): Plugin {
   }
   return {
     name: 'irobot-gaze-relay',
-    configureServer: (server) => attach(server.httpServer as Server | null, 'dev'),
-    configurePreviewServer: (server) => attach(server.httpServer as Server, 'wall'),
+    configureServer: (server) => {
+      server.middlewares.use('/api/custom-wall', api)
+      attach(server.httpServer as Server | null, 'dev')
+    },
+    configurePreviewServer: (server) => {
+      server.middlewares.use('/api/custom-wall', api)
+      attach(server.httpServer as Server, 'wall')
+    },
   }
 }
 
 /** One link per screen, for every network this machine is on. */
 function printLinks(port: number, label: string) {
+  if (process.env.HFG_QUIET) return // e.g. the snapshot script
   const addresses = Object.values(networkInterfaces()).flat()
     .filter((a) => a && a.family === 'IPv4' && !a.internal)
     .map((a) => a!.address)
