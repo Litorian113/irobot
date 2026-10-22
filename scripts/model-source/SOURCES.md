@@ -52,7 +52,7 @@ Source archive SHA-256:
 `6d1beed597aa26cd1f121915b28f0ec355b954e41ecc6599d5020159cd107e60`
 
 Current generated binary SHA-256:
-`a3a462c3895bcb29142d1ae53c5af76b90e72f82fd5fd1c50a4ece9138487ad2`
+`def3665e4611576a5b050645c534243b647cabb2ff58c9307a57de0359cfff73`
 
 ## Rebuild
 
@@ -60,8 +60,8 @@ Current generated binary SHA-256:
 blender --background --factory-startup --python scripts/build_aicher.py
 ```
 
-The script applies the likeness targets, cuts the head at the neck and runs the neck on as a column into a shirt
-collar, offsets the short-cropped hair a little from the scalp, and decimates to about 2600 facets. Four relative
+The script applies the likeness targets, cuts the head at the neck, offsets the short-cropped hair a little from the scalp, and decimates to about 2600 facets; a stand-up collar
+and shoulders that slope out of the frame are then built straight onto the low-poly neck edge. Four relative
 morphs (`smile` with squinting eyes, `blink`, `browUp`, `browDown`) are carried over to the low-poly mesh by
 projecting each vertex onto the full-resolution surface. Each facet stores a region (skin, hair, brow, eye, shirt)
 that the runtime shader colours; facet normals are computed at runtime, so the asset holds no normals.

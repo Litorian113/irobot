@@ -135,16 +135,15 @@ def group_center(name):
 eye_l = group_center('joint-l-eye')
 neck = group_center('joint-neck')
 head_top = group_center('joint-head-2')
-head_center = np.array([0.0, eye_l[1] + 0.25, 0.15])
+# The middle of the skull, from the eyes: the old man's head sits further forward than the base mesh's.
+head_center = np.array([0.0, eye_l[1] + 0.25, eye_l[2] - 0.75])
 
 # --- head and neck ------------------------------------------------------------------------------------------------
-# Below the jaw the neck is cut into a column around its axis; the column then runs on straight down, out of the
-# frame, like the necks of the other heads.
+# Below the jaw the neck is cut around its axis; a collar and shoulders are built onto the cut further down.
 NECK_R = 0.8
 NECK_Z = neck[2] + 0.1
 # Heights relative to the neck joint: the old man's body is taller than the base mesh.
 NECK_CUT = neck[1] - 0.35
-NECK_END = neck[1] - 4.0
 # Below this the skull ends; the shoulders rise no higher.
 JAW_Y = neck[1] + 0.66
 
@@ -184,46 +183,33 @@ for f, part in kept:
         tris.append(f)
         tri_part.append(part)
 
-# The open loop at the cut runs on down, rounding out into a straight column.
-edge_count = {}
-for t, part in zip(tris, tri_part):
-    if part != 'skin':
-        continue
-    for i in range(3):
-        a, b = t[i], t[(i + 1) % 3]
-        edge_count[(a, b)] = edge_count.get((a, b), 0) + 1
-boundary = {a: b for (a, b) in edge_count if (b, a) not in edge_count}
-seen = set()
-for start in list(boundary):
-    if start in seen:
-        continue
-    loop = [start]
-    seen.add(start)
-    while boundary[loop[-1]] != start:
-        loop.append(boundary[loop[-1]])
-        seen.add(loop[-1])
-    if positions['neutral'][loop][:, 1].mean() > JAW_Y:
-        continue  # eye openings, mouth
-    # A clean, level edge where the column starts.
-    for name in positions:
-        positions[name][loop, 1] = NECK_CUT
-    first = len(positions['neutral'])
-    rim = positions['neutral'][loop]
-    n = len(loop)
-    angle = np.arctan2(rim[:, 0], rim[:, 2] - NECK_Z)
-    out = np.column_stack([np.sin(angle), np.zeros(n), np.cos(angle)])
-    # The shirt collar: a small ledge out from the neck, then the column down.
-    lip = rim + out * 0.12
-    lip[:, 1] = NECK_CUT - 0.03
-    bottom = out * (NECK_R + 0.15) + np.array([0, NECK_END, NECK_Z])
-    for name in positions:
-        positions[name] = np.vstack([positions[name], lip, bottom])
-    for i in range(n):
-        j = (i + 1) % n
-        # The new faces run along each boundary edge the other way round.
-        tris += [[loop[j], loop[i], first + i], [loop[j], first + i, first + j]]
-        tris += [[first + j, first + i, first + n + i], [first + j, first + n + i, first + n + j]]
-        tri_part += ['shirt'] * 4
+
+
+def boundary_loops(triangles):
+    """Open edge loops of a triangle list, each in order."""
+    edges = set()
+    for t in triangles:
+        for i in range(3):
+            edges.add((t[i], t[(i + 1) % 3]))
+    following = {a: b for (a, b) in edges if (b, a) not in edges}
+    loops, seen = [], set()
+    for start in following:
+        if start in seen:
+            continue
+        loop = [start]
+        seen.add(start)
+        while following[loop[-1]] != start:
+            loop.append(following[loop[-1]])
+            seen.add(loop[-1])
+        loops.append(loop)
+    return loops
+
+
+# A clean, level edge where the collar will sit.
+for loop in boundary_loops([t for t, part in zip(tris, tri_part) if part == 'skin']):
+    if positions['neutral'][loop][:, 1].mean() < JAW_Y:
+        for name in positions:
+            positions[name][loop, 1] = NECK_CUT
 tris = np.array(tris)
 
 
@@ -246,14 +232,14 @@ def hair_mask(points):
     d = v / np.maximum(np.linalg.norm(v, axis=1, keepdims=True), 1e-9)
     front = smoothstep(0.1, 0.6, d[:, 2])
     back = smoothstep(0.0, 0.7, -d[:, 2])
-    line = 0.08 + 0.5 * front - 0.55 * back
+    line = 0.1 + 0.4 * front - 0.55 * back
     return smoothstep(line - 0.04, line + 0.04, d[:, 1])
 
 
-# The crop sits a few millimetres proud of the scalp.
+# The crop stands about a centimetre proud of the scalp.
 skin_vertex = np.zeros(len(positions['neutral']), bool)
 skin_vertex[np.unique(tris[[p == 'skin' for p in tri_part]])] = True
-offset = vertex_normals(positions['neutral']) * (hair_mask(positions['neutral']) * skin_vertex)[:, None] * 0.07
+offset = vertex_normals(positions['neutral']) * (hair_mask(positions['neutral']) * skin_vertex)[:, None] * 0.1
 for name in positions:
     positions[name] = positions[name] + offset
 
@@ -321,8 +307,47 @@ for k, centre in enumerate(centres):
     _, index = locate(centre)
     if tri_part[index] == 'eye':
         regions[k] = 3
-    elif tri_part[index] == 'shirt':
-        regions[k] = 4
+
+# --- collar and shoulders ----------------------------------------------------------------------------------------
+# Built straight onto the low-poly neck edge, so their facets stay large and clean: a stand-up collar around the
+# neck, then shoulders that slope down and out of the frame - no tube, no cut-off edges.
+SHOULDER_RINGS = [
+    # (outward from the neck, height relative to the cut, widening to the sides, widening front/back)
+    (0.03, 0.32, 0.0, 0.0),
+    (0.12, 0.34, 0.0, 0.0),
+    (0.14, -0.02, 0.0, 0.0),
+    (0.14, -0.25, 0.75, 0.12),
+    (0.14, -0.6, 1.45, 0.28),
+    (0.14, -1.1, 1.95, 0.42),
+    (0.14, -2.2, 2.3, 0.55),
+]
+neck_loop = min((loop for loop in boundary_loops(low_tris.tolist())), key=lambda loop: low[loop][:, 1].mean())
+rim = low[neck_loop]
+angle = np.arctan2(rim[:, 0], rim[:, 2] - NECK_Z)
+out = np.column_stack([np.sin(angle), np.zeros(len(rim)), np.cos(angle)])
+rings = []
+for push, rise, wide, deep in SHOULDER_RINGS:
+    ring = rim + out * push
+    ring[:, 0] += out[:, 0] * wide
+    ring[:, 2] += out[:, 2] * deep
+    ring[:, 1] = NECK_CUT + rise
+    rings.append(ring)
+n = len(rim)
+first = len(low)
+low = np.vstack([low] + rings)
+for name in POSES:
+    morphs[name] = np.vstack([morphs[name], np.zeros((n * len(rings), 3))])
+added = []
+previous = neck_loop
+for k in range(len(rings)):
+    current = [first + k * n + i for i in range(n)]
+    for i in range(n):
+        j = (i + 1) % n
+        # The new faces run along each edge the other way round.
+        added += [[previous[j], previous[i], current[i]], [previous[j], current[i], current[j]]]
+    previous = current
+low_tris = np.vstack([low_tris, np.array(added)])
+regions = np.concatenate([regions, np.full(len(added), 4, np.uint8)])
 
 # --- export -------------------------------------------------------------------------------------------------------
 # Runtime units: the neck joint at the origin, one unit from chin to crown, +z towards the viewer.

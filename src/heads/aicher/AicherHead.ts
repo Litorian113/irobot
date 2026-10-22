@@ -15,8 +15,9 @@ import { BUST_FRAGMENT, BUST_VERTEX, PASS_VERTEX, WALL_FRAGMENT } from './shader
 
 const MODEL = `${import.meta.env.BASE_URL}models/AicherHead`
 const FOV = 32
-const CAM = new THREE.Vector3(0, 0.55, 3.5)
-const LOOK = new THREE.Vector3(0, 0.42, 0)
+// At eye level, like looking at him across a table.
+const CAM = new THREE.Vector3(0, 0.45, 3.5)
+const LOOK = new THREE.Vector3(0, 0.38, 0)
 /** Light from the upper right, a little in front. */
 const KEY = new THREE.Vector3(0.75, 0.55, 0.6).normalize()
 /** He turns his head a little less than the robots. */

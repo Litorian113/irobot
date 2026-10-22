@@ -109,6 +109,10 @@ export const STYLE_DEFAULTS: Record<HeadStyle, HeadConfig> = {
   dust: {
     ...APPEARANCE_BASE,
     ...SHAPE_DEFAULTS,
+    // Low and large in the frame: a short neck that runs out of it, like the other heads'.
+    headScale: 0.43,
+    headY: -0.72,
+    neck: 1,
     colorA: '#5b2a8a',
     colorB: '#d58cff',
     colorC: '#8fd7ff',

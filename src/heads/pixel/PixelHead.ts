@@ -23,6 +23,13 @@ const GRID = 0.1
 const COLLAR_ROW = 72
 /** The turtleneck continues below the bitmap, so it always leaves the frame. */
 const EXTRA_ROWS = 14
+/**
+ * Columns added on each side: the shoulders do not stop at the bitmap's edges
+ * but slope on outwards and down (rows per column, plus a curve), out of the frame.
+ */
+const PAD = 40
+const SLOPE = 0.45
+const DROP = 0.02
 const FOV = 32
 const CAM_DIST = 7.4
 const CAM_Y = -0.1
@@ -124,17 +131,33 @@ void main() {
 }
 `
 
-/** Instanced columns for the bitmap rows in [from, to). */
-function columns(material: THREE.ShaderMaterial, from: number, to: number) {
+/** The bitmap with the extra turtleneck rows below and the shoulders carried on past both sides. */
+function extendedRows() {
   const rows = [...PORTRAIT]
   for (let i = 0; i < EXTRA_ROWS; i++) rows.push(rows[rows.length - 1])
+  const width = PORTRAIT[0].length
+  // Where each shoulder meets the bitmap's edge.
+  const left = PORTRAIT.findIndex((row) => row[0] in KINDS)
+  const right = PORTRAIT.findIndex((row) => row[width - 1] in KINDS)
+  const shoulder = (top: number, d: number, row: number) => (row >= top + SLOPE * d + DROP * d * d ? '#' : '.')
+  return rows.map((row, r) => {
+    let before = '', after = ''
+    for (let d = PAD; d >= 1; d--) before += shoulder(left, d, r)
+    for (let d = 1; d <= PAD; d++) after += shoulder(right, d, r)
+    return before + row + after
+  })
+}
+
+/** Instanced columns for the bitmap rows in [from, to). */
+function columns(material: THREE.ShaderMaterial, from: number, to: number) {
+  const rows = extendedRows()
   const width = rows[0].length
   const center: number[] = [], cell: number[] = [], depth: number[] = [], kind: number[] = []
   for (let row = from; row < Math.min(to, rows.length); row++) {
     for (let col = 0; col < width; col++) {
       const char = rows[row][col]
       if (!(char in KINDS)) continue
-      const x = (col - CENTER_COL) * PIXEL
+      const x = (col - PAD - CENTER_COL) * PIXEL
       const y = (CENTER_ROW - row) * PIXEL
       let z: number
       if (row < COLLAR_ROW) {
@@ -143,12 +166,12 @@ function columns(material: THREE.ShaderMaterial, from: number, to: number) {
         const nx = (col - NOSE.col) / 3, ny = (row - NOSE.row) / 7
         z = 22 * PIXEL * Math.sqrt(Math.max(e, 0.02)) + 5 * PIXEL * Math.exp(-nx * nx - ny * ny)
       } else {
-        // The turtleneck: a broad, flatter cylinder.
-        z = 0.55 * Math.sqrt(Math.max(1 - (x / 1.6) ** 2, 0.05))
+        // The turtleneck and shoulders: a broad, flatter cylinder.
+        z = 0.55 * Math.sqrt(Math.max(1 - (x / 2.4) ** 2, 0.05))
       }
       const front = Math.max(z, 0.08)
       center.push(x, y, (front + BACK) / 2)
-      cell.push(col, row)
+      cell.push(col - PAD, row)
       depth.push(front - BACK)
       kind.push(KINDS[char])
     }

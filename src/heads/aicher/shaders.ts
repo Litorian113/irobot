@@ -17,10 +17,11 @@ varying float vRegion, vFacet;
 void main() {
   float cy = cos(uYaw), sy = sin(uYaw), cp = cos(uPitch), sp = sin(uPitch);
   mat3 yaw = mat3(cy, 0.0, -sy, 0.0, 1.0, 0.0, sy, 0.0, cy);
-  mat3 pitch = mat3(1.0, 0.0, 0.0, 0.0, cp, sp, 0.0, -sp, cp);
+  // Columns: looking up (uPitch > 0) tips the face's +z towards +y.
+  mat3 pitch = mat3(1.0, 0.0, 0.0, 0.0, cp, -sp, 0.0, sp, cp);
   mat3 turn = yaw * pitch;
-  // Only the head turns; the neck twists between the collar and the jaw.
-  float w = smoothstep(-0.16, 0.12, position.y) * (aRegion > 3.5 ? 0.25 : 1.0);
+  // Only the head turns; the neck twists inside the collar, collar and shoulders stay put.
+  float w = smoothstep(-0.16, 0.12, position.y) * (aRegion > 3.5 ? 0.0 : 1.0);
   vec3 p = mix(position, turn * position, w);
   vNormal = normalize(mix(normal, turn * normal, w));
   vec4 world = modelMatrix * vec4(p, 1.0);
@@ -33,10 +34,11 @@ void main() {
 
 /**
  * Painted facets: brightness from a key light top-right, each facet nudged a
- * little, then looked up in a palette - mint, teal, steel blue, indigo - like
- * a low-poly bust painted with a few colours. Hair is lighter, brows, eyes and
- * shirt darker. The red wall bounces
- * into the shadow side. uSweep is a band of light that passes over now and then.
+ * little, stepped into a few flat tones and looked up in a palette - mint,
+ * teal, steel blue, indigo - like a low-poly bust painted with a few colours.
+ * Hair is a pale grey crop, brows, eyes and shirt darker. The red wall
+ * bounces into the shadow side and rims the silhouette. uSweep is a band of
+ * light that passes over now and then.
  */
 export const BUST_FRAGMENT = /* glsl */ `
 uniform vec3 uKey;
@@ -69,28 +71,29 @@ void main() {
   float light = dot(n, uKey) * 0.5 + 0.5;
   light = light * light * 1.15;
   // Every facet painted a touch differently.
-  light += (hash(vFacet) - 0.5) * 0.1;
+  light += (hash(vFacet) - 0.5) * 0.14;
   // A band of light sweeping diagonally over the head.
   light += 0.22 * exp(-pow((vWorld.x * 0.8 + vWorld.y * 0.6 - uSweep) * 5.0, 2.0)) * step(0.0, dot(n, vec3(0.3, 0.4, 0.9)));
 
   float r = vRegion;
   float tone = 0.0;
-  if (r > 0.5 && r < 1.5) tone = 0.04;       // hair: a pale crop
+  if (r > 0.5 && r < 1.5) tone = 0.0;        // hair: its own grey, below
   else if (r > 1.5 && r < 2.5) tone = -0.52; // brows: heavy and dark
   else if (r > 2.5 && r < 3.5) tone = -0.58; // eyes: slits in shadow
-  else if (r > 3.5) tone = -0.56;            // the dark shirt
-  vec3 col = ramp(clamp(light + tone, 0.0, 1.0));
-  // The crop: grey-white, not mint, with a fine dark stipple like brushed-in stubble.
-  if (r > 0.5 && r < 1.5) {
-    col = mix(col, vec3(dot(col, vec3(0.3, 0.45, 0.25))) * vec3(0.98, 0.97, 1.02), 0.7);
-    vec3 cell = floor(vWorld * 120.0);
-    float speck = step(0.45, hash(dot(cell, vec3(1.0, 57.0, 113.0))));
-    col *= 1.0 - 0.32 * speck;
-  }
+  else if (r > 3.5) tone = -0.66;            // the black shirt
+  // A few flat tones per region, not a smooth gradient: painted, not rendered.
+  float t = clamp(light + tone, 0.0, 1.0);
+  t = (floor(t * 8.0) + 0.5) / 8.0;
+  vec3 col = ramp(t);
+  // The crop: grey-white facets, set apart from the mint skin.
+  if (r > 0.5 && r < 1.5) col = mix(vec3(0.24, 0.23, 0.33), vec3(0.76, 0.76, 0.79), t);
 
   // The red wall bounces into what faces away from the key.
   float bounce = smoothstep(0.1, 0.9, dot(n, normalize(vec3(-0.9, -0.25, 0.2))));
   col = mix(col, col * vec3(1.5, 0.55, 0.6) + vec3(0.12, 0.0, 0.02), bounce * 0.45);
+  // A warm red rim where the surface turns away from the viewer.
+  float rim = pow(1.0 - clamp(n.z, 0.0, 1.0), 3.0) * (0.5 + 0.5 * smoothstep(0.2, -0.6, n.x));
+  col += vec3(0.75, 0.16, 0.14) * rim * 0.35;
   gl_FragColor = vec4(col, 1.0);
 }
 `
