@@ -49,7 +49,7 @@ export default function Studio() {
         <header className="studio-bar">
           <div>
             <h2>{design.id} · {design.name}</h2>
-            <p>Platz {design.slot} an der Wand: {SLOT_NAMES[design.slot]}</p>
+            <p>{design.slot === null ? 'Nicht auf der Hauptwand: für die Liste und eigene Wände' : `Platz ${design.slot} an der Wand: ${SLOT_NAMES[design.slot]}`}</p>
           </div>
           <label className="studio-toggle">
             <input type="checkbox" checked={webgl1} onChange={(e) => setWebgl1(e.target.checked)} />
@@ -138,7 +138,7 @@ function Stage({ design, webgl1 }: { design: HeadDesign; webgl1: boolean }) {
 }
 
 function EmptyHead({ design }: { design: HeadDesign }) {
-  const standIn = SLOTS[design.slot]?.style === 'dust' ? 'D.U.S.T.' : 'M.A.X.'
+  const standIn = design.slot !== null && SLOTS[design.slot]?.style === 'dust' ? 'D.U.S.T.' : 'M.A.X.'
   return (
     <div className="studio-empty">
       <p className="studio-empty-title">{design.name} ist noch leer.</p>
@@ -148,10 +148,10 @@ function EmptyHead({ design }: { design: HeadDesign }) {
   )
 }
 
-/** Where on the wall a head lives: a tiny 3x3 map, the promo screen in the middle. */
-function SlotMap({ slot }: { slot: number }) {
+/** Where on the wall a head lives: a tiny 3x3 map, the promo screen in the middle (none lit: not on the wall). */
+function SlotMap({ slot }: { slot: number | null }) {
   return (
-    <span className="slot-map" aria-label={`Platz ${slot}`}>
+    <span className="slot-map" aria-label={slot === null ? 'nicht auf der Wand' : `Platz ${slot}`}>
       {Array.from({ length: 9 }, (_, i) => (
         <span key={i} className={i === slot ? 'on' : i === PROMO_SLOT ? 'promo' : ''} />
       ))}

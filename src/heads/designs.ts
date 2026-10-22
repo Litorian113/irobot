@@ -5,6 +5,9 @@ import { PixelHead } from './pixel/PixelHead'
 import { WalleHead } from './walle/WalleHead'
 import { AicherHead } from './aicher/AicherHead'
 import { RamsHead } from './rams/RamsHead'
+import { GlassHead } from './glass/GlassHead'
+import { ColaniHead } from './colani/ColaniHead'
+import { FluxHead } from './flux/FluxHead'
 import type { HeadDesign } from './types'
 
 /**
@@ -68,5 +71,29 @@ export const DESIGNS: HeadDesign[] = [
     description: 'Dieter Rams als Braun-Gerät: weißes Gehäuse, Brille aus Drehreglern, Tastenmund, Lederhenkel',
     slot: 8,
     create: (canvas, options) => new RamsHead(canvas, options),
+  },
+  {
+    id: 9,
+    name: 'G.L.A.S.',
+    description: 'Kopf aus pfirsichfarbenem Glas, Lippen und Ohren aus Chrom, innen fließt dunkle Tinte',
+    // No screen of its own on the main wall: pick it in "Eigene Wand".
+    slot: null,
+    create: (canvas, options) => new GlassHead(canvas, options),
+  },
+  {
+    id: 10,
+    name: 'C.O.L.A.N.I.',
+    description: 'Luigi Colani als Bausteinfigur: gelber Kopf, riesiger Schnurrbart, lange Haare, Zigarre, weißer Rollkragen',
+    // An example head for the list: pick it in "Eigene Wand".
+    slot: null,
+    create: (canvas, options) => new ColaniHead(canvas, options),
+  },
+  {
+    id: 11,
+    name: 'F.L.U.X.',
+    description: 'Glatter Porzellankopf, um die Augen eine Box aus blauen Linien voller rotem Gel',
+    // No screen of its own on the main wall: pick it in "Eigene Wand".
+    slot: null,
+    create: (canvas, options) => new FluxHead(canvas, options),
   },
 ]

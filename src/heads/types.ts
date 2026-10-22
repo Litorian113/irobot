@@ -29,8 +29,11 @@ export interface HeadDesign {
   id: number
   name: string
   description: string
-  /** Screen of the wall this head will live on (0 top-left ... 8 bottom-right, 4 is the promo). */
-  slot: number
+  /**
+   * Screen of the wall this head will live on (0 top-left ... 8 bottom-right, 4 is the promo).
+   * null: not on the main wall - in the list and for custom walls only.
+   */
+  slot: number | null
   /** null while this head is still to be built. */
   create: CreateHead | null
 }

@@ -1,11 +1,16 @@
 // Photographs every head for the lists of the custom wall: public/snapshots/<key>.jpg
 // Needs Google Chrome installed. Run again whenever a head changes:  npm run snapshots
+//   npm run snapshots -- main-3 promo     just these
+//   npm run snapshots -- --missing        only heads that have no picture yet
+import { existsSync } from 'node:fs'
 import { mkdir } from 'node:fs/promises'
 import puppeteer from 'puppeteer-core'
 import { createServer } from 'vite'
 
 const OUT = new URL('../public/snapshots/', import.meta.url)
-const only = process.argv.slice(2) // optional: just these keys
+const args = process.argv.slice(2)
+const missingOnly = args.includes('--missing')
+const only = args.filter((arg) => !arg.startsWith('--')) // optional: just these keys
 
 process.env.HFG_QUIET = '1'
 const server = await createServer({ logLevel: 'error', server: { host: '127.0.0.1', port: 5299 } })
@@ -18,7 +23,10 @@ try {
   await page.setViewport({ width: 640, height: 360, deviceScaleFactor: 1 })
   await page.goto(`${base}?snapshot=list`)
   await page.waitForFunction(() => window.__catalogKeys)
-  const keys = (await page.evaluate(() => window.__catalogKeys)).filter((key) => !only.length || only.includes(key))
+  const keys = (await page.evaluate(() => window.__catalogKeys))
+    .filter((key) => !only.length || only.includes(key))
+    .filter((key) => !missingOnly || !existsSync(new URL(`${key}.jpg`, OUT)))
+  if (!keys.length) console.log('Alle Köpfe haben schon ein Vorschaubild.')
   for (const key of keys) {
     await page.goto(`${base}?snapshot=${key}`)
     await page.waitForFunction(() => window.__snapshotHead?.debug().headLoaded, { timeout: 60000 })

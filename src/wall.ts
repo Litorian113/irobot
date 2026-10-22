@@ -134,7 +134,7 @@ export type WallScreen =
 export const SCREENS: Record<WallSet, WallScreen[]> = {
   main: WALL_HEADS.map((head) => (head ? { kind: 'head', head } : { kind: 'promo' })),
   halloween: HALLOWEEN.map((design) => {
-    const motion = SLOTS[design.slot] ?? { stiffness: 5, delay: 0.1 }
+    const motion = (design.slot !== null && SLOTS[design.slot]) || { stiffness: 5, delay: 0.1 }
     return design.create
       ? { kind: 'head', head: { create: design.create, design, stiffness: motion.stiffness, delay: motion.delay } }
       : { kind: 'empty', design }
