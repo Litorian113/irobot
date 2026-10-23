@@ -38,6 +38,8 @@ export interface TrackerOptions {
 
 const MODEL_URL = `${import.meta.env.BASE_URL}models/yolo26n-320.onnx`
 const MODEL_SIZE = 320
+/** Wait this long before opening the camera again after it failed or went away. */
+const CAMERA_RETRY_MS = 5000
 /** Keep looking where someone was for this long after they leave the frame. */
 const LINGER_MS = 2000
 /** A new person must be this sure; the one being watched may drop to the detector's floor. */
@@ -60,6 +62,9 @@ export class PersonTracker {
   private stopped = false
   private busy = false
   private timer = 0
+  private cameraTimer = 0
+  /** The detector has started. */
+  private ready = false
   private lastSent = 0
   private lastSeen = 0
   private opts: TrackerOptions
@@ -72,11 +77,19 @@ export class PersonTracker {
   }
 
   async start() {
+    this.worker = new Worker(new URL('./detector.worker.ts', import.meta.url), { type: 'module' })
+    this.worker.onmessage = (event: MessageEvent<DetectorResponse>) => this.onWorker(event.data)
+    this.worker.onerror = (event) => this.fail(event.message || 'Detector worker failed')
+    this.send({ type: 'init', modelUrl: new URL(MODEL_URL, location.href).href, size: MODEL_SIZE })
+    await this.openCamera()
+  }
+
+  /**
+   * Open the wall camera. Right after a boot the USB camera may not be ready yet
+   * ("Timeout starting video source"), or it gets unplugged: then try again in a moment.
+   */
+  private async openCamera() {
     try {
-      this.worker = new Worker(new URL('./detector.worker.ts', import.meta.url), { type: 'module' })
-      this.worker.onmessage = (event: MessageEvent<DetectorResponse>) => this.onWorker(event.data)
-      this.worker.onerror = (event) => this.fail(event.message || 'Detector worker failed')
-      this.send({ type: 'init', modelUrl: new URL(MODEL_URL, location.href).href, size: MODEL_SIZE })
       this.stream = await navigator.mediaDevices.getUserMedia({ video: VIDEO, audio: false })
       // Camera names are only readable after permission, so choose once the first one is open.
       const wanted = await this.chooseCamera()
@@ -88,11 +101,21 @@ export class PersonTracker {
       if (this.stopped) { this.releaseCamera(); return }
       const label = this.stream.getVideoTracks()[0]?.label || 'Kamera'
       this.update({ camera: label, rotated: this.opts.rotate ?? !BUILT_IN.test(label) })
+      this.stream.getVideoTracks()[0]?.addEventListener('ended', () => this.retryCamera('Kamera getrennt'))
       this.video.srcObject = this.stream
       await this.video.play()
+      if (this.state.status === 'error') this.update({ status: this.ready ? 'running' : 'starting', error: undefined })
     } catch (error) {
-      this.fail(error instanceof Error ? `${error.name}: ${error.message}` : String(error))
+      this.retryCamera(error instanceof Error ? `${error.name}: ${error.message}` : String(error))
     }
+  }
+
+  private retryCamera(reason: string) {
+    if (this.stopped) return
+    this.releaseCamera()
+    this.fail(`${reason} – neuer Versuch in ${CAMERA_RETRY_MS / 1000} s`)
+    clearTimeout(this.cameraTimer)
+    this.cameraTimer = window.setTimeout(() => void this.openCamera(), CAMERA_RETRY_MS)
   }
 
   private async chooseCamera() {
@@ -105,6 +128,7 @@ export class PersonTracker {
   stop() {
     this.stopped = true
     clearTimeout(this.timer)
+    clearTimeout(this.cameraTimer)
     this.worker?.terminate()
     this.releaseCamera()
   }
@@ -120,6 +144,8 @@ export class PersonTracker {
   }
 
   private fail(message: string) {
+    // Also into the console: on a screen it reaches the server log (remoteLog.ts).
+    console.error(`[Kamera] ${message}`)
     this.update({ status: 'error', error: message })
   }
 
@@ -130,7 +156,12 @@ export class PersonTracker {
 
   private onWorker(message: DetectorResponse) {
     if (message.type === 'error') { this.busy = false; this.fail(message.message); return }
-    if (message.type === 'ready') { this.update({ status: 'running', provider: message.provider }); this.schedule(); return }
+    if (message.type === 'ready') {
+      this.ready = true
+      this.update({ status: this.stream ? 'running' : this.state.status, provider: message.provider })
+      this.schedule()
+      return
+    }
     this.busy = false
     this.track(message.boxes, message.ms, message.light)
     this.schedule()
