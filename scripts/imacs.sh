@@ -10,6 +10,8 @@
 #   npm run imacs -- reload          Browser auf allen neu starten: die Seite lädt neu
 #   npm run imacs -- setup           HfG-Koepfe-Setup auf allen neu ausrollen, jeder behält seinen Platz (Admin-Passwort)
 #   npm run imacs -- kiosk           WLAN aus, keine WLAN-Anmeldefenster, kein Tastatur-/Maus-Assistent (Admin-Passwort)
+#   npm run imacs -- schedule        jeden Tag 16:55 an, 21:30 aus, prüft die automatische Anmeldung (Admin-Passwort)
+#   npm run imacs -- shutdown        alle iMacs jetzt ausschalten (Admin-Passwort)
 #
 # Benutzer auf den iMacs: IMAC_USER, sonst wird beim ersten Mal gefragt und gemerkt.
 set -euo pipefail
@@ -101,6 +103,18 @@ pkill -f "Bluetooth Setup Assistant" 2>/dev/null
 echo "Anmeldefenster und Bluetooth-Assistent aus"
 '
 
+# Jeden Tag selbst an und aus: ein ausgeschalteter iMac lässt sich übers Netz nicht wecken.
+# Dazu Neustart nach Stromausfall. Die automatische Anmeldung (Systemeinstellungen > Benutzer & Gruppen >
+# Anmeldeoptionen) wird nur geprüft: ohne sie bleibt ein iMac nach dem Einschalten am Anmeldefenster stehen.
+# __ON__ und __OFF__ werden vor dem Senden eingesetzt.
+SCHEDULE_SCRIPT='
+pmset repeat wakeorpoweron MTWRFSU __ON__:00 shutdown MTWRFSU __OFF__:00
+pmset -a autorestart 1
+pmset -a sleep 0 displaysleep 0 disksleep 0
+auto="$(defaults read /Library/Preferences/com.apple.loginwindow autoLoginUser 2>/dev/null)"
+echo "an __ON__, aus __OFF__, automatische Anmeldung: ${auto:-AUS - bitte in den Systemeinstellungen einschalten}"
+'
+
 command="${1:-}"
 case "$command" in
   scan)
@@ -163,6 +177,17 @@ case "$command" in
     # Ist der Starter an der Anmeldung am Bildschirm nicht geladen, dort laden (braucht root).
     on_all_as_admin 'u="$(stat -f %u /dev/console)"; plist="$(dscl . -read /Users/$(stat -f %Su /dev/console) NFSHomeDirectory | awk "{print \$2}")/Library/LaunchAgents/de.hfg-gmuend.koepfe.plist"
 if launchctl print "gui/$u/de.hfg-gmuend.koepfe" >/dev/null 2>&1; then echo "Starter läuft"; else launchctl bootstrap "gui/$u" "$plist" && echo "Starter geladen"; fi'
+    ;;
+  schedule)
+    USER_NAME="$(imac_user)"
+    on="${2:-16:55}"
+    off="${3:-21:30}"
+    script="${SCHEDULE_SCRIPT//__ON__/$on}"
+    on_all_as_admin "${script//__OFF__/$off}"
+    ;;
+  shutdown)
+    USER_NAME="$(imac_user)"
+    on_all_as_admin 'echo "fährt herunter"; shutdown -h +0 >/dev/null 2>&1 &'
     ;;
   kiosk)
     USER_NAME="$(imac_user)"
