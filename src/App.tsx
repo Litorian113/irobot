@@ -56,7 +56,7 @@ function Workbench() {
         {view === 'heads' && <Studio />}
         {view === 'custom' && <CustomWallEditor />}
         {(view === 'wall' || view === 'halloween') && (
-          <WallView key={view} slot={null} screens={SCREENS[view === 'halloween' ? 'halloween' : 'main']} />
+          <WallView key={view} slot={null} rows={SCREENS[view === 'halloween' ? 'halloween' : 'main']} />
         )}
       </div>
     </div>
@@ -70,5 +70,5 @@ export default function App() {
   // `?slot=N`: one screen of the wall, as the iMacs open it - no tabs.
   return SETTINGS.slot === null
     ? <Workbench />
-    : <WallView slot={SETTINGS.slot} screens={SCREENS[SETTINGS.wallSet]} />
+    : <WallView slot={SETTINGS.slot} rows={SCREENS[SETTINGS.wallSet]} />
 }

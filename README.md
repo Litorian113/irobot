@@ -24,7 +24,8 @@ und wo ungefähr (drei Zahlen in Metern).
 - **Kamera-Rechner** (zurzeit das MacBook): Webcam, Erkennung, Server. Er liefert die Seite aus und
   verteilt die Blickrichtung über WebSocket (`/gaze`) an alle Bildschirme.
 - **Bildschirme** (iMacs): öffnen nur ihre Seite im Browser. Auf OS X 10.11 läuft Safari 11 *nicht*
-  (kein WebGL 2), stattdessen **Firefox ESR 78** oder Chrome ≤ 103.
+  (kein WebGL 2), und Firefox 78 rendert auf den iMacs mit NVIDIA GeForce GT 120 mit 1 Bild/s und kann kein
+  Vollbild: deshalb **Chromium 103** (der letzte Stand für 10.11) im Kiosk-Modus.
 
 ## Starten
 
@@ -50,16 +51,38 @@ sind alle Bildschirme eingerichtet.
 npm run usb -- /Volumes/MEINSTICK
 ```
 
-legt `HfG-Koepfe/` mit Firefox 78 und `HfG-Koepfe-Setup.command` auf den Stick. Am iMac: Stick einstecken,
+legt `HfG-Koepfe/` mit Chromium 103 und `HfG-Koepfe-Setup.command` auf den Stick. Am iMac: Stick einstecken,
 `HfG-Koepfe-Setup.command` doppelklicken, Platz auswählen (bekannte iMacs sind anhand der IP vorausgewählt,
 siehe `known_slot` im Skript). Das Skript
 
-- installiert Firefox 78 nach `~/Applications/Firefox HfG.app`, ohne Updates und Begrüßung, mit freigeschaltetem WebGL,
+- installiert Chromium 103 nach `~/Applications/Chromium HfG.app` (eigenes Profil, keine Dialoge, GPU erzwungen),
 - legt **HfG Köpfe** und **HfG Köpfe beenden** auf den Schreibtisch,
 - startet die Seite bei jeder Anmeldung im Vollbild, wartet dafür auf den Server, hält den Bildschirm wach
-  und startet Firefox nach einem Absturz neu (nach Cmd+Q nicht).
+  und startet Chromium nach einem Absturz neu (nach Cmd+Q nicht).
 
 Erneut ausführen, um den Platz zu ändern. Kein Admin-Passwort nötig.
+
+### SSH auf die iMacs
+
+Damit der Kamera-Rechner alle iMacs fernsteuern kann, einmal pro iMac (fragt nach einem Admin-Passwort):
+`HfG-SSH-Setup.command` vom Stick doppelklicken, oder bei laufendem `npm run setup-server` im Terminal
+`curl -s 192.168.0.100:8090/ssh | bash`. Das trägt den Wand-Schlüssel des Kamera-Rechners ein
+(`~/.ssh/hfg-koepfe`, wird beim ersten `npm run usb`/`setup-server` angelegt) und schaltet „Entfernte
+Anmeldung" ein: nur für diesen Benutzer, nur mit Schlüssel, nur aus 192.168.0.x. Die alte
+`sshd_config` bleibt als `sshd_config.hfg-original` liegen. Für einen weiteren Rechner (z.B. Windows)
+dessen öffentlichen Schlüssel als `key` ausliefern und das Skript noch einmal laufen lassen.
+
+Am Kamera-Rechner dann:
+
+```
+npm run imacs -- scan          # iMacs suchen, ihren Platz merken
+npm run imacs -- status        # läuft der Browser, seit wann an
+npm run imacs -- reload        # Seite auf allen neu laden (Browser neu starten)
+npm run imacs -- setup         # Setup auf allen neu ausrollen, Plätze bleiben (Admin-Passwort)
+npm run imacs -- kiosk         # WLAN aus, keine Anmelde- und Bluetooth-Fenster (Admin-Passwort)
+npm run imacs -- ssh 3         # Terminal auf Platz 3
+npm run imacs -- run "uptime"  # Befehl auf allen
+```
 
 ## Am Laptop ausprobieren
 

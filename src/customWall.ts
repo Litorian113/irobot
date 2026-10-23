@@ -1,25 +1,24 @@
-import { DEFAULT_WALL, type WallKeys } from './heads/catalog'
+import { DEFAULT_WALL } from './heads/catalog'
+import { gridLayout, isLayout, isLegacyKeys, type WallLayout } from './layout'
 
 const API = '/api/custom-wall'
 
-function isWall(value: unknown): value is WallKeys {
-  return Array.isArray(value) && value.length === 9 && value.every((key) => key === null || typeof key === 'string')
-}
-
-/** The saved custom wall from the server, or the main wall as a starting point. */
-export async function loadCustomWall(): Promise<{ keys: WallKeys; saved: boolean }> {
+/** The saved custom wall from the server, or the main wall as a starting point. A nine-key wall from before rows is read as the 3x3 shelf. */
+export async function loadCustomWall(): Promise<{ layout: WallLayout; saved: boolean }> {
   const response = await fetch(API, { cache: 'no-store' })
   if (!response.ok) throw new Error(`Server antwortet mit ${response.status}`)
-  const { keys } = (await response.json()) as { keys: unknown }
-  return isWall(keys) ? { keys, saved: true } : { keys: [...DEFAULT_WALL], saved: false }
+  const { layout, keys } = (await response.json()) as { layout?: unknown; keys?: unknown }
+  if (isLayout(layout)) return { layout, saved: true }
+  if (isLegacyKeys(keys)) return { layout: gridLayout(keys), saved: true }
+  return { layout: structuredClone(DEFAULT_WALL), saved: false }
 }
 
 /** Saves it on the server; every screen showing `?wall=custom` reloads. */
-export async function saveCustomWall(keys: WallKeys) {
+export async function saveCustomWall(layout: WallLayout) {
   const response = await fetch(API, {
     method: 'PUT',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ keys }),
+    body: JSON.stringify({ layout }),
   })
   if (!response.ok) throw new Error(((await response.json().catch(() => ({}))) as { error?: string }).error ?? `Fehler ${response.status}`)
 }

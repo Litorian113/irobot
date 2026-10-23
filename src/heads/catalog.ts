@@ -1,5 +1,6 @@
 import { DESIGNS } from './designs'
 import { HALLOWEEN } from './halloween'
+import { gridLayout, type WallLayout } from '../layout'
 import type { CreateHead } from './types'
 
 /** Everything that can go on a screen of a custom wall: every built head, and the promo. */
@@ -29,12 +30,9 @@ export function snapshotUrl(key: string) {
   return `${import.meta.env.BASE_URL}snapshots/${key}.jpg`
 }
 
-/** A custom wall: nine screens, top-left to bottom-right; null is an empty screen. */
-export type WallKeys = (string | null)[]
-
 /** Starting point for a custom wall: the main wall as it is. */
-export const DEFAULT_WALL: WallKeys = Array.from({ length: 9 }, (_, slot) => {
+export const DEFAULT_WALL: WallLayout = gridLayout(Array.from({ length: 9 }, (_, slot) => {
   if (slot === 4) return PROMO_KEY
   const design = DESIGNS.find((d) => d.slot === slot && d.create)
   return design ? `main-${design.id}` : null
-})
+}))

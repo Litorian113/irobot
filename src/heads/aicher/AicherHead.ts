@@ -45,6 +45,22 @@ interface AicherModel {
 }
 
 const between = ([lo, hi]: number[]) => lo + Math.random() * (hi - lo)
+
+/**
+ * The atlas as plain pixel data, rows flipped like a canvas texture. The NVIDIA GeForce GT 120
+ * iMacs garble a 2D canvas copied straight into a texture; from an ArrayBuffer it arrives intact.
+ */
+function atlasTexture(canvas: HTMLCanvasElement) {
+  const { width, height } = canvas
+  const pixels = canvas.getContext('2d')!.getImageData(0, 0, width, height).data
+  const flipped = new Uint8Array(pixels.length)
+  const row = width * 4
+  for (let y = 0; y < height; y++) flipped.set(pixels.subarray(y * row, (y + 1) * row), (height - 1 - y) * row)
+  const texture = new THREE.DataTexture(flipped, width, height, THREE.RGBAFormat)
+  texture.magFilter = THREE.LinearFilter
+  texture.needsUpdate = true
+  return texture
+}
 /** Now and then one pictogram takes on a colour of the 1972 Games (seconds). */
 const HIGHLIGHT_EVERY = [2.5, 5]
 const HIGHLIGHT_LENGTH = 3.2
@@ -73,7 +89,7 @@ export class AicherHead implements HeadView {
   private sweepAt = -100
   private nextHighlight = between([1, 2])
   private highlightAt = -100
-  private atlas: THREE.CanvasTexture
+  private atlas: THREE.DataTexture
   private clock = new THREE.Clock()
   private resizeObserver: ResizeObserver
   private canvas: HTMLCanvasElement
@@ -101,7 +117,7 @@ export class AicherHead implements HeadView {
     this.camera.position.copy(CAM)
     this.camera.lookAt(LOOK)
 
-    this.atlas = new THREE.CanvasTexture(pictogramAtlas())
+    this.atlas = atlasTexture(pictogramAtlas())
     // No mipmaps: they would bleed between the cells as lines along the fields' edges.
     this.atlas.generateMipmaps = false
     this.atlas.minFilter = THREE.LinearFilter

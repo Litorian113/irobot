@@ -1,7 +1,7 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useRef, useState, type CSSProperties } from 'react'
 import type { HeadView } from './heads/types'
 import { subscribe, type GazeMessage } from './tracking/bus'
-import { lookAngles, slotPosition } from './tracking/gaze'
+import { lookAngles, type Vec3 } from './tracking/gaze'
 import { SETTINGS, type WallHead } from './wall'
 
 /** Gaze messages older than this mean the camera window is gone. */
@@ -13,7 +13,9 @@ const heads = new Map<number, HeadView>()
 ;(window as unknown as { __heads?: () => unknown }).__heads = () =>
   Object.fromEntries([...heads].map(([slot, face]) => [slot, face.debug()]))
 
-export default function HeadCell({ slot, head }: { slot: number; head: WallHead }) {
+/** One head on the wall; `position` is its screen's centre in the wall frame (WallView). */
+export default function HeadCell({ slot, head, position, style }: { slot: number; head: WallHead; position: Vec3; style?: CSSProperties }) {
+  const { x, y, z } = position
   const canvasRef = useRef<HTMLCanvasElement>(null)
   const [stats, setStats] = useState<string | null>(null)
 
@@ -32,7 +34,6 @@ export default function HeadCell({ slot, head }: { slot: number; head: WallHead 
       return
     }
     heads.set(slot, face)
-    const position = slotPosition(slot, SETTINGS.spacing)
     const started = performance.now()
     let latest: GazeMessage | null = null
     let receivedAt = 0
@@ -47,7 +48,7 @@ export default function HeadCell({ slot, head }: { slot: number; head: WallHead 
       const message = latest && now - receivedAt < STALE_MS ? latest : null
       if (message?.present && message.person) {
         presentSince ||= now
-        const { yaw, pitch } = lookAngles(position, message.person)
+        const { yaw, pitch } = lookAngles({ x, y, z }, message.person)
         face.setLook(yaw, pitch)
         face.setExpression(now - presentSince < NOTICE_MS ? 'curious' : 'happy')
         return
@@ -72,10 +73,10 @@ export default function HeadCell({ slot, head }: { slot: number; head: WallHead 
       heads.delete(slot)
       face.dispose()
     }
-  }, [slot, head])
+  }, [slot, head, x, y, z])
 
   return (
-    <div className="cell">
+    <div className="cell" style={style}>
       <canvas ref={canvasRef} />
       {stats && <span className="cell-stats">{stats}</span>}
     </div>

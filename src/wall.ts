@@ -2,12 +2,32 @@ import type { HeadConfig, HeadStyle } from './viki/config'
 import type { Vec3 } from './tracking/gaze'
 import { DESIGNS } from './heads/designs'
 import { HALLOWEEN } from './heads/halloween'
-import { catalogEntry, PROMO_KEY, type WallKeys } from './heads/catalog'
+import { catalogEntry, PROMO_KEY } from './heads/catalog'
+import { cellColumns, gridLayout, type WallLayout } from './layout'
 import type { CreateHead, HeadDesign } from './heads/types'
 import { ParticleFace } from './viki/ParticleFace'
 
 /** The middle screen carries the HfG message instead of a head. */
 export const PROMO_SLOT = 4
+/**
+ * The head the promo screen shows until someone has stood in front of the wall for
+ * PROMO_AFTER_MS; then the HfG message fades in, and out again PROMO_HOLD_MS after they left.
+ */
+export const PROMO_STAND_IN = 'main-11'
+export const PROMO_AFTER_MS = 8000
+export const PROMO_HOLD_MS = 4000
+
+// Screens without a working iMac (oben links, unten links) are left out: src/layout.ts, OFFLINE_SLOTS.
+export { isOffline } from './layout'
+
+/**
+ * Screens that stand off the even grid in the shelf, in metres (x to the right as seen from the
+ * street, y up, z towards the street). Mitte links stands further out to the left: measure the extra
+ * gap between it and Mitte (centre to centre, minus the normal spacing) and put it here, negative.
+ */
+export const SLOT_SHIFT: Partial<Record<number, Partial<Vec3>>> = {
+  3: { x: 0 },
+}
 
 export const SLOT_NAMES = [
   'oben links', 'oben Mitte', 'oben rechts',
@@ -66,9 +86,12 @@ const wall = slot === null
 /*
  * Physical layout in metres. The laptop defaults describe a 3x3 grid on a ~30 cm
  * wide laptop screen with the webcam on its top edge; the slot defaults describe
- * the shelf of iMacs with the camera right above the middle (promo) screen.
+ * the shelf of iMacs, the camera above it. On the camera page all of these can be
+ * set in the link to calibrate: ?camerax=&cameray= (metres from the middle screen's
+ * centre), ?tilt= (degrees down), ?rotate=0 (not hung upside down), ?spacing=x,y.
  */
 const spacing = pairParam('spacing', wall ? [0.1, 0.065] : [0.55, 0.5])
+const cameraX = numberParam('camerax', 0)
 const cameraY = numberParam('cameray', wall ? 0.11 : 0.3)
 
 export const SETTINGS = {
@@ -89,7 +112,16 @@ export const SETTINGS = {
   /** Horizontal field of view of the camera, degrees. */
   hfov: numberParam('fov', 70),
   spacing: { x: spacing[0], y: spacing[1] },
-  cameraPosition: { x: 0, y: cameraY, z: 0 } satisfies Vec3,
+  cameraPosition: { x: cameraX, y: cameraY, z: 0 } satisfies Vec3,
+  /** Degrees the camera looks down. */
+  tilt: numberParam('tilt', 0),
+  /**
+   * Turn the camera image by 180 degrees: `?rotate=180` / `?rotate=0`. Without it the tracker decides
+   * by the camera: the external wall camera hangs upside down above the shelf, a laptop's own does not.
+   */
+  rotate: params.has('rotate') ? numberParam('rotate', 0) === 180 : null,
+  /** Lift dark frames and stretch contrast before detection; `?enhance=0` turns it off. */
+  enhance: flagParam('enhance', true),
   fps: numberParam('fps', wall ? 30 : 60),
   /** Show the rendered frame rate on each head (`?stats=1`). */
   stats: flagParam('stats', false),
@@ -124,16 +156,45 @@ export const WALL_HEADS: (WallHead | null)[] = SLOTS.map((preset, slot) => {
 
 export type WallSet = 'main' | 'halloween'
 
-/** One screen of a wall: the promo, a head, or a place still waiting for its head. */
+/** One screen of a wall: the promo (with the head standing in for it), a head, or a place still waiting for its head. */
 export type WallScreen =
-  | { kind: 'promo' }
+  | { kind: 'promo'; standIn: WallHead | null }
   | { kind: 'head'; head: WallHead }
   | { kind: 'empty'; design: HeadDesign }
 
+/** A screen in its place on the wall: its slot, its column in the shelf grid (layout.ts), what it shows. */
+export interface PlacedScreen {
+  slot: number
+  column: number
+  screen: WallScreen
+}
+
+export type WallRows = PlacedScreen[][]
+
+/** Rows of screens for a layout; `screen` says what each slot shows. */
+function place(layout: WallLayout, screen: (slot: number, key: string | null) => WallScreen): WallRows {
+  const columns = cellColumns(layout)
+  return layout.map((row, r) => row.map((cell, i) => ({ slot: cell.slot, column: columns[r][i], screen: screen(cell.slot, cell.key) })))
+}
+
+/** Built once: the head that stands in for the promo. */
+const PROMO_HEAD: WallHead | null = (() => {
+  const entry = catalogEntry(PROMO_STAND_IN)
+  const motion = SLOTS[PROMO_SLOT] ?? { stiffness: 5, delay: 0.1 }
+  return entry?.create ? { create: entry.create, design: null, stiffness: motion.stiffness, delay: motion.delay } : null
+})()
+
+/** The 3x3 shelf without the places that have no screen. */
+const GRID = gridLayout(Array.from({ length: 9 }, () => null))
+
 /** Built once per page, like WALL_HEADS. */
-export const SCREENS: Record<WallSet, WallScreen[]> = {
-  main: WALL_HEADS.map((head) => (head ? { kind: 'head', head } : { kind: 'promo' })),
-  halloween: HALLOWEEN.map((design) => {
+export const SCREENS: Record<WallSet, WallRows> = {
+  main: place(GRID, (slot) => {
+    const head = WALL_HEADS[slot]
+    return head ? { kind: 'head', head } : { kind: 'promo', standIn: PROMO_HEAD }
+  }),
+  halloween: place(GRID, (slot): WallScreen => {
+    const design = HALLOWEEN[slot]
     const motion = (design.slot !== null && SLOTS[design.slot]) || { stiffness: 5, delay: 0.1 }
     return design.create
       ? { kind: 'head', head: { create: design.create, design, stiffness: motion.stiffness, delay: motion.delay } }
@@ -142,10 +203,9 @@ export const SCREENS: Record<WallSet, WallScreen[]> = {
 }
 
 /** Screens for a custom wall (keys from the catalog, see heads/catalog.ts). Build once per page. */
-export function screensFromKeys(keys: WallKeys): WallScreen[] {
-  return Array.from({ length: 9 }, (_, slot): WallScreen => {
-    const key = keys[slot] ?? null
-    if (key === PROMO_KEY) return { kind: 'promo' }
+export function screensFromLayout(layout: WallLayout): WallRows {
+  return place(layout, (slot, key): WallScreen => {
+    if (key === PROMO_KEY) return { kind: 'promo', standIn: PROMO_HEAD }
     const entry = catalogEntry(key)
     const motion = SLOTS[slot] ?? { stiffness: 5, delay: 0.1 }
     if (entry?.create) {

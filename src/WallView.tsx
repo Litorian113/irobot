@@ -1,30 +1,38 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useState, type CSSProperties } from 'react'
 import HeadCell from './HeadCell'
 import Promo from './Promo'
 import TrackerPanel from './TrackerPanel'
 import { publish } from './tracking/bus'
 import { PersonTracker, type TrackerState } from './tracking/PersonTracker'
-import { SETTINGS, SLOT_NAMES, type WallScreen } from './wall'
+import { slotLabel } from './layout'
+import { screenPosition, type Vec3 } from './tracking/gaze'
+import { SETTINGS, SLOT_SHIFT, type PlacedScreen, type WallRows } from './wall'
 
-function Screen({ slot, screen }: { slot: number; screen: WallScreen }) {
-  if (screen.kind === 'promo') return <Promo />
-  if (screen.kind === 'head') return <HeadCell slot={slot} head={screen.head} />
+function Screen({ placed, position, style }: { placed: PlacedScreen; position: Vec3; style?: CSSProperties }) {
+  const { slot, screen } = placed
+  if (screen.kind === 'promo') return <Promo slot={slot} standIn={screen.standIn} position={position} style={style} />
+  if (screen.kind === 'head') return <HeadCell slot={slot} head={screen.head} position={position} style={style} />
   return (
-    <div className="cell cell-empty">
+    <div className="cell cell-empty" style={style}>
       <span className="cell-empty-num">{screen.design.id}</span>
       <span className="cell-empty-name">{screen.design.name}</span>
-      <span className="cell-empty-hint">noch leer · {SLOT_NAMES[slot].replace(" (Werbung)", "")}</span>
+      <span className="cell-empty-hint">noch leer · {slotLabel(slot).replace(' (Werbung)', '')}</span>
     </div>
   )
 }
 
+/** Where a screen is in the wall frame. The all-screens page is a miniature: only the real shelf has screens off the grid. */
+function positionOf(placed: PlacedScreen, row: number) {
+  return screenPosition(placed.column, row, SETTINGS.spacing, SETTINGS.wall ? undefined : SLOT_SHIFT[placed.slot])
+}
+
 /**
- * A wall: all nine screens on one page, or one screen (`slot`) as on an iMac.
+ * A wall: all its screens on one page, laid out like the shelf, or one screen (`slot`) as on an iMac.
  * Camera and detector only run while this is mounted, only on the camera
  * machine, and only if the wall has a head to steer.
  */
-export default function WallView({ slot, screens }: { slot: number | null; screens: WallScreen[] }) {
-  const hasHeads = screens.some((screen) => screen.kind === 'head')
+export default function WallView({ slot, rows }: { slot: number | null; rows: WallRows }) {
+  const hasHeads = rows.flat().some(({ screen }) => screen.kind === 'head' || (screen.kind === 'promo' && screen.standIn !== null))
   const [tracker, setTracker] = useState<PersonTracker | null>(null)
   const [trackerState, setTrackerState] = useState<TrackerState | null>(null)
   const [preview, setPreview] = useState(SETTINGS.preview)
@@ -35,6 +43,9 @@ export default function WallView({ slot, screens }: { slot: number | null; scree
     const instance = new PersonTracker({
       hfov: SETTINGS.hfov,
       cameraPosition: SETTINGS.cameraPosition,
+      tilt: SETTINGS.tilt,
+      rotate: SETTINGS.rotate,
+      enhance: SETTINGS.enhance,
       cameraName: SETTINGS.cameraName,
       onUpdate: (state) => {
         setTrackerState(state)
@@ -86,11 +97,26 @@ export default function WallView({ slot, screens }: { slot: number | null; scree
     return () => window.removeEventListener('keydown', onKey)
   }, [])
 
+  const columns = Math.max(1, ...rows.flat().map((placed) => placed.column + 1))
+  const row = slot === null ? -1 : rows.findIndex((r) => r.some((placed) => placed.slot === slot))
+  const mine = row < 0 ? null : rows[row].find((placed) => placed.slot === slot)!
   return (
-    <main className={slot === null ? 'wall' : 'single'}>
+    <main
+      className={slot === null ? 'wall' : 'single'}
+      style={slot === null ? { gridTemplate: `repeat(${rows.length}, 1fr) / repeat(${columns}, 1fr)` } : undefined}
+    >
       {slot === null
-        ? screens.map((screen, index) => <Screen key={index} slot={index} screen={screen} />)
-        : <Screen slot={slot} screen={screens[slot]} />}
+        ? rows.flatMap((r, rowIndex) => r.map((placed) => (
+          <Screen
+            key={placed.slot}
+            placed={placed}
+            position={positionOf(placed, rowIndex)}
+            style={{ gridRow: rowIndex + 1, gridColumn: placed.column + 1 }}
+          />
+        )))
+        : mine
+          ? <Screen placed={mine} position={positionOf(mine, row)} />
+          : <div className="cell cell-empty"><span className="cell-empty-hint">Platz {slot} gehört nicht zu dieser Wand</span></div>}
       {SETTINGS.camera && hasHeads && preview && <TrackerPanel state={trackerState} video={tracker?.video ?? null} />}
     </main>
   )

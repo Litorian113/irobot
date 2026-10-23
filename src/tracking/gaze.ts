@@ -18,6 +18,8 @@ export interface CameraModel {
   aspect: number
   /** Camera position in the wall frame; it faces +z like the screens. */
   position: Vec3
+  /** Degrees the camera looks down (0: level). A camera mounted high is tilted towards the street. */
+  tilt?: number
 }
 
 /** Rough body measures used to guess distance from box size. */
@@ -41,19 +43,31 @@ export function locate(box: Box, cam: CameraModel): Vec3 {
   // The face sits near the top of the box; if the top is cut off, it is above the frame edge.
   const faceY = box.y1 + Math.min(0.1 * h, 0.12)
   const cx = (box.x1 + box.x2) / 2
-  // The camera faces the street: its image left is the street's right (+x).
+  // The ray through the face in camera axes, z along the view: the camera faces the street,
+  // so its image left is the street's right (+x).
+  const right = (0.5 - cx) * 2 * tanX * z
+  const up = (0.5 - faceY) * 2 * tanY * z
+  // Tilted down: the view axis drops by `tilt`, the image's up leans towards the street.
+  const t = ((cam.tilt ?? 0) * Math.PI) / 180
   return {
-    x: cam.position.x + (0.5 - cx) * 2 * tanX * z,
-    y: cam.position.y + (0.5 - faceY) * 2 * tanY * z,
-    z: cam.position.z + z,
+    x: cam.position.x + right,
+    y: cam.position.y + up * Math.cos(t) - z * Math.sin(t),
+    z: cam.position.z + up * Math.sin(t) + z * Math.cos(t),
   }
 }
 
+/**
+ * Centre of the screen in `column` of `row` (both from 0, top-left). Column 1 of row 1 is the
+ * middle of the 3x3 shelf, the origin. `shift` moves it off the grid, e.g. a screen standing a
+ * little further out than the others.
+ */
+export function screenPosition(column: number, row: number, spacing: { x: number; y: number }, shift?: Partial<Vec3>): Vec3 {
+  return { x: (column - 1) * spacing.x + (shift?.x ?? 0), y: (1 - row) * spacing.y + (shift?.y ?? 0), z: shift?.z ?? 0 }
+}
+
 /** Centre of a screen in the 3x3 wall. Slot 0 is top-left, 4 the middle, 8 bottom-right. */
-export function slotPosition(slot: number, spacing: { x: number; y: number }): Vec3 {
-  const col = slot % 3
-  const row = Math.floor(slot / 3)
-  return { x: (col - 1) * spacing.x, y: (1 - row) * spacing.y, z: 0 }
+export function slotPosition(slot: number, spacing: { x: number; y: number }, shift?: Partial<Vec3>): Vec3 {
+  return screenPosition(slot % 3, Math.floor(slot / 3), spacing, shift)
 }
 
 /** Yaw > 0 turns the face to screen-right, pitch > 0 looks up. */

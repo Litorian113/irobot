@@ -1,0 +1,88 @@
+<!doctype html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<title>WebGL-Test</title>
+<style>html, body { margin: 0; height: 100%; background: #000; color: #9f9; font: 14px monospace } canvas { position: fixed; inset: 0; width: 100%; height: 100% } #out { position: fixed; left: 10px; top: 10px; z-index: 1; white-space: pre }</style>
+</head>
+<body>
+<div id="out"></div>
+<script>
+// Measures the frame rate of a few plain WebGL cases, 5 s each, with and without antialiasing,
+// and posts the results to the wall server (/api/log). Opened on a screen as ?slot=N&gltest=1.
+var slot = new URLSearchParams(location.search).get('slot')
+var out = document.getElementById('out')
+var cases = [
+  { name: 'leer, AA an', aa: true, mode: 'clear' },
+  { name: 'leer, AA aus', aa: false, mode: 'clear' },
+  { name: 'Shader, AA an', aa: true, mode: 'frag' },
+  { name: 'Shader, AA aus', aa: false, mode: 'frag' },
+  { name: '60k Dreiecke, AA an', aa: true, mode: 'tri' },
+  { name: '60k Dreiecke, AA aus', aa: false, mode: 'tri' },
+]
+var results = []
+
+function log(text) {
+  out.textContent += text + '\n'
+  fetch('/api/log', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ slot: slot, level: 'gltest', message: text }) }).catch(function () {})
+}
+
+function program(gl, vs, fs) {
+  var p = gl.createProgram()
+  ;[[gl.VERTEX_SHADER, vs], [gl.FRAGMENT_SHADER, fs]].forEach(function (s) {
+    var sh = gl.createShader(s[0]); gl.shaderSource(sh, s[1]); gl.compileShader(sh)
+    if (!gl.getShaderParameter(sh, gl.COMPILE_STATUS)) log('Shaderfehler: ' + gl.getShaderInfoLog(sh))
+    gl.attachShader(p, sh)
+  })
+  gl.linkProgram(p)
+  return p
+}
+
+function run(index) {
+  if (index >= cases.length) { log('fertig: ' + results.join(' | ')); return }
+  var c = cases[index]
+  var old = document.querySelector('canvas'); if (old) old.remove()
+  var canvas = document.createElement('canvas')
+  canvas.width = innerWidth; canvas.height = innerHeight
+  document.body.appendChild(canvas)
+  var gl = canvas.getContext('webgl', { antialias: c.aa })
+  if (!gl) { log(c.name + ': kein WebGL'); return run(index + 1) }
+  var draw
+  if (c.mode === 'clear') {
+    draw = function (t) { gl.clearColor(0.1, 0.1 + 0.1 * Math.sin(t), 0.2, 1); gl.clear(gl.COLOR_BUFFER_BIT) }
+  } else if (c.mode === 'frag') {
+    var p = program(gl, 'attribute vec2 a; varying vec2 v; void main(){ v = a; gl_Position = vec4(a, 0.0, 1.0); }',
+      'precision mediump float; varying vec2 v; uniform float t; void main(){ float s = 0.0; for (int i = 0; i < 24; i++) { s += sin(v.x * float(i) + t) * cos(v.y * float(i) - t); } gl_FragColor = vec4(0.5 + 0.02 * s, 0.3, 0.6, 1.0); }')
+    var b = gl.createBuffer(); gl.bindBuffer(gl.ARRAY_BUFFER, b)
+    gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([-1, -1, 3, -1, -1, 3]), gl.STATIC_DRAW)
+    var loc = gl.getAttribLocation(p, 'a'); gl.enableVertexAttribArray(loc); gl.vertexAttribPointer(loc, 2, gl.FLOAT, false, 0, 0)
+    gl.useProgram(p); var ut = gl.getUniformLocation(p, 't')
+    draw = function (t) { gl.uniform1f(ut, t); gl.drawArrays(gl.TRIANGLES, 0, 3) }
+  } else {
+    var n = 60000, data = new Float32Array(n * 9)
+    for (var i = 0; i < data.length; i++) data[i] = Math.random() * 2 - 1
+    var p2 = program(gl, 'attribute vec3 a; uniform float t; varying float d; void main(){ d = a.z; gl_Position = vec4(a.x * cos(t) - a.y * sin(t), a.x * sin(t) + a.y * cos(t), a.z, 1.0); }',
+      'precision mediump float; varying float d; void main(){ gl_FragColor = vec4(0.4 + 0.3 * d, 0.6, 0.8, 1.0); }')
+    var b2 = gl.createBuffer(); gl.bindBuffer(gl.ARRAY_BUFFER, b2); gl.bufferData(gl.ARRAY_BUFFER, data, gl.STATIC_DRAW)
+    var loc2 = gl.getAttribLocation(p2, 'a'); gl.enableVertexAttribArray(loc2); gl.vertexAttribPointer(loc2, 3, gl.FLOAT, false, 0, 0)
+    gl.useProgram(p2); var ut2 = gl.getUniformLocation(p2, 't'); gl.enable(gl.DEPTH_TEST)
+    draw = function (t) { gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT); gl.uniform1f(ut2, t * 0.3); gl.drawArrays(gl.TRIANGLES, 0, n * 3) }
+  }
+  var start = performance.now(), frames = 0
+  function frame(now) {
+    draw((now - start) / 1000)
+    frames++
+    if (now - start < 5000) return requestAnimationFrame(frame)
+    var fps = Math.round(frames / ((now - start) / 1000))
+    results.push(c.name + ' ' + fps + ' fps')
+    log(c.name + ': ' + fps + ' fps')
+    run(index + 1)
+  }
+  requestAnimationFrame(frame)
+}
+
+log('Start ' + innerWidth + 'x' + innerHeight + ', ' + navigator.userAgent.replace(/.*rv:/, 'rv:'))
+setTimeout(function () { run(0) }, 500)
+</script>
+</body>
+</html>

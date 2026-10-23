@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState, type PointerEvent as ReactPointerEvent } from 'react'
 import type { TrackerState } from './tracking/PersonTracker'
+import { SETTINGS } from './wall'
 
 const POSITION_KEY = 'hfg.trackerPanel'
 const MARGIN = 8
@@ -26,6 +27,7 @@ function clampToWindow(position: Position, panel: HTMLElement | null): Position 
 
 /** Live camera preview with the detections, for setting up. Mirrored, like a mirror. Drag it anywhere. */
 export default function TrackerPanel({ state, video }: { state: TrackerState | null; video: HTMLVideoElement | null }) {
+  const rotate = state?.rotated ?? false
   const canvasRef = useRef<HTMLCanvasElement>(null)
   const panelRef = useRef<HTMLElement>(null)
   // null: the default corner (bottom left), until it is dragged.
@@ -85,6 +87,11 @@ export default function TrackerPanel({ state, video }: { state: TrackerState | n
         ctx.save()
         ctx.translate(w, 0)
         ctx.scale(-1, 1)
+        // Upright like the detector sees it, when the camera hangs upside down.
+        if (rotate) {
+          ctx.translate(w, h)
+          ctx.rotate(Math.PI)
+        }
         ctx.drawImage(video, 0, 0, w, h)
         ctx.restore()
       }
@@ -100,7 +107,7 @@ export default function TrackerPanel({ state, video }: { state: TrackerState | n
     }
     draw()
     return () => cancelAnimationFrame(raf)
-  }, [video])
+  }, [video, rotate])
 
   const person = state?.person
   return (
@@ -119,8 +126,12 @@ export default function TrackerPanel({ state, video }: { state: TrackerState | n
         <dd>{state?.camera ?? '…'}</dd>
         <dt>Detektor</dt>
         <dd>{state?.status === 'error' ? 'Fehler' : state?.provider ? `YOLO26n · ${state.provider} · ${Math.round(state.inferenceMs)} ms` : 'lädt …'}</dd>
+        <dt>Aufhellung</dt>
+        <dd>{state?.light ? `Kontrast ×${state.light.gain.toFixed(1)} · Gamma ${state.light.gamma.toFixed(2)}` : 'aus'}</dd>
         <dt>Personen</dt>
         <dd>{state?.boxes.length ?? 0}</dd>
+        <dt>Montage</dt>
+        <dd>{`x ${SETTINGS.cameraPosition.x.toFixed(2)} · y ${SETTINGS.cameraPosition.y.toFixed(2)} m · ${SETTINGS.tilt}° nach unten${rotate ? ' · gedreht' : ''}`}</dd>
         <dt>Ziel</dt>
         <dd>{person ? `x ${person.x.toFixed(2)} · y ${person.y.toFixed(2)} · ${person.z.toFixed(1)} m` : '—'}</dd>
       </dl>

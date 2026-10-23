@@ -151,6 +151,27 @@ body,
   color: var(--ink-faint);
 }
 
+/* The promo screen: its stand-in head, the HfG message fading in over it (Promo.tsx). */
+.promo-stage {
+  display: grid;
+}
+
+.promo-stage > * {
+  grid-area: 1 / 1;
+}
+
+.promo-overlay {
+  position: relative;
+  display: grid;
+  opacity: 0;
+  transition: opacity 1.4s ease;
+  pointer-events: none;
+}
+
+.promo-overlay.on {
+  opacity: 1;
+}
+
 /* ------------------------------------------------------------------ promo */
 
 /*
@@ -361,6 +382,12 @@ body,
 
 .slot-map span.on {
   background: #d58cff;
+}
+
+.slot-map span.off {
+  background: transparent;
+  outline: 1px dotted rgba(255, 255, 255, 0.3);
+  outline-offset: -1px;
 }
 
 .studio-main {
@@ -686,6 +713,59 @@ body,
 
 .custom-cell:hover .custom-cell-clear {
   opacity: 1;
+}
+
+/* "+" at the end of a row of the editor, "+ Reihe" below it. */
+.custom-row-add {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  justify-content: center;
+  gap: 6px;
+}
+
+.custom-row-add button,
+.custom-add-row {
+  padding: 6px 12px;
+  border: 1px dashed var(--ink-faint);
+  background: transparent;
+  color: var(--ink);
+  font: inherit;
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.custom-row-add button:first-child {
+  width: 44px;
+  height: 44px;
+  font-size: 20px;
+}
+
+.custom-row-add button:hover,
+.custom-add-row:hover {
+  border-color: #d58cff;
+  color: #d58cff;
+}
+
+.custom-add-row {
+  align-self: flex-start;
+}
+
+.picker-remove {
+  margin-right: 12px;
+  margin-left: auto;
+  padding: 4px 10px;
+  border: 1px solid var(--ink-faint);
+  background: transparent;
+  color: var(--ink);
+  font: inherit;
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.picker-remove:hover {
+  border-color: #ff6b6b;
+  color: #ff6b6b;
 }
 
 .custom-hint {

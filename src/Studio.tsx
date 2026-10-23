@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { DESIGNS } from './heads/designs'
 import type { HeadDesign } from './heads/types'
-import { PROMO_SLOT, SLOT_NAMES, SLOTS } from './wall'
+import { isOffline, PROMO_SLOT, SLOT_NAMES, SLOTS } from './wall'
 
 /** First they notice you (brows up), then they smile - as on the wall. */
 const NOTICE_MS = 1500
@@ -49,7 +49,7 @@ export default function Studio() {
         <header className="studio-bar">
           <div>
             <h2>{design.id} · {design.name}</h2>
-            <p>{design.slot === null ? 'Nicht auf der Hauptwand: für die Liste und eigene Wände' : `Platz ${design.slot} an der Wand: ${SLOT_NAMES[design.slot]}`}</p>
+            <p>{design.slot === null ? 'Nicht auf der Hauptwand: für die Liste und eigene Wände' : `Platz ${design.slot} an der Wand: ${SLOT_NAMES[design.slot]}${isOffline(design.slot) ? ' (dort zurzeit kein Bildschirm)' : ''}`}</p>
           </div>
           <label className="studio-toggle">
             <input type="checkbox" checked={webgl1} onChange={(e) => setWebgl1(e.target.checked)} />
@@ -153,7 +153,7 @@ function SlotMap({ slot }: { slot: number | null }) {
   return (
     <span className="slot-map" aria-label={slot === null ? 'nicht auf der Wand' : `Platz ${slot}`}>
       {Array.from({ length: 9 }, (_, i) => (
-        <span key={i} className={i === slot ? 'on' : i === PROMO_SLOT ? 'promo' : ''} />
+        <span key={i} className={i === slot ? 'on' : i === PROMO_SLOT ? 'promo' : isOffline(i) ? 'off' : ''} />
       ))}
     </span>
   )

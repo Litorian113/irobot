@@ -1,5 +1,8 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useState, type CSSProperties } from 'react'
+import HeadCell from './HeadCell'
 import { subscribe } from './tracking/bus'
+import type { Vec3 } from './tracking/gaze'
+import { PROMO_AFTER_MS, PROMO_HOLD_MS, type WallHead } from './wall'
 
 /** All copy of the middle screen in one place. */
 const COPY = {
@@ -12,9 +15,9 @@ const COPY = {
 
 const STALE_MS = 2000
 
-export default function Promo() {
+/** Whether someone is in front of the wall right now, from the camera's messages. */
+function usePresent() {
   const [present, setPresent] = useState(false)
-
   useEffect(() => {
     let timer = 0
     const off = subscribe((message) => {
@@ -27,10 +30,44 @@ export default function Promo() {
       window.clearTimeout(timer)
     }
   }, [])
+  return present
+}
 
+/**
+ * The promo screen. With a `standIn` head it shows that head, and the HfG message
+ * only fades in once someone has stood in front of the wall for PROMO_AFTER_MS;
+ * PROMO_HOLD_MS after they left the head comes back. Without one: just the message.
+ */
+export default function Promo({ slot = 4, standIn = null, position = { x: 0, y: 0, z: 0 }, style }: {
+  slot?: number
+  standIn?: WallHead | null
+  position?: Vec3
+  style?: CSSProperties
+}) {
+  const present = usePresent()
+  const [show, setShow] = useState(false)
+
+  useEffect(() => {
+    // Someone arrives: the message after a while. They leave: the head after a moment.
+    const timer = window.setTimeout(() => setShow(present), present ? PROMO_AFTER_MS : PROMO_HOLD_MS)
+    return () => window.clearTimeout(timer)
+  }, [present])
+
+  if (!standIn) return <Message present={present} style={style} />
+  return (
+    <div className="cell promo-stage" style={style}>
+      <HeadCell slot={slot} head={standIn} position={position} />
+      <div className={`promo-overlay${show ? ' on' : ''}`} aria-hidden={!show}>
+        <Message present={present} />
+      </div>
+    </div>
+  )
+}
+
+function Message({ present, style }: { present: boolean; style?: CSSProperties }) {
   const headline = present ? COPY.seen : COPY.idle
   return (
-    <div className={`cell promo${present ? ' seen' : ''}`}>
+    <div className={`cell promo${present ? ' seen' : ''}`} style={style}>
       <img className="promo-logo" src={COPY.logo} alt={COPY.school} />
       <h1 className="promo-headline" key={headline[0]}>
         {headline[0]}
