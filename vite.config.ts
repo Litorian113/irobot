@@ -167,5 +167,8 @@ export default defineConfig(({ mode }) => {
     // ONNX Runtime locates its .wasm files next to its own module; pre-bundling would move it.
     optimizeDeps: { exclude: ['onnxruntime-web'] },
     worker: { format: 'es' },
+    // The wall server is opened by its network name from the HfG WLAN (hfg-wall.local), not just by IP.
+    preview: { allowedHosts: ['.local', 'localhost'] },
+    server: { allowedHosts: ['.local', 'localhost'] },
   }
 })
