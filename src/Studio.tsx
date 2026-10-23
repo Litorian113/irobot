@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
+import { snapshotUrl } from './heads/catalog'
 import { DESIGNS } from './heads/designs'
 import type { HeadDesign } from './heads/types'
 import { isOffline, PROMO_SLOT, SLOT_NAMES, SLOTS } from './wall'
@@ -35,6 +36,8 @@ export default function Studio() {
             aria-current={d.id === selected}
             onClick={() => choose(d.id)}
           >
+            {/* Only on a phone: the list is a library of pictures there (index.css). */}
+            <span className="studio-thumb">{d.create && <img src={snapshotUrl(`main-${d.id}`)} alt="" loading="lazy" draggable={false} />}</span>
             <span className="studio-num">{d.id}</span>
             <span className="studio-text">
               <span className="studio-name">{d.name}</span>
@@ -61,7 +64,7 @@ export default function Studio() {
             ? <Stage key={`${design.id}-${webgl1}`} design={design} webgl1={webgl1} />
             : <EmptyHead design={design} />}
         </div>
-        <p className="studio-hint">Maus über den Bildschirm bewegen: der Kopf schaut zu dir. Außerhalb schaut er umher.</p>
+        <p className="studio-hint">Maus oder Finger über den Bildschirm: der Kopf schaut zu dir. Sonst schaut er umher.</p>
       </section>
     </div>
   )
