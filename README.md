@@ -14,7 +14,7 @@ und was noch offen ist.
 | | |
 |---|---|
 | **Wand ansehen und umbauen** | im WLAN `hfg`: **http://hfg-wall.local:8080** → Tab **Live-Wand** |
-| **Betriebszeit** | iMacs **Montag bis Freitag 16:55 an, 21:30 aus** (von selbst), am Wochenende aus |
+| **Betriebszeit** | iMacs **Montag bis Freitag 16:55 an, 21:30 aus** (von selbst); Wochenenden und Ruhetage (`kiosk/ruhetage.txt`, z.B. Weihnachten) aus |
 | **Server** | Windows-Rechner **`hfg-wall`**, läuft durchgehend |
 | **Änderung ausrollen** | `git push` auf `feat/kamera-koepfe` → spätestens 2 Minuten später live |
 | **Auf den Server** | `ssh nakumu-02@hfg-wall.local` (nur mit eingetragenem Schlüssel, siehe unten) |
@@ -100,9 +100,20 @@ Einschaltzeit (`pmset`), und der Server kann ihn nicht wecken.
 bash scripts/imacs.sh schedule 16:55 21:30 MTWRF
 ```
 
-Den Zeitplan kann man nur ändern, solange die iMacs an sind. Als Sicherung stellt der Server sie
-samstags und sonntags um 17:05 auf Mo–Fr und fährt sie herunter, falls sich doch einer eingeschaltet hat
-(Aufgabe „HfG Koepfe Wochenende", Protokoll `logs\imacs.log`). Das Admin-Passwort der iMacs liegt dafür auf
+Den Zeitplan kann man nur ändern, solange die iMacs an sind.
+
+**Ruhetage** (Weihnachten, Feiertage, Ferien) stehen in **`kiosk/ruhetage.txt`**, eine Zeile pro Zeitraum:
+`2026-12-23 2027-01-06 Weihnachten`. Die iMacs kennen selbst nur Wochentage, deshalb kümmert sich der
+Server darum (`scripts/windows/plan.ps1`):
+
+- **Mo–Fr 21:00** (Aufgabe „HfG Koepfe Zeitplan"): Kommt als Nächstes ein Ruhetag, schalten sich die iMacs
+  erst am ersten Tag danach wieder ein; sonst gilt der normale Wochenplan.
+- **Täglich 17:05** („HfG Koepfe Ruhetage"): Hat sich an einem Wochenende oder Ruhetag doch ein iMac
+  eingeschaltet (z.B. nach einem Stromausfall), fährt er ihn wieder herunter.
+- Probelauf ohne Wirkung: `powershell -File scripts\windows\plan.ps1 abend -dry -today 2026-12-22`.
+
+Eine Änderung an `ruhetage.txt` einfach pushen; sie muss spätestens am Abend vor dem ersten Ruhetag
+auf dem Server sein. Protokoll: `logs\imacs.log`. Das Admin-Passwort der iMacs liegt dafür auf
 dem Server in `C:\Users\nakumu-02\.hfg-imac-admin` (nur dieses Konto darf die Datei lesen).
 
 ---
@@ -212,7 +223,8 @@ Windows 10 Pro, Intel i5-7500T, NVIDIA GTX 1060, 16 GB. Repo unter **`C:\hfg\iro
 | HfG Koepfe Kamera | bei der Anmeldung | `camera.ps1`: Chrome im Vollbild, `http://127.0.0.1:8080/?slot=4&camera=1&preview=1` |
 | HfG Koepfe WLAN | bei der Anmeldung | `wlan.ps1`: verbindet `hfg` neu, wenn die Verbindung fehlt |
 | HfG Koepfe Update | alle 2 Minuten | `auto-update.ps1`: neuer Stand auf GitHub → `deploy.ps1` |
-| HfG Koepfe Wochenende | Sa und So 17:05 | `imacs-task.ps1`: iMacs auf Mo–Fr stellen und herunterfahren |
+| HfG Koepfe Zeitplan | Mo–Fr 21:00 | `plan.ps1 abend`: vor Ruhetagen pausieren, sonst Wochenplan |
+| HfG Koepfe Ruhetage | täglich 17:05 | `plan.ps1 check`: an Wochenenden und Ruhetagen iMacs herunterfahren |
 
 **Protokolle** in `C:\hfg\irobot\logs\`: `wall-server.log` (Server und alle Meldungen der Bildschirme,
 z.B. `[Platz 3 192.168.0.5] error: …`), `deploy.log`, `camera.log`.
