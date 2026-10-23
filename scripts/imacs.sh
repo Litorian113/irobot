@@ -35,7 +35,7 @@ imac_user() {
 }
 
 # Nur mit dem Wand-Schlüssel; die iMacs bekommen ein eigenes known_hosts.
-SSH_OPTS=(-i "$KEY" -o IdentitiesOnly=yes -o ConnectTimeout=4 -o StrictHostKeyChecking=accept-new -o "UserKnownHostsFile=$CACHE/known_hosts")
+SSH_OPTS=(-i "$KEY" -o IdentitiesOnly=yes -o LogLevel=ERROR -o ConnectTimeout=4 -o StrictHostKeyChecking=accept-new -o "UserKnownHostsFile=$CACHE/known_hosts")
 
 remote() {
   local ip="$1"
