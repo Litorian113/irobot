@@ -12,14 +12,16 @@ const TABS: { id: View; label: string }[] = [
   { id: 'heads', label: 'Köpfe' },
   { id: 'wall', label: 'Wand' },
   { id: 'halloween', label: 'Halloween' },
-  { id: 'custom', label: 'Eigene Wand' },
+  { id: 'custom', label: 'Live-Wand' },
 ]
 
 const SNAPSHOT = new URLSearchParams(window.location.search).get('snapshot')
 
 function initialView(): View {
   const view = new URLSearchParams(window.location.search).get('view')
-  return TABS.find((tab) => tab.id === view)?.id ?? 'heads'
+  // On a phone (from the QR code in the WLAN) the wall editor first, not a 3D head.
+  const phone = window.matchMedia('(max-width: 720px)').matches
+  return TABS.find((tab) => tab.id === view)?.id ?? (phone ? 'custom' : 'heads')
 }
 
 /** Working page: one head at a time, or the whole wall with camera - never both. */

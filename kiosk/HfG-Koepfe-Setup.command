@@ -103,7 +103,8 @@ cat > "$SUPPORT/start.sh" <<START
 #!/bin/bash
 # Startet diesen Bildschirm der Wand. Wird bei der Anmeldung von launchd aufgerufen.
 SLOT="\$(cat "$SUPPORT/slot")"
-URL="http://$SERVER/?slot=\$SLOT"
+# Die Live-Wand: was im Tab "Live-Wand" gespeichert ist (ohne gespeicherte Wand die Hauptwand).
+URL="http://$SERVER/?wall=custom&slot=\$SLOT"
 # Warten, bis der Kamera-Rechner erreichbar ist, statt eine Fehlerseite zu zeigen.
 until curl -s -m 2 -o /dev/null "http://$SERVER/"; do sleep 3; done
 pkill -f "$BROWSERS" 2>/dev/null

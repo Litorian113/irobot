@@ -157,7 +157,7 @@ export default function CustomWallEditor() {
       <section className="custom-main">
         <header className="custom-bar">
           <div>
-            <h2>Eigene Wand</h2>
+            <h2>Live-Wand</h2>
             <p className={`custom-status${dirty ? ' dirty' : ''}`}>{dirty ? 'nicht gespeichert' : status}</p>
           </div>
           <div className="custom-actions">
@@ -168,7 +168,8 @@ export default function CustomWallEditor() {
           </div>
         </header>
 
-        <div className="custom-grid" style={{ gridTemplateColumns: `repeat(${width}, 1fr)` }}>
+        {/* The last column only holds the "+" of each row: narrow. */}
+        <div className="custom-grid" style={{ gridTemplateColumns: `repeat(${width - 1}, 1fr) minmax(40px, 0.3fr)` }}>
           {layout.map((row, r) => [
             ...row.map((cell, i) => {
               const entry = catalogEntry(cell.key)
@@ -218,7 +219,9 @@ export default function CustomWallEditor() {
         </div>
         {layout.length < MAX_ROWS && <button type="button" className="custom-add-row" onClick={addRow}>+ Reihe</button>}
         <p className="custom-hint">
-          Klicken zum Auswählen, Kacheln untereinander ziehen zum Tauschen. Die Zahl ist der Platz: der iMac öffnet <code>?wall=custom&amp;slot=N</code>
+          <span className="custom-hint-desk">Klicken zum Auswählen, Kacheln untereinander ziehen zum Tauschen. </span>
+          <span className="custom-hint-touch">Einen Bildschirm antippen, um seinen Kopf zu wählen. </span>
+          Die Zahl ist der Platz: der iMac öffnet <code>?wall=custom&amp;slot=N</code>
         </p>
       </section>
 
