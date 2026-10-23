@@ -10,6 +10,7 @@
     "usb": "bash scripts/make-usb.sh",
     "setup-server": "bash scripts/setup-server.sh",
     "imacs": "bash scripts/imacs.sh",
+    "deploy": "bash scripts/deploy.sh",
     "dev:https": "VIKI_HTTPS=1 vite --host 0.0.0.0",
     "build": "tsc -b && vite build",
     "snapshots": "node scripts/snapshots.mjs",
