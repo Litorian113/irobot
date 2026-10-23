@@ -7,6 +7,8 @@ Set-Location $root
 $lock = Join-Path $root 'logs\deploy.lock'
 if ((Test-Path $lock) -and ((Get-Date) - (Get-Item $lock).LastWriteTime).TotalMinutes -lt 10) { 'Ein Deploy laeuft schon.'; exit 0 }
 New-Item -ItemType File -Force $lock | Out-Null
+# Ein Fehler landet im Protokoll und gibt die Sperre frei, statt den Deploy stumm abzubrechen.
+trap { "Deploy abgebrochen: $_"; Remove-Item $lock -ErrorAction SilentlyContinue; exit 1 }
 $env:Path = "C:\Program Files\nodejs;C:\Program Files\Git\cmd;$env:Path"
 
 $before = (git rev-parse HEAD).Trim()

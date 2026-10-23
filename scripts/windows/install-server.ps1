@@ -29,8 +29,9 @@ $update = New-ScheduledTaskAction -Execute 'powershell.exe' -Argument "-NoProfil
 $every = New-ScheduledTaskTrigger -Once -At (Get-Date).Date -RepetitionInterval (New-TimeSpan -Minutes 2)
 $once = New-ScheduledTaskSettingsSet -AllowStartIfOnBatteries -DontStopIfGoingOnBatteries -StartWhenAvailable -MultipleInstances IgnoreNew `
   -ExecutionTimeLimit (New-TimeSpan -Minutes 15)
+# Mit Admin-Rechten: der Deploy beendet den Wand-Server, und der laeuft als SYSTEM.
 Register-ScheduledTask -TaskName 'HfG Koepfe Update' -Action $update -Trigger $every `
-  -Principal (New-ScheduledTaskPrincipal -UserId $user -LogonType Interactive) -Settings $once -Force | Out-Null
+  -Principal (New-ScheduledTaskPrincipal -UserId $user -LogonType Interactive -RunLevel Highest) -Settings $once -Force | Out-Null
 
 # Wand (8080) und Setup (8090) aus dem Kabelnetz der iMacs und dem HfG-Netz (fuer die Seite im WLAN).
 # Fuer jedes Profil: ein Netz ohne Router wie das der iMacs stuft Windows nach jedem Neustart als oeffentlich ein.
