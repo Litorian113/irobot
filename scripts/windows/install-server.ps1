@@ -13,7 +13,8 @@ $server = New-ScheduledTaskAction -Execute 'cmd.exe' -Argument "/c `"$root\scrip
 Register-ScheduledTask -TaskName 'HfG Koepfe Server' -Action $server -Trigger (New-ScheduledTaskTrigger -AtStartup) `
   -Settings $forever -User 'SYSTEM' -RunLevel Highest -Force | Out-Null
 
-$user = "$env:USERDOMAIN\$env:USERNAME"
+# The real account name: over SSH USERDOMAIN says WORKGROUP.
+$user = [Security.Principal.WindowsIdentity]::GetCurrent().Name
 $camera = New-ScheduledTaskAction -Execute 'powershell.exe' -Argument "-NoProfile -ExecutionPolicy Bypass -WindowStyle Hidden -File `"$root\scripts\windows\camera.ps1`""
 Register-ScheduledTask -TaskName 'HfG Koepfe Kamera' -Action $camera -Trigger (New-ScheduledTaskTrigger -AtLogOn -User $user) `
   -Principal (New-ScheduledTaskPrincipal -UserId $user -LogonType Interactive) -Settings $forever -Force | Out-Null
