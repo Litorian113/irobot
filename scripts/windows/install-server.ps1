@@ -24,6 +24,12 @@ $wlan = New-ScheduledTaskAction -Execute 'powershell.exe' -Argument "-NoProfile 
 Register-ScheduledTask -TaskName 'HfG Koepfe WLAN' -Action $wlan -Trigger (New-ScheduledTaskTrigger -AtLogOn -User $user) `
   -Principal (New-ScheduledTaskPrincipal -UserId $user -LogonType Interactive) -Settings $forever -Force | Out-Null
 
+# Wand (8080) und Setup (8090) aus dem Kabelnetz der iMacs und dem HfG-Netz (fuer die Seite im WLAN).
+# Fuer jedes Profil: ein Netz ohne Router wie das der iMacs stuft Windows nach jedem Neustart als oeffentlich ein.
+Get-NetFirewallRule -DisplayName 'HfG Koepfe Wand' -ErrorAction SilentlyContinue | Remove-NetFirewallRule
+New-NetFirewallRule -DisplayName 'HfG Koepfe Wand' -Direction Inbound -Protocol TCP -LocalPort 8080,8090 -Action Allow `
+  -Profile Any -RemoteAddress '192.168.0.0/24', '172.16.0.0/12', 'LocalSubnet' | Out-Null
+
 # Der Server soll nie schlafen gehen.
 powercfg /change standby-timeout-ac 0
 powercfg /change hibernate-timeout-ac 0
