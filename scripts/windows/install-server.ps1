@@ -2,6 +2,7 @@
 #   - Aufgabe "HfG Koepfe Server": wall-server.cmd ab dem Hochfahren, als SYSTEM, auch ohne Anmeldung
 #   - Aufgabe "HfG Koepfe Kamera": camera.ps1 bei der Anmeldung dieses Benutzers
 #   - Aufgabe "HfG Koepfe WLAN": wlan.ps1 bei der Anmeldung, haelt das WLAN "hfg" verbunden
+#   - Aufgabe "HfG Koepfe Update": auto-update.ps1 alle 2 Minuten, rollt neue Staende von GitHub aus
 # Erneut ausfuehren schadet nicht.
 $ErrorActionPreference = 'Stop'
 $root = Split-Path -Parent (Split-Path -Parent $PSScriptRoot)
@@ -23,6 +24,13 @@ Register-ScheduledTask -TaskName 'HfG Koepfe Kamera' -Action $camera -Trigger (N
 $wlan = New-ScheduledTaskAction -Execute 'powershell.exe' -Argument "-NoProfile -ExecutionPolicy Bypass -WindowStyle Hidden -File `"$root\scripts\windows\wlan.ps1`""
 Register-ScheduledTask -TaskName 'HfG Koepfe WLAN' -Action $wlan -Trigger (New-ScheduledTaskTrigger -AtLogOn -User $user) `
   -Principal (New-ScheduledTaskPrincipal -UserId $user -LogonType Interactive) -Settings $forever -Force | Out-Null
+
+$update = New-ScheduledTaskAction -Execute 'powershell.exe' -Argument "-NoProfile -ExecutionPolicy Bypass -WindowStyle Hidden -File `"$root\scripts\windows\auto-update.ps1`""
+$every = New-ScheduledTaskTrigger -Once -At (Get-Date).Date -RepetitionInterval (New-TimeSpan -Minutes 2)
+$once = New-ScheduledTaskSettingsSet -AllowStartIfOnBatteries -DontStopIfGoingOnBatteries -StartWhenAvailable -MultipleInstances IgnoreNew `
+  -ExecutionTimeLimit (New-TimeSpan -Minutes 15)
+Register-ScheduledTask -TaskName 'HfG Koepfe Update' -Action $update -Trigger $every `
+  -Principal (New-ScheduledTaskPrincipal -UserId $user -LogonType Interactive) -Settings $once -Force | Out-Null
 
 # Wand (8080) und Setup (8090) aus dem Kabelnetz der iMacs und dem HfG-Netz (fuer die Seite im WLAN).
 # Fuer jedes Profil: ein Netz ohne Router wie das der iMacs stuft Windows nach jedem Neustart als oeffentlich ein.

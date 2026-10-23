@@ -3,6 +3,10 @@
 $ErrorActionPreference = 'Stop'
 $root = Split-Path -Parent (Split-Path -Parent $PSScriptRoot)
 Set-Location $root
+# Nicht zweimal gleichzeitig (von Hand per npm run deploy und vom Auto-Update).
+$lock = Join-Path $root 'logs\deploy.lock'
+if ((Test-Path $lock) -and ((Get-Date) - (Get-Item $lock).LastWriteTime).TotalMinutes -lt 10) { 'Ein Deploy laeuft schon.'; exit 0 }
+New-Item -ItemType File -Force $lock | Out-Null
 $env:Path = "C:\Program Files\nodejs;C:\Program Files\Git\cmd;$env:Path"
 
 $before = (git rev-parse HEAD).Trim()
@@ -25,4 +29,5 @@ for ($i = 0; $i -lt 60; $i++) {
 & 'C:\Program Files\Git\bin\bash.exe' -lc 'cd /c/hfg/irobot && bash scripts/imacs.sh reload'
 Get-Process chrome -ErrorAction SilentlyContinue | Stop-Process -Force
 Start-ScheduledTask -TaskName 'HfG Koepfe Kamera'
+Remove-Item $lock -ErrorAction SilentlyContinue
 "Deploy: $($after.Substring(0, 7)) - $(git log -1 --format=%s)"
