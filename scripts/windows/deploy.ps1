@@ -17,4 +17,12 @@ if ($LASTEXITCODE -ne 0) { throw 'Build fehlgeschlagen, der alte Stand laeuft we
 
 # Der Server-Loop startet node nach dem Beenden von selbst wieder, jetzt mit dem neuen Build.
 Get-CimInstance Win32_Process -Filter "Name = 'node.exe'" | Where-Object { $_.CommandLine -match 'vite\.js preview' } | ForEach-Object { Stop-Process -Id $_.ProcessId -Force }
+
+# Warten, bis er wieder antwortet; dann die Bildschirme neu laden, sonst laufen sie mit dem alten Code weiter.
+for ($i = 0; $i -lt 60; $i++) {
+  try { Invoke-WebRequest 'http://127.0.0.1:8080/' -UseBasicParsing -TimeoutSec 2 | Out-Null; break } catch { Start-Sleep -Seconds 1 }
+}
+& 'C:\Program Files\Git\bin\bash.exe' -lc 'cd /c/hfg/irobot && bash scripts/imacs.sh reload'
+Get-Process chrome -ErrorAction SilentlyContinue | Stop-Process -Force
+Start-ScheduledTask -TaskName 'HfG Koepfe Kamera'
 "Deploy: $($after.Substring(0, 7)) - $(git log -1 --format=%s)"

@@ -11,6 +11,9 @@ import { isLayout } from './src/layout.ts'
 /** The middle screen (see src/wall.ts): the promo, with the camera above it. */
 const PROMO_SLOT = 4
 
+/** How often the relay tells every screen it is still there. */
+const HEARTBEAT_MS = 5000
+
 /** The custom wall built in the editor tab, shared by every screen (`?wall=custom`). */
 const CUSTOM_WALL_FILE = 'walls/custom.json'
 
@@ -105,6 +108,9 @@ function gazeRelay(): Plugin {
     const text = JSON.stringify(message)
     for (const client of relay.clients) if (client.readyState === WebSocket.OPEN) client.send(text)
   }
+  // A heartbeat: screens only listen, so without it they never notice a connection that died
+  // with a server reboot, and wait on it forever (src/tracking/bus.ts reconnects when it stops).
+  setInterval(() => broadcast({ kind: 'tick' }), HEARTBEAT_MS).unref()
   const api = customWallApi(broadcast)
   const attach = (httpServer: Server | null, label: string) => {
     httpServer?.on('upgrade', (request, socket, head) => {
