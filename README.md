@@ -141,6 +141,7 @@ Gearbeitet wird auf dem Branch **`feat/kamera-koepfe`**: genau diesen Branch rol
 - **Von überall:** committen und `git push`. Der Server sieht alle 2 Minuten auf GitHub nach, holt den
   neuen Stand, baut, startet den Wand-Server neu und lädt alle iMacs und die Kamera-Seite neu.
   Was passiert ist, steht auf dem Server in `C:\hfg\irobot\logs\deploy.log`.
+  Jeder Ausroll-Vorgang endet dort mit einer Zeile `Deploy: <Commit> - <Nachricht>` oder `Deploy abgebrochen: …`.
 - **Sofort, aus dem HfG-WLAN:** `npm run deploy`. Pusht und rollt per SSH direkt aus
   (`scripts/deploy.sh`, Server über `HFG_SERVER`, Standard `nakumu-02@hfg-wall.local`).
 
