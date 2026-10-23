@@ -1,6 +1,6 @@
 # Neuer Stand von GitHub: holen, Abhaengigkeiten nur wenn noetig, bauen, Wand-Server neu starten.
 # Vom Mac:  npm run deploy   (scripts/deploy.sh: git push, dann dieses Skript per SSH)
-$ErrorActionPreference = 'Stop'
+# Nicht 'Stop': Vite und Git schreiben Hinweise nach stderr, das waere sonst ein Abbruch. Fehler zeigen die Exitcodes.
 $root = Split-Path -Parent (Split-Path -Parent $PSScriptRoot)
 Set-Location $root
 # Nicht zweimal gleichzeitig (von Hand per npm run deploy und vom Auto-Update).

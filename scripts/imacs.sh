@@ -10,7 +10,8 @@
 #   npm run imacs -- reload          Browser auf allen neu starten: die Seite lädt neu
 #   npm run imacs -- setup           HfG-Koepfe-Setup auf allen neu ausrollen, jeder behält seinen Platz (Admin-Passwort)
 #   npm run imacs -- kiosk           WLAN aus, keine WLAN-Anmeldefenster, kein Tastatur-/Maus-Assistent (Admin-Passwort)
-#   npm run imacs -- schedule        jeden Tag 16:55 an, 21:30 aus, prüft die automatische Anmeldung (Admin-Passwort)
+#   npm run imacs -- schedule        Mo-Fr 16:55 an, 21:30 aus, prüft die automatische Anmeldung (Admin-Passwort)
+#                                    (eigene Zeiten und Tage: schedule 16:55 21:30 MTWRF, Tage wie bei pmset: MTWRFSU)
 #   npm run imacs -- shutdown        alle iMacs jetzt ausschalten (Admin-Passwort)
 #
 # Benutzer auf den iMacs: IMAC_USER, sonst wird beim ersten Mal gefragt und gemerkt.
@@ -72,6 +73,8 @@ on_all() {
 on_all_as_admin() {
   need_hosts
   local password="${IMAC_ADMIN_PASSWORD:-}"
+  # Auf dem Server: aus einer Datei, die nur sein Benutzerkonto lesen kann (nicht im Repo).
+  if [ -z "$password" ] && [ -s "$HOME/.hfg-imac-admin" ]; then password="$(head -n 1 "$HOME/.hfg-imac-admin" | tr -d '\r')"; fi
   if [ -z "$password" ]; then
     read -r -s -p "Admin-Passwort der iMacs: " password </dev/tty
     echo
@@ -108,11 +111,11 @@ echo "Anmeldefenster und Bluetooth-Assistent aus"
 # Anmeldeoptionen) wird nur geprüft: ohne sie bleibt ein iMac nach dem Einschalten am Anmeldefenster stehen.
 # __ON__ und __OFF__ werden vor dem Senden eingesetzt.
 SCHEDULE_SCRIPT='
-pmset repeat wakeorpoweron MTWRFSU __ON__:00 shutdown MTWRFSU __OFF__:00
+pmset repeat wakeorpoweron __DAYS__ __ON__:00 shutdown __DAYS__ __OFF__:00
 pmset -a autorestart 1
 pmset -a sleep 0 displaysleep 0 disksleep 0
 auto="$(defaults read /Library/Preferences/com.apple.loginwindow autoLoginUser 2>/dev/null)"
-echo "an __ON__, aus __OFF__, automatische Anmeldung: ${auto:-AUS - bitte in den Systemeinstellungen einschalten}"
+echo "__DAYS__ an __ON__, aus __OFF__, automatische Anmeldung: ${auto:-AUS - bitte in den Systemeinstellungen einschalten}"
 '
 
 command="${1:-}"
@@ -182,7 +185,9 @@ if launchctl print "gui/$u/de.hfg-gmuend.koepfe" >/dev/null 2>&1; then echo "Sta
     USER_NAME="$(imac_user)"
     on="${2:-16:55}"
     off="${3:-21:30}"
+    days="${4:-MTWRF}"
     script="${SCHEDULE_SCRIPT//__ON__/$on}"
+    script="${script//__DAYS__/$days}"
     on_all_as_admin "${script//__OFF__/$off}"
     ;;
   shutdown)
