@@ -12,6 +12,7 @@
 #   npm run imacs -- kiosk           WLAN aus, keine WLAN-Anmeldefenster, kein Tastatur-/Maus-Assistent (Admin-Passwort)
 #   npm run imacs -- schedule        Mo-Fr 16:55 an, 21:30 aus, prüft die automatische Anmeldung (Admin-Passwort)
 #                                    (eigene Zeiten und Tage: schedule 16:55 21:30 MTWRF, Tage wie bei pmset: MTWRFSU)
+#   npm run imacs -- pause 2027-01-07 aus bis zu diesem Tag (dann 16:55 an), danach wieder schedule (Admin-Passwort)
 #   npm run imacs -- shutdown        alle iMacs jetzt ausschalten (Admin-Passwort)
 #
 # Benutzer auf den iMacs: IMAC_USER, sonst wird beim ersten Mal gefragt und gemerkt.
@@ -118,6 +119,15 @@ auto="$(defaults read /Library/Preferences/com.apple.loginwindow autoLoginUser 2
 echo "__DAYS__ an __ON__, aus __OFF__, automatische Anmeldung: ${auto:-AUS - bitte in den Systemeinstellungen einschalten}"
 '
 
+# Eine Pause: kein tägliches Einschalten mehr, nur noch das Ausschalten, und einmal Einschalten am
+# Tag nach der Pause. Danach stellt der Server mit schedule den Wochenplan wieder her (scripts/windows/plan.ps1).
+PAUSE_SCRIPT='
+pmset schedule cancelall >/dev/null 2>&1
+pmset repeat shutdown MTWRF __OFF__:00
+pmset schedule wakeorpoweron "__WHEN__"
+echo "pausiert, nächstes Einschalten: __WHEN__"
+'
+
 command="${1:-}"
 case "$command" in
   scan)
@@ -188,6 +198,16 @@ if launchctl print "gui/$u/de.hfg-gmuend.koepfe" >/dev/null 2>&1; then echo "Sta
     days="${4:-MTWRF}"
     script="${SCHEDULE_SCRIPT//__ON__/$on}"
     script="${script//__DAYS__/$days}"
+    on_all_as_admin "${script//__OFF__/$off}"
+    ;;
+  pause)
+    USER_NAME="$(imac_user)"
+    day="${2:?Tag fehlt, z.B. pause 2027-01-07}"
+    on="${3:-16:55}"
+    off="${4:-21:30}"
+    # pmset will MM/DD/YY HH:MM:SS.
+    when="${day:5:2}/${day:8:2}/${day:2:2} $on:00"
+    script="${PAUSE_SCRIPT//__WHEN__/$when}"
     on_all_as_admin "${script//__OFF__/$off}"
     ;;
   shutdown)

@@ -3,7 +3,7 @@
 #   - Aufgabe "HfG Koepfe Kamera": camera.ps1 bei der Anmeldung dieses Benutzers
 #   - Aufgabe "HfG Koepfe WLAN": wlan.ps1 bei der Anmeldung, haelt das WLAN "hfg" verbunden
 #   - Aufgabe "HfG Koepfe Update": auto-update.ps1 alle 2 Minuten, rollt neue Staende von GitHub aus
-#   - Aufgabe "HfG Koepfe Wochenende": Sa/So 17:05 iMacs auf Mo-Fr stellen und herunterfahren
+#   - Aufgaben "HfG Koepfe Zeitplan" (Mo-Fr 21:00) und "HfG Koepfe Ruhetage" (taeglich 17:05): plan.ps1
 # Erneut ausfuehren schadet nicht.
 $ErrorActionPreference = 'Stop'
 $root = Split-Path -Parent (Split-Path -Parent $PSScriptRoot)
@@ -34,12 +34,16 @@ $once = New-ScheduledTaskSettingsSet -AllowStartIfOnBatteries -DontStopIfGoingOn
 Register-ScheduledTask -TaskName 'HfG Koepfe Update' -Action $update -Trigger $every `
   -Principal (New-ScheduledTaskPrincipal -UserId $user -LogonType Interactive -RunLevel Highest) -Settings $once -Force | Out-Null
 
-# Am Wochenende bleibt die Wand aus: schaltet sich ein iMac trotzdem ein (alter Zeitplan, Stromausfall),
-# bekommt er den Zeitplan Mo-Fr und faehrt wieder herunter. Die iMacs starten um 16:55.
-$weekend = New-ScheduledTaskAction -Execute 'powershell.exe' -Argument "-NoProfile -ExecutionPolicy Bypass -WindowStyle Hidden -File `"$root\scripts\windows\imacs-task.ps1`" `"schedule 16:55 21:30 MTWRF`" shutdown"
-Register-ScheduledTask -TaskName 'HfG Koepfe Wochenende' -Action $weekend `
-  -Trigger (New-ScheduledTaskTrigger -Weekly -DaysOfWeek Saturday, Sunday -At '17:05') `
-  -Principal (New-ScheduledTaskPrincipal -UserId $user -LogonType Interactive -RunLevel Highest) -Settings $once -Force | Out-Null
+# Wann die Wand laeuft (plan.ps1, kiosk\ruhetage.txt): Mo-Fr 21:00 den naechsten Einschalttag setzen,
+# taeglich 17:05 an Ruhetagen einen iMac herunterfahren, der sich doch eingeschaltet hat.
+Get-ScheduledTask -TaskName 'HfG Koepfe Wochenende' -ErrorAction SilentlyContinue | Unregister-ScheduledTask -Confirm:$false
+$admin = New-ScheduledTaskPrincipal -UserId $user -LogonType Interactive -RunLevel Highest
+$plan = "-NoProfile -ExecutionPolicy Bypass -WindowStyle Hidden -File `"$root\scripts\windows\plan.ps1`""
+Register-ScheduledTask -TaskName 'HfG Koepfe Zeitplan' -Action (New-ScheduledTaskAction -Execute 'powershell.exe' -Argument "$plan abend") `
+  -Trigger (New-ScheduledTaskTrigger -Weekly -DaysOfWeek Monday, Tuesday, Wednesday, Thursday, Friday -At '21:00') `
+  -Principal $admin -Settings $once -Force | Out-Null
+Register-ScheduledTask -TaskName 'HfG Koepfe Ruhetage' -Action (New-ScheduledTaskAction -Execute 'powershell.exe' -Argument "$plan check") `
+  -Trigger (New-ScheduledTaskTrigger -Daily -At '17:05') -Principal $admin -Settings $once -Force | Out-Null
 
 # Wand (8080) und Setup (8090) aus dem Kabelnetz der iMacs und dem HfG-Netz (fuer die Seite im WLAN).
 # Fuer jedes Profil: ein Netz ohne Router wie das der iMacs stuft Windows nach jedem Neustart als oeffentlich ein.

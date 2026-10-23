@@ -1,0 +1,4 @@
+# Tage, an denen die Wand aus bleibt (zusätzlich zu Samstag und Sonntag).
+# Eine Zeile pro Zeitraum: erster Tag, letzter Tag (beide einschließlich), dann eine Notiz.
+# Ein einzelner Tag: beide Daten gleich. Gelesen von scripts/windows/plan.ps1.
+2026-12-23 2027-01-06 Weihnachten und Neujahr
