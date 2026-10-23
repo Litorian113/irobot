@@ -67,7 +67,7 @@ Die Zahl ist der **Platz** (`slot`) des iMacs. Belegung, Stand jetzt:
 |---|---|---|---|---|---|
 | 0 | oben links | – | – | – | **defekt**, findet sein Startvolume nicht (blinkender Ordner) |
 | 1 | oben Mitte | 192.168.0.2 | iMac9,1 | NVIDIA GT 120 | |
-| 2 | oben rechts | 192.168.0.4 | iMac7,1 | Radeon HD 2600 | **SSH aus**, siehe offene Punkte |
+| 2 | oben rechts | 192.168.0.4 | iMac7,1 | Radeon HD 2600 | |
 | 3 | Mitte links | 192.168.0.5 | iMac8,1 | Radeon HD 2600 Pro | steht weiter außen, siehe `SLOT_SHIFT` |
 | 4 | Mitte | 192.168.0.6 | iMac8,1 | Radeon HD 2600 Pro | Werbung; Kamera darüber |
 | 5 | Mitte rechts | 192.168.0.1 | iMac8,1 | Radeon HD 2600 Pro | |
@@ -338,10 +338,6 @@ Was ein bestimmter Bildschirm meldet (Fehler, Grafikkarte, Bildrate 20 s nach de
 
 ## Offene Punkte
 
-- [ ] **Oben rechts (192.168.0.4)**: Entfernte Anmeldung wieder einschalten (Systemeinstellungen →
-      Freigaben), dann vom Server aus `kiosk` und `schedule`, und `start.sh` auf `?wall=custom` stellen
-      (auf den anderen schon geschehen). Bis dahin schaltet er sich nicht selbst ein und zeigt die
-      Hauptwand.
 - [ ] **Oben links**: iMac startet nicht (Startvolume / Festplatte). Ersetzen oder neu aufsetzen.
 - [ ] **Unten links**: Admin-Passwort unbekannt. Zurücksetzen (Cmd+R → Terminal → `resetpassword`),
       dann einrichten wie oben. Danach in `OFFLINE_SLOTS` (`src/layout.ts`) die Platznummer entfernen.
