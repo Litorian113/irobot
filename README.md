@@ -150,8 +150,9 @@ geht nie übers Netz, nur Position und Anzahl. Der Tab startet keine eigene Kame
 
 ## Weiterentwickeln
 
-Das Repo ist **privat**: zum Klonen und Pushen braucht man Zugriff auf `Litorian113/irobot` (auf GitHub
-unter Settings → Collaborators einladen).
+Das Repo ist **öffentlich**, damit der Server ohne Anmeldung holen kann. Deshalb gehören keine Passwörter
+und Schlüssel hinein (`hfg.env` steht in `.gitignore`). Pushen darf nur, wer auf GitHub als Collaborator
+eingeladen ist.
 
 ```
 git clone https://github.com/Litorian113/irobot.git
@@ -259,9 +260,8 @@ nur Administratoren und SYSTEM gehören). Den Schlüssel am besten als Datei üb
   `ssh-keygen -t ed25519 -N "" -C hfg-wall-team -f ~/.ssh/hfg-wall-team` einen neuen machen und `hfg.env`
   neu erzeugen.
 
-**GitHub**: Weil das Repo privat ist, holt der Server mit einem eigenen **Deploy-Key** (nur Lesen, liegt nur
-auf dem Server in `C:\Users\nakumu-02\.ssh\github-irobot`). Einrichten bzw. reparieren:
-`bash scripts/server-access.sh github`.
+**GitHub**: Der Server holt das öffentliche Repo ohne Anmeldung. Soll es einmal privat werden, braucht er
+einen eigenen **Deploy-Key** (nur Lesen): vorher im WLAN `hfg` `bash scripts/server-access.sh github`.
 
 **Software**: Node.js 24 LTS, Git for Windows (bringt Git Bash mit, darin laufen die `.sh`-Skripte),
 Google Chrome.
@@ -384,9 +384,7 @@ Was ein bestimmter Bildschirm meldet (Fehler, Grafikkarte, Bildrate 20 s nach de
 
 ## Offene Punkte
 
-- [ ] **Seit das Repo privat ist, holt der Server nichts mehr von GitHub**, bis einmal
-      `bash scripts/server-access.sh github` gelaufen ist (im WLAN `hfg`). Dann auch
-      `bash scripts/server-access.sh team` für den Team-Schlüssel.
+- [ ] **Team-Schlüssel eintragen** (im WLAN `hfg`): `bash scripts/server-access.sh team`, damit `hfg.env` geht.
 
 - [ ] **Oben links**: iMac startet nicht (Startvolume / Festplatte). Ersetzen oder neu aufsetzen.
 - [ ] **Unten links**: Admin-Passwort unbekannt. Zurücksetzen (Cmd+R → Terminal → `resetpassword`),
