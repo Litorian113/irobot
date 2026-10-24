@@ -3,8 +3,8 @@
 #
 #   bash scripts/server-access.sh join      Für Freunde: Schlüssel aus hfg.env einrichten, danach `ssh hfg-wall`
 #   bash scripts/server-access.sh team      Einmal, vom eigenen Rechner: Team-Schlüssel aus hfg.env auf dem Server eintragen
-#   bash scripts/server-access.sh github    Einmal: dem Server einen Lese-Schlüssel für das private GitHub-Repo geben,
-#                                           damit git push → Auto-Deploy wieder geht
+#   bash scripts/server-access.sh github    Einmal: dem Server einen Lese-Schlüssel für das private GitHub-Repo geben
+#                                           und ihn auf den Branch main stellen, damit git push → Auto-Deploy geht
 #   bash scripts/server-access.sh revoke    Team-Schlüssel auf dem Server wieder sperren
 #
 # hfg.env liegt nur lokal (.gitignore) und enthält den Team-Schlüssel: nur an Leute geben, die an die Wand dürfen.
@@ -84,14 +84,18 @@ case "${1:-}" in
     else
       printf '%s\n' "$pub" | gh repo deploy-key add - --repo "$REPO" --title hfg-wall
     fi
-    # 3. The server's clone fetches over SSH with it, and tries once.
+    # 3. The server's clone fetches over SSH with it, and follows main from now on. Its files stay
+    #    where they are: the next auto-update sees main ahead and rolls it out with a build.
     remote_ps "
       Set-Location C:\\hfg\\irobot
       \$k = (\"\$env:USERPROFILE\\.ssh\\github-irobot\") -replace '\\\\', '/'
       git remote set-url origin git@github.com:$REPO.git
       git config core.sshCommand \"C:/Windows/System32/OpenSSH/ssh.exe -i \$k -o IdentitiesOnly=yes -o StrictHostKeyChecking=accept-new\"
       git fetch origin 2>&1
-      if (\$LASTEXITCODE -eq 0) { 'GitHub-Zugang geht: Auto-Deploy holt wieder' } else { 'git fetch ging nicht' }
+      if (\$LASTEXITCODE -ne 0) { 'git fetch ging nicht'; exit 1 }
+      git checkout -q -B main
+      git branch -q --set-upstream-to=origin/main main
+      'GitHub-Zugang geht, der Server folgt main: in spätestens 2 Minuten rollt das Auto-Update aus'
     "
     ;;
 

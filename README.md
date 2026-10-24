@@ -16,7 +16,7 @@ und was noch offen ist.
 | **Wand ansehen und umbauen** | im WLAN `hfg`: **http://hfg-wall.local:8080** → Tab **Gestalten** (umbauen) bzw. **Live** (ansehen) |
 | **Betriebszeit** | iMacs **Montag bis Freitag 16:55 an, 21:30 aus** (von selbst); Wochenenden und Ruhetage (`kiosk/ruhetage.txt`, z.B. Weihnachten) aus |
 | **Server** | Windows-Rechner **`hfg-wall`**, läuft durchgehend |
-| **Änderung ausrollen** | `git push` auf `feat/kamera-koepfe` → spätestens 2 Minuten später live |
+| **Änderung ausrollen** | `git push` auf `main` → spätestens 2 Minuten später live |
 | **Auf den Server** | `ssh nakumu-02@hfg-wall.local` (nur mit eingetragenem Schlüssel, siehe unten) |
 | **Alle iMacs steuern** | auf dem Server in Git Bash: `bash scripts/imacs.sh status` / `reload` / … |
 
@@ -160,7 +160,8 @@ npm install
 npm run dev          # http://localhost:5173, alle Tabs, Köpfe zum Ausprobieren
 ```
 
-Gearbeitet wird auf dem Branch **`feat/kamera-koepfe`**: genau diesen Branch rollt der Server aus.
+Gearbeitet wird auf **`main`**: genau diesen Branch rollt der Server aus. Das frühere Voice-/AI-Projekt
+(LEIRA, VIKI) liegt unverändert im Branch **`voice-ai`**.
 
 ### Ausrollen
 
