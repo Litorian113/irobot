@@ -16,22 +16,27 @@ function Screen({ placed, position, style }: { placed: PlacedScreen; position: V
     <div className="cell cell-empty" style={style}>
       <span className="cell-empty-num">{screen.design.id}</span>
       <span className="cell-empty-name">{screen.design.name}</span>
-      <span className="cell-empty-hint">noch leer · {slotLabel(slot).replace(' (Werbung)', '')}</span>
+      <span className="cell-empty-hint">noch leer · {slotLabel(slot)}</span>
     </div>
   )
 }
 
-/** Where a screen is in the wall frame. The all-screens page is a miniature: only the real shelf has screens off the grid. */
-function positionOf(placed: PlacedScreen, row: number) {
+/**
+ * Where a screen is in the wall frame. The all-screens page is a miniature: only the real shelf has screens
+ * off the grid. Watching the real wall, the screens stand where the iMacs do.
+ */
+function positionOf(placed: PlacedScreen, row: number, watch: boolean) {
+  if (watch) return screenPosition(placed.column, row, SETTINGS.shelf, SLOT_SHIFT[placed.slot])
   return screenPosition(placed.column, row, SETTINGS.spacing, SETTINGS.wall ? undefined : SLOT_SHIFT[placed.slot])
 }
 
 /**
  * A wall: all its screens on one page, laid out like the shelf, or one screen (`slot`) as on an iMac.
  * Camera and detector only run while this is mounted, only on the camera
- * machine, and only if the wall has a head to steer.
+ * machine, and only if the wall has a head to steer. With `watch` it only follows
+ * the real camera: no camera or pointer of its own (the Live tab).
  */
-export default function WallView({ slot, rows }: { slot: number | null; rows: WallRows }) {
+export default function WallView({ slot, rows, watch = false }: { slot: number | null; rows: WallRows; watch?: boolean }) {
   const hasHeads = rows.flat().some(({ screen }) => screen.kind === 'head' || (screen.kind === 'promo' && screen.standIn !== null))
   const [tracker, setTracker] = useState<PersonTracker | null>(null)
   const [trackerState, setTrackerState] = useState<TrackerState | null>(null)
@@ -39,7 +44,7 @@ export default function WallView({ slot, rows }: { slot: number | null; rows: Wa
 
   // Camera + detector: only in the window that owns the camera.
   useEffect(() => {
-    if (!SETTINGS.camera || !hasHeads) return
+    if (watch || !SETTINGS.camera || !hasHeads) return
     const instance = new PersonTracker({
       hfov: SETTINGS.hfov,
       cameraPosition: SETTINGS.cameraPosition,
@@ -57,11 +62,11 @@ export default function WallView({ slot, rows }: { slot: number | null; rows: Wa
     // oxlint-disable-next-line react/set-state-in-effect
     setTracker(instance)
     return () => instance.stop()
-  }, [hasHeads])
+  }, [hasHeads, watch])
 
   // Testing without a camera: the pointer is the person, just in front of the wall.
   useEffect(() => {
-    if (!SETTINGS.mouse) return
+    if (watch || !SETTINGS.mouse) return
     const { spacing } = SETTINGS
     let pointer: { x: number; y: number } | null = null
     const onMove = (event: PointerEvent) => {
@@ -83,7 +88,7 @@ export default function WallView({ slot, rows }: { slot: number | null; rows: Wa
       window.clearInterval(timer)
       window.removeEventListener('pointermove', onMove)
     }
-  }, [])
+  }, [watch])
 
   useEffect(() => {
     const onKey = (event: KeyboardEvent) => {
@@ -110,14 +115,14 @@ export default function WallView({ slot, rows }: { slot: number | null; rows: Wa
           <Screen
             key={placed.slot}
             placed={placed}
-            position={positionOf(placed, rowIndex)}
+            position={positionOf(placed, rowIndex, watch)}
             style={{ gridRow: rowIndex + 1, gridColumn: placed.column + 1 }}
           />
         )))
         : mine
-          ? <Screen placed={mine} position={positionOf(mine, row)} />
+          ? <Screen placed={mine} position={positionOf(mine, row, watch)} />
           : <div className="cell cell-empty"><span className="cell-empty-hint">Platz {slot} gehört nicht zu dieser Wand</span></div>}
-      {SETTINGS.camera && hasHeads && preview && <TrackerPanel state={trackerState} video={tracker?.video ?? null} />}
+      {!watch && SETTINGS.camera && hasHeads && preview && <TrackerPanel state={trackerState} video={tracker?.video ?? null} />}
     </main>
   )
 }

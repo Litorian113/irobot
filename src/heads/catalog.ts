@@ -1,5 +1,4 @@
 import { DESIGNS } from './designs'
-import { HALLOWEEN } from './halloween'
 import { gridLayout, type WallLayout } from '../layout'
 import type { CreateHead } from './types'
 
@@ -18,7 +17,6 @@ export const PROMO_KEY = 'promo'
 export const CATALOG: CatalogEntry[] = [
   { key: PROMO_KEY, name: 'Werbung', description: 'HfG-Logo und Spruch auf Weiß', create: null },
   ...DESIGNS.filter((d) => d.create).map((d) => ({ key: `main-${d.id}`, name: d.name, description: d.description, create: d.create })),
-  ...HALLOWEEN.filter((d) => d.create).map((d) => ({ key: `halloween-${d.id}`, name: d.name, description: d.description, create: d.create })),
 ]
 
 export function catalogEntry(key: string | null | undefined) {

@@ -13,7 +13,7 @@ und was noch offen ist.
 
 | | |
 |---|---|
-| **Wand ansehen und umbauen** | im WLAN `hfg`: **http://hfg-wall.local:8080** → Tab **Live-Wand** |
+| **Wand ansehen und umbauen** | im WLAN `hfg`: **http://hfg-wall.local:8080** → Tab **Gestalten** (umbauen) bzw. **Live** (ansehen) |
 | **Betriebszeit** | iMacs **Montag bis Freitag 16:55 an, 21:30 aus** (von selbst); Wochenenden und Ruhetage (`kiosk/ruhetage.txt`, z.B. Weihnachten) aus |
 | **Server** | Windows-Rechner **`hfg-wall`**, läuft durchgehend |
 | **Änderung ausrollen** | `git push` auf `feat/kamera-koepfe` → spätestens 2 Minuten später live |
@@ -120,15 +120,20 @@ dem Server in `C:\Users\nakumu-02\.hfg-imac-admin` (nur dieses Konto darf die Da
 
 ## Die Wand umbauen (für alle im HfG-WLAN)
 
-`http://hfg-wall.local:8080` → Tab **Live-Wand**. Auf dem Handy landet man direkt dort.
+`http://hfg-wall.local:8080` → Tab **Gestalten**. Auf dem Handy landet man direkt dort. Die Seite läuft auf
+Handy, Tablet und Laptop gleich (im Stil von iOS) und lässt sich auf dem iPhone über Teilen →
+„Zum Home-Bildschirm“ wie eine App ablegen.
 
 - Einen Bildschirm antippen bzw. anklicken → Kopf wählen → **Speichern**. Die iMacs laden innerhalb
   weniger Sekunden neu.
 - Am Laptop lassen sich Köpfe auch aus der Liste auf einen Bildschirm ziehen und Bildschirme
   untereinander tauschen.
-- **+** am Ende einer Reihe fügt einen Bildschirm hinzu (neue Platznummer ab 9), **+ Reihe** eine Reihe.
-  Für einen neuen Bildschirm muss natürlich auch ein iMac mit dieser Platznummer eingerichtet werden.
-- **Wie Hauptwand** setzt die Belegung aus `src/heads/designs.ts` zurück.
+- **Bearbeiten** ändert das Regal selbst: **+** am Ende einer Reihe fügt einen Bildschirm hinzu (neue
+  Platznummer ab 9), das rote Minus entfernt einen, **Reihe hinzufügen** eine Reihe; zwei Bildschirme
+  nacheinander antippen tauscht sie. Für einen neuen Bildschirm muss natürlich auch ein iMac mit dieser
+  Platznummer eingerichtet werden.
+- **Wie die Hauptwand belegen** (unter Bearbeiten) setzt die Belegung aus `src/heads/designs.ts` zurück.
+- **Speichern** und **Verwerfen** erscheinen unten, sobald es ungespeicherte Änderungen gibt.
 - Gespeichert wird auf dem Server in `walls/custom.json`. Ist dort nichts gespeichert, zeigen die
   iMacs die Hauptwand.
 
@@ -136,12 +141,17 @@ dem Server in `C:\Users\nakumu-02\.hfg-imac-admin` (nur dieses Konto darf die Da
 vor der Wand, blendet die HfG-Werbung darüber; **4 Sekunden** nachdem die Person weg ist, kommt der Kopf
 zurück. Kopf und Zeiten: `PROMO_STAND_IN`, `PROMO_AFTER_MS`, `PROMO_HOLD_MS` in `src/wall.ts`.
 
-Die anderen Tabs: **Köpfe** zeigt einen Kopf nach dem anderen (folgt der Maus bzw. dem Finger),
-**Wand** die Hauptwand auf einem Bildschirm, **Halloween** eine zweite Wand.
+Die anderen Tabs: **Köpfe** zeigt einen Kopf nach dem anderen (folgt der Maus bzw. dem Finger).
+**Live** zeigt die gespeicherte Wand so, wie sie gerade läuft: die Köpfe folgen der echten Kamera am
+Server, darunter Status, Anzahl der Personen und eine Draufsicht, wo jemand steht. Das Kamerabild selbst
+geht nie übers Netz, nur Position und Anzahl. Der Tab startet keine eigene Kamera.
 
 ---
 
 ## Weiterentwickeln
+
+Das Repo ist **privat**: zum Klonen und Pushen braucht man Zugriff auf `Litorian113/irobot` (auf GitHub
+unter Settings → Collaborators einladen).
 
 ```
 git clone https://github.com/Litorian113/irobot.git
@@ -188,7 +198,8 @@ z.B. `rams/` (einfache Geometrie) oder `onyx/` (eigene Shader). Danach die Vorsc
 | `src/heads/*/` | die einzelnen Köpfe (Geometrie, Shader) |
 | `src/layout.ts` | Wand als Reihen von Bildschirmen; `OFFLINE_SLOTS` |
 | `src/wall.ts` | Abstände, Kamera-Montage, Werbung, URL-Parameter, `SLOT_SHIFT` |
-| `src/CustomWallEditor.tsx` | der Tab Live-Wand |
+| `src/WallView.tsx`, `src/HeadCell.tsx` | eine Wand bzw. ein Bildschirm, wie die iMacs sie zeigen |
+| `src/workbench/` | die Arbeitsseite: `Workbench.tsx` (Tabs, Seitenleiste), `Studio.tsx` (Köpfe), `WallEditor.tsx` + `useWallDraft.ts` (Gestalten), `LiveView.tsx` + `CameraCard.tsx` (Live), gemeinsame Bausteine in `ui.tsx`, Styles in `workbench.css` |
 | `src/Promo.tsx` | die Werbung in der Mitte und ihr Kopf |
 | `src/tracking/` | Kamera, Personenerkennung (Worker), Blick-Geometrie, WebSocket |
 | `src/remoteLog.ts` | Bildschirme melden ihre Fehler an den Server |
@@ -235,6 +246,21 @@ z.B. `[Platz 3 192.168.0.5] error: …`), `deploy.log`, `camera.log`.
 **SSH**: OpenSSH-Server, **nur mit Schlüssel**, Passwort-Anmeldung ist aus. Einen neuen Schlüssel trägt
 man in `C:\ProgramData\ssh\administrators_authorized_keys` ein (eine Zeile pro Schlüssel; die Datei darf
 nur Administratoren und SYSTEM gehören). Den Schlüssel am besten als Datei übertragen, nicht abtippen.
+
+**Zugang für weitere Leute** (`scripts/server-access.sh`, alles nur im WLAN `hfg` bzw. per HfG-VPN):
+
+- Es gibt einen **Team-Schlüssel** nur für diesen Server. Er steht samt Verbindungsdaten in `hfg.env`, die nur
+  lokal liegt (in `.gitignore`, nie ins Repo). Wer an die Wand darf, bekommt diese Datei, legt sie ins Repo
+  und richtet sich mit `bash scripts/server-access.sh join` ein. Danach geht `ssh hfg-wall`, und
+  `HFG_SERVER=hfg-wall npm run deploy` rollt sofort aus.
+- Auf dem Server einmal eintragen (vom Rechner, der schon draufkommt): `bash scripts/server-access.sh team`.
+- Sperren, z.B. wenn die Datei in falsche Hände geraten ist: `bash scripts/server-access.sh revoke`, dann mit
+  `ssh-keygen -t ed25519 -N "" -C hfg-wall-team -f ~/.ssh/hfg-wall-team` einen neuen machen und `hfg.env`
+  neu erzeugen.
+
+**GitHub**: Weil das Repo privat ist, holt der Server mit einem eigenen **Deploy-Key** (nur Lesen, liegt nur
+auf dem Server in `C:\Users\nakumu-02\.ssh\github-irobot`). Einrichten bzw. reparieren:
+`bash scripts/server-access.sh github`.
 
 **Software**: Node.js 24 LTS, Git for Windows (bringt Git Bash mit, darin laufen die `.sh`-Skripte),
 Google Chrome.
@@ -357,6 +383,10 @@ Was ein bestimmter Bildschirm meldet (Fehler, Grafikkarte, Bildrate 20 s nach de
 
 ## Offene Punkte
 
+- [ ] **Seit das Repo privat ist, holt der Server nichts mehr von GitHub**, bis einmal
+      `bash scripts/server-access.sh github` gelaufen ist (im WLAN `hfg`). Dann auch
+      `bash scripts/server-access.sh team` für den Team-Schlüssel.
+
 - [ ] **Oben links**: iMac startet nicht (Startvolume / Festplatte). Ersetzen oder neu aufsetzen.
 - [ ] **Unten links**: Admin-Passwort unbekannt. Zurücksetzen (Cmd+R → Terminal → `resetpassword`),
       dann einrichten wie oben. Danach in `OFFLINE_SLOTS` (`src/layout.ts`) die Platznummer entfernen.
@@ -380,8 +410,8 @@ Was ein bestimmter Bildschirm meldet (Fehler, Grafikkarte, Bildrate 20 s nach de
 | | |
 |---|---|
 | `?slot=N` | ein Bildschirm der Wand (ohne: alle auf einer Seite) |
-| `?wall=custom` | die Live-Wand (so öffnen die iMacs ihre Seite); `?wall=halloween` die zweite Wand |
-| `?view=heads` / `wall` / `halloween` / `custom` | Tab der Arbeitsseite |
+| `?wall=custom` | die Live-Wand (so öffnen die iMacs ihre Seite) |
+| `?view=heads` / `custom` / `live` | Tab der Arbeitsseite (Köpfe / Gestalten / Live) |
 | `&camera=1` | Kamera und Erkennung in diesem Fenster (nur auf `localhost` / `127.0.0.1`) |
 | `&preview=1` | Kameravorschau mit Erkennung (Taste `D`) |
 | `&cam=logitech` | Kamera nach Namen wählen |

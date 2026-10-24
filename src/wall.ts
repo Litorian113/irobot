@@ -1,7 +1,6 @@
 import type { HeadConfig, HeadStyle } from './viki/config'
 import type { Vec3 } from './tracking/gaze'
 import { DESIGNS } from './heads/designs'
-import { HALLOWEEN } from './heads/halloween'
 import { catalogEntry, PROMO_KEY } from './heads/catalog'
 import { cellColumns, gridLayout, type WallLayout } from './layout'
 import type { CreateHead, HeadDesign } from './heads/types'
@@ -28,12 +27,6 @@ export { isOffline } from './layout'
 export const SLOT_SHIFT: Partial<Record<number, Partial<Vec3>>> = {
   3: { x: 0 },
 }
-
-export const SLOT_NAMES = [
-  'oben links', 'oben Mitte', 'oben rechts',
-  'Mitte links', 'Mitte (Werbung)', 'Mitte rechts',
-  'unten links', 'unten Mitte', 'unten rechts',
-]
 
 export interface SlotPreset {
   style: HeadStyle
@@ -91,6 +84,7 @@ const wall = slot === null
  * centre), ?tilt= (degrees down), ?rotate=0 (not hung upside down), ?spacing=x,y.
  */
 const spacing = pairParam('spacing', wall ? [0.1, 0.065] : [0.55, 0.5])
+const shelf = pairParam('spacing', [0.55, 0.5])
 const cameraX = numberParam('camerax', 0)
 const cameraY = numberParam('cameray', wall ? 0.11 : 0.3)
 
@@ -112,6 +106,8 @@ export const SETTINGS = {
   /** Horizontal field of view of the camera, degrees. */
   hfov: numberParam('fov', 70),
   spacing: { x: spacing[0], y: spacing[1] },
+  /** The real shelf's spacing, also on the all-screens page: the Live tab places its heads as the iMacs stand. */
+  shelf: { x: shelf[0], y: shelf[1] },
   cameraPosition: { x: cameraX, y: cameraY, z: 0 } satisfies Vec3,
   /** Degrees the camera looks down. */
   tilt: numberParam('tilt', 0),
@@ -125,8 +121,8 @@ export const SETTINGS = {
   fps: numberParam('fps', wall ? 30 : 60),
   /** Show the rendered frame rate on each head (`?stats=1`). */
   stats: flagParam('stats', false),
-  /** `?wall=halloween` loads the Halloween wall instead of the main one. */
-  wallSet: ((['halloween', 'custom'] as const).find((w) => w === params.get('wall')) ?? 'main') as WallSet | 'custom',
+  /** `?wall=custom` shows the live wall from the editor instead of the main one. */
+  wallSet: (params.get('wall') === 'custom' ? 'custom' : 'main') as WallSet | 'custom',
   /** `?style=dust` / `lattice` overrides the head of a single slot. */
   style: (['lattice', 'dust'] as const).find((s) => s === params.get('style')) ?? null,
 }
@@ -154,7 +150,7 @@ export const WALL_HEADS: (WallHead | null)[] = SLOTS.map((preset, slot) => {
   }
 })
 
-export type WallSet = 'main' | 'halloween'
+export type WallSet = 'main'
 
 /** One screen of a wall: the promo (with the head standing in for it), a head, or a place still waiting for its head. */
 export type WallScreen =
@@ -192,13 +188,6 @@ export const SCREENS: Record<WallSet, WallRows> = {
   main: place(GRID, (slot) => {
     const head = WALL_HEADS[slot]
     return head ? { kind: 'head', head } : { kind: 'promo', standIn: PROMO_HEAD }
-  }),
-  halloween: place(GRID, (slot): WallScreen => {
-    const design = HALLOWEEN[slot]
-    const motion = (design.slot !== null && SLOTS[design.slot]) || { stiffness: 5, delay: 0.1 }
-    return design.create
-      ? { kind: 'head', head: { create: design.create, design, stiffness: motion.stiffness, delay: motion.delay } }
-      : { kind: 'empty', design }
   }),
 }
 

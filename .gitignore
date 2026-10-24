@@ -31,3 +31,6 @@ kiosk/.cache
 
 # The custom wall saved from the editor tab (served to the iMacs)
 walls/
+
+# Zugang zum Wand-Server (Team-Schlüssel): nur lokal, siehe scripts/server-access.sh
+hfg.env

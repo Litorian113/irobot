@@ -1,8 +1,9 @@
-import { useEffect, useRef, useState } from 'react'
-import { snapshotUrl } from './heads/catalog'
-import { DESIGNS } from './heads/designs'
-import type { HeadDesign } from './heads/types'
-import { isOffline, PROMO_SLOT, SLOT_NAMES, SLOTS } from './wall'
+import { useEffect, useRef, useState, type ReactNode } from 'react'
+import { DESIGNS } from '../heads/designs'
+import type { HeadDesign } from '../heads/types'
+import { slotLabel } from '../layout'
+import { isOffline, PROMO_SLOT, SLOTS } from '../wall'
+import { Sidebar, Tile } from './ui'
 
 /** First they notice you (brows up), then they smile - as on the wall. */
 const NOTICE_MS = 1500
@@ -12,10 +13,31 @@ function initialDesign() {
   return DESIGNS.some((d) => d.id === id) ? id : DESIGNS[0].id
 }
 
-/** One head at a time, on a 16:9 screen like an iMac's: only one WebGL context runs. */
+/** One fact about the head in the card below the screen: a value, what it means, and maybe a picture or switch. */
+function Info({ value, label, before, after, as: Tag = 'div' }: {
+  value: ReactNode
+  label: string
+  before?: ReactNode
+  after?: ReactNode
+  as?: 'div' | 'label'
+}) {
+  return (
+    <Tag className="studio-info-item">
+      {before}
+      <span className="studio-info-text">
+        <span className="studio-info-value">{value}</span>
+        <span className="studio-info-label">{label}</span>
+      </span>
+      {after}
+    </Tag>
+  )
+}
+
+/** Köpfe: one head at a time, on a 16:9 screen like an iMac's - only one WebGL context runs. */
 export default function Studio() {
   const [selected, setSelected] = useState(initialDesign)
   const [webgl1, setWebgl1] = useState(false)
+  const [status, setStatus] = useState('lädt …')
   const design = DESIGNS.find((d) => d.id === selected) ?? DESIGNS[0]
 
   const choose = (id: number) => {
@@ -26,65 +48,59 @@ export default function Studio() {
   }
 
   return (
-    <div className="studio">
-      <nav className="studio-list" aria-label="Köpfe">
+    <div className="split studio">
+      <Sidebar label="Köpfe">
         {DESIGNS.map((d) => (
-          <button
-            key={d.id}
-            type="button"
-            className={`studio-item${d.id === selected ? ' active' : ''}${d.create ? '' : ' empty'}`}
-            aria-current={d.id === selected}
-            onClick={() => choose(d.id)}
-          >
-            {/* Only on a phone: the list is a library of pictures there (index.css). */}
-            <span className="studio-thumb">{d.create && <img src={snapshotUrl(`main-${d.id}`)} alt="" loading="lazy" draggable={false} />}</span>
-            <span className="studio-num">{d.id}</span>
-            <span className="studio-text">
-              <span className="studio-name">{d.name}</span>
-              <span className="studio-desc">{d.create ? d.description : 'noch leer'}</span>
-            </span>
-            <SlotMap slot={d.slot} />
-          </button>
+          <Tile key={d.id} name={d.name} snapshot={d.create ? `main-${d.id}` : null} active={d.id === selected} onClick={() => choose(d.id)} />
         ))}
-      </nav>
+      </Sidebar>
 
-      <section className="studio-main">
-        <header className="studio-bar">
-          <div>
-            <h2>{design.id} · {design.name}</h2>
-            <p>{design.slot === null ? 'Nicht auf der Hauptwand: für die Liste und eigene Wände' : `Platz ${design.slot} an der Wand: ${SLOT_NAMES[design.slot]}${isOffline(design.slot) ? ' (dort zurzeit kein Bildschirm)' : ''}`}</p>
+      {/* One centred column, as wide as the window's height allows: the name, the screen, what to know about it. */}
+      <main className="page">
+        <div className="studio-detail">
+          <h2 className="studio-title">{design.name}</h2>
+          <div className="studio-screen">
+            {design.create
+              ? <Stage key={`${design.id}-${webgl1}`} design={design} webgl1={webgl1} onStatus={setStatus} />
+              : <EmptyHead design={design} />}
           </div>
-          <label className="studio-toggle">
-            <input type="checkbox" checked={webgl1} onChange={(e) => setWebgl1(e.target.checked)} />
-            WebGL 1 testen (wie auf den iMacs)
-          </label>
-        </header>
-        <div className="studio-screen">
-          {design.create
-            ? <Stage key={`${design.id}-${webgl1}`} design={design} webgl1={webgl1} />
-            : <EmptyHead design={design} />}
+          <p className="studio-desc">{design.create ? design.description : 'Noch leer.'}</p>
+          <div className="studio-info">
+            <Info
+              before={<SlotMap slot={design.slot} />}
+              value={design.slot === null ? 'Nicht auf der Hauptwand' : `Platz ${design.slot}`}
+              label={design.slot === null ? 'für die Liste und eigene Wände' : `${slotLabel(design.slot)}${isOffline(design.slot) ? ' · dort zurzeit kein Bildschirm' : ''}`}
+            />
+            <Info value={design.create ? status : '–'} label="Leistung in diesem Browser" />
+            <Info
+              as="label"
+              value="WebGL 1"
+              label="so rendern wie die iMacs"
+              after={<input type="checkbox" role="switch" className="switch" checked={webgl1} onChange={(e) => setWebgl1(e.target.checked)} />}
+            />
+          </div>
+          <p className="page-hint">Maus oder Finger über den Bildschirm: der Kopf schaut zu dir. Sonst schaut er umher.</p>
         </div>
-        <p className="studio-hint">Maus oder Finger über den Bildschirm: der Kopf schaut zu dir. Sonst schaut er umher.</p>
-      </section>
+      </main>
     </div>
   )
 }
 
-function Stage({ design, webgl1 }: { design: HeadDesign; webgl1: boolean }) {
+/** The head itself; tells the page how it runs (WebGL version, frame rate). */
+function Stage({ design, webgl1, onStatus }: { design: HeadDesign; webgl1: boolean; onStatus: (status: string) => void }) {
   const canvasRef = useRef<HTMLCanvasElement>(null)
-  const [status, setStatus] = useState('lädt …')
 
   useEffect(() => {
     const canvas = canvasRef.current
     if (!canvas || !design.create) return
+    onStatus('lädt …')
     let face: ReturnType<NonNullable<HeadDesign['create']>>
     try {
       face = design.create(canvas, { fps: 60, maxPixelRatio: 1.5, stiffness: 5, delay: 0, webgl1 })
     } catch (error) {
       console.warn(`[studio] ${design.name} konnte nicht starten`, error)
       // The renderer is all this view is; its failure is the message.
-      // oxlint-disable-next-line react/set-state-in-effect
-      setStatus(`Fehler: ${error instanceof Error ? error.message : String(error)}`)
+      onStatus(`Fehler: ${error instanceof Error ? error.message : String(error)}`)
       return
     }
 
@@ -119,7 +135,7 @@ function Stage({ design, webgl1 }: { design: HeadDesign; webgl1: boolean }) {
     const steerTimer = window.setInterval(steer, 1000 / 30)
     const statsTimer = window.setInterval(() => {
       const info = face.debug()
-      setStatus(`WebGL ${info.webgl} · ${info.renderedFps} fps`)
+      onStatus(`WebGL ${info.webgl} · ${info.renderedFps} fps`)
     }, 1000)
 
     return () => {
@@ -130,14 +146,9 @@ function Stage({ design, webgl1 }: { design: HeadDesign; webgl1: boolean }) {
       if (debugWindow.__studioHead === face) delete debugWindow.__studioHead
       face.dispose()
     }
-  }, [design, webgl1])
+  }, [design, webgl1, onStatus])
 
-  return (
-    <>
-      <canvas ref={canvasRef} />
-      <span className="studio-stats">{status}</span>
-    </>
-  )
+  return <canvas ref={canvasRef} />
 }
 
 function EmptyHead({ design }: { design: HeadDesign }) {

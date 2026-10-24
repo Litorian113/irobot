@@ -47,7 +47,7 @@ export function gridLayout(keys: readonly (string | null)[]): WallLayout {
 /** A label for a screen: its place in the 3x3 shelf, or its number for an added one. */
 const PLACES = [
   'oben links', 'oben Mitte', 'oben rechts',
-  'Mitte links', 'Mitte (Werbung)', 'Mitte rechts',
+  'Mitte links', 'Mitte', 'Mitte rechts',
   'unten links', 'unten Mitte', 'unten rechts',
 ]
 export const slotLabel = (slot: number) => PLACES[slot] ?? `Platz ${slot}`
