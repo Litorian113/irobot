@@ -6,7 +6,8 @@ import { onWallSaved } from '../tracking/bus'
 import { screenPosition } from '../tracking/gaze'
 import { SETTINGS, SLOT_SHIFT, screensFromLayout, type WallRows } from '../wall'
 import CameraCard from './CameraCard'
-import { PageHeader, StatusLine } from './ui'
+import { PencilIcon } from './icons'
+import { PageButton, PageHeader, StatusLine } from './ui'
 
 /** The screens' places on the real shelf, for the floor plan. */
 function shelfPositions(rows: WallRows) {
@@ -46,7 +47,7 @@ export default function LiveView({ onEdit }: { onEdit: () => void }) {
     <div className="split">
       <main className="page">
         <PageHeader title="Live" status={status}>
-          <button type="button" className="page-button primary-on-phone" onClick={onEdit}>Gestalten</button>
+          <PageButton phone label="Gestalten" Icon={PencilIcon} onClick={onEdit} />
         </PageHeader>
 
         <p className="section-title">Wand</p>

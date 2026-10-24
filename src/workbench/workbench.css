@@ -142,6 +142,11 @@
   grid-template-columns: auto 1fr;
 }
 
+/* Without a sidebar (Live, or while loading) the page takes the whole width. */
+.split > .page:first-child {
+  grid-column: 1 / -1;
+}
+
 /* -------------------------------------------------------------- sidebar */
 
 /* A gallery of heads in two columns; it slides out to the left and the page grows into the room. */
@@ -310,6 +315,12 @@
 .page-button[aria-pressed='true'] {
   background: var(--ios-tint);
   color: #fff;
+}
+
+/* The icon is only for the round phone button. */
+.page-button-icon,
+.picker-close-icon {
+  display: none;
 }
 
 .page-button:active {
@@ -862,6 +873,8 @@ label.studio-info-item {
 }
 
 .shelf-row-add button:first-child {
+  display: grid;
+  place-items: center;
   width: 40px;
   height: 40px;
   padding: 0;
@@ -869,9 +882,17 @@ label.studio-info-item {
   border-radius: 50%;
   background: var(--ios-tint-soft);
   color: var(--ios-tint);
-  font-size: 26px;
-  line-height: 1;
   cursor: pointer;
+}
+
+/* Drawn, not a "+" character: a glyph never sits exactly in the middle of the circle. */
+.shelf-row-add svg {
+  width: 20px;
+  height: 20px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 2.4;
+  stroke-linecap: round;
 }
 
 .shelf-row-add .shelf-row-remove {
@@ -1306,19 +1327,44 @@ label.studio-info-item {
     display: none;
   }
 
-  .page-button.primary-on-phone,
-  .page-button.primary-on-phone[aria-pressed='true'] {
+  /* The main button as a round icon button, top right, as in iOS navigation bars. */
+  .page-button.phone-icon {
     grid-area: action;
-    min-height: 44px;
-    padding: 0 0 0 16px;
-    background: none;
-    color: var(--ios-tint);
-    font-size: 17px;
-    font-weight: 400;
+    justify-content: center;
+    width: 40px;
+    min-height: 40px;
+    height: 40px;
+    margin: 6px 0 2px;
+    padding: 0;
+    border-radius: 50%;
+    background: var(--ios-fill);
+    color: var(--ios-label);
+    transition: background 0.2s, color 0.2s, transform 0.15s;
   }
 
-  .page-button.primary-on-phone[aria-pressed='true'] {
-    font-weight: 600;
+  .page-button.phone-icon[aria-pressed='true'] {
+    background: var(--ios-tint);
+    color: #fff;
+  }
+
+  .page-button.phone-icon:active {
+    opacity: 1;
+    transform: scale(0.9);
+  }
+
+  .page-button-icon {
+    display: block;
+    width: 20px;
+    height: 20px;
+    fill: none;
+    stroke: currentColor;
+    stroke-width: 2;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+  }
+
+  .page-button-label {
+    display: none;
   }
 
   .section-title {
@@ -1364,7 +1410,11 @@ label.studio-info-item {
   .shelf-row-add button:first-child {
     width: 36px;
     height: 36px;
-    font-size: 24px;
+  }
+
+  .shelf-row-add svg {
+    width: 18px;
+    height: 18px;
   }
 
   .list-group {
@@ -1400,6 +1450,36 @@ label.studio-info-item {
   .picker-head {
     padding: 16px 16px 8px;
     touch-action: none;
+  }
+
+  /* Closing the sheet: the round grey cross of iOS sheets. */
+  .picker-close {
+    display: grid;
+    place-items: center;
+    width: 30px;
+    min-height: 30px;
+    height: 30px;
+    border-radius: 50%;
+    background: var(--ios-fill);
+    color: var(--ios-label-2);
+  }
+
+  .picker-close:active {
+    transform: scale(0.9);
+  }
+
+  .picker-close-icon {
+    display: block;
+    width: 16px;
+    height: 16px;
+    fill: none;
+    stroke: currentColor;
+    stroke-width: 2.4;
+    stroke-linecap: round;
+  }
+
+  .picker-close-label {
+    display: none;
   }
 
   .picker-grabber {

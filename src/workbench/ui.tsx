@@ -1,4 +1,4 @@
-import { useState, type ButtonHTMLAttributes, type ReactNode } from 'react'
+import { useState, type ButtonHTMLAttributes, type ComponentType, type ReactNode } from 'react'
 import { snapshotUrl } from '../heads/catalog'
 
 /*
@@ -67,6 +67,23 @@ export function PageHeader({ title, status, children }: { title: string; status:
       </div>
       {children && <div className="page-actions">{children}</div>}
     </header>
+  )
+}
+
+/**
+ * A page's button: a tinted pill with its label on a tablet or desktop; on a phone the main one
+ * (`phone`) becomes a round icon button in the navigation bar, the others are left out.
+ */
+export function PageButton({ label, Icon, phone = false, ...button }: {
+  label: string
+  Icon?: ComponentType<{ className?: string }>
+  phone?: boolean
+} & ButtonHTMLAttributes<HTMLButtonElement>) {
+  return (
+    <button type="button" className={`page-button${phone ? ' phone-icon' : ' wide-only'}`} aria-label={label} title={label} {...button}>
+      {Icon && <Icon className="page-button-icon" />}
+      <span className="page-button-label">{label}</span>
+    </button>
   )
 }
 

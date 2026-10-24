@@ -34,3 +34,27 @@ export const SidebarIcon = ({ className }: { className?: string }) => (
     <path d="M9.5 4.5v15M5.8 8.5h1.4M5.8 11h1.4M5.8 13.5h1.4" />
   </Icon>
 )
+
+export const PencilIcon = ({ className }: { className?: string }) => (
+  <Icon className={className}>
+    <path d="M14.5 5.5l4 4M4 20l1-4.5L15.8 4.7a1.8 1.8 0 0 1 2.5 0l1 1a1.8 1.8 0 0 1 0 2.5L8.5 19z" />
+  </Icon>
+)
+
+export const CheckIcon = ({ className }: { className?: string }) => (
+  <Icon className={className}>
+    <path d="M5 12.5l4.5 4.5L19 7.5" />
+  </Icon>
+)
+
+export const CloseIcon = ({ className }: { className?: string }) => (
+  <Icon className={className}>
+    <path d="M7 7l10 10M17 7L7 17" />
+  </Icon>
+)
+
+export const PlusIcon = ({ className }: { className?: string }) => (
+  <Icon className={className}>
+    <path d="M12 5v14M5 12h14" />
+  </Icon>
+)

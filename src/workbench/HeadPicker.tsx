@@ -1,6 +1,7 @@
 import { useEffect, useRef, type TouchEvent } from 'react'
 import { CATALOG } from '../heads/catalog'
 import { slotLabel } from '../layout'
+import { CloseIcon } from './icons'
 import { Tile } from './ui'
 
 /** Pulling the sheet down this far closes it. */
@@ -48,7 +49,10 @@ export default function HeadPicker({ slot, current, onPick, onClose }: {
             <span>Platz {slot}</span>
             <span className="picker-sub">{slotLabel(slot)}</span>
           </h3>
-          <button type="button" className="picker-close" onClick={onClose}>Fertig</button>
+          <button type="button" className="picker-close" aria-label="Fertig" onClick={onClose}>
+            <CloseIcon className="picker-close-icon" />
+            <span className="picker-close-label">Fertig</span>
+          </button>
         </header>
         {/* The same tiles as the sidebar; "Leer lassen" is the last one. */}
         <div className="picker-list">

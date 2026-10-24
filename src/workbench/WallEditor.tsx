@@ -2,7 +2,8 @@ import { useState, type CSSProperties, type DragEvent } from 'react'
 import { CATALOG, catalogEntry } from '../heads/catalog'
 import { cellColumns, MAX_PER_ROW, MAX_ROWS, slotLabel, type WallCell } from '../layout'
 import HeadPicker from './HeadPicker'
-import { PageHeader, SaveBar, Sidebar, StatusLine, Thumb, Tile } from './ui'
+import { CheckIcon, PencilIcon, PlusIcon } from './icons'
+import { PageButton, PageHeader, SaveBar, Sidebar, StatusLine, Thumb, Tile } from './ui'
 import { useWallDraft } from './useWallDraft'
 
 /** Drag payloads: a head from the sidebar, or a screen of the wall (to swap two screens). */
@@ -142,10 +143,8 @@ export default function WallEditor({ onShowLive }: { onShowLive: () => void }) {
 
       <main className="page">
         <PageHeader title="Wand gestalten" status={<StatusLine tone={draft.tone} text={draft.status} screens={layout.flat().length} />}>
-          <button type="button" className="page-button primary-on-phone" aria-pressed={editing} onClick={toggleEditing}>
-            {editing ? 'Fertig' : 'Bearbeiten'}
-          </button>
-          <button type="button" className="page-button wide-only" onClick={onShowLive}>Live ansehen</button>
+          <PageButton phone label={editing ? 'Fertig' : 'Bearbeiten'} Icon={editing ? CheckIcon : PencilIcon} aria-pressed={editing} onClick={toggleEditing} />
+          <PageButton label="Live ansehen" onClick={onShowLive} />
         </PageHeader>
 
         <p className="section-title">{editing ? 'Regal bearbeiten' : 'Regal'}</p>
@@ -172,7 +171,7 @@ export default function WallEditor({ onShowLive }: { onShowLive: () => void }) {
               )),
               editing && row.length < MAX_PER_ROW && (
                 <div key={`add-${r}`} className="shelf-row-add" style={{ gridRow: r + 1, gridColumn: (row.length ? columns[r][row.length - 1] + 1 : 0) + 1 }}>
-                  <button type="button" onClick={() => draft.addScreen(r)} aria-label={`Bildschirm in Reihe ${r + 1} hinzufügen`} title="Bildschirm in dieser Reihe hinzufügen">+</button>
+                  <button type="button" onClick={() => draft.addScreen(r)} aria-label={`Bildschirm in Reihe ${r + 1} hinzufügen`} title="Bildschirm in dieser Reihe hinzufügen"><PlusIcon /></button>
                   {row.length === 0 && <button type="button" className="shelf-row-remove" onClick={() => draft.removeRow(r)}>Reihe entfernen</button>}
                 </div>
               ),
