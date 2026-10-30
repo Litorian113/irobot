@@ -1008,6 +1008,271 @@ label.studio-info-item {
   transition: cx 0.15s linear, cy 0.15s linear;
 }
 
+/* -------------------------------------------------------------- analytics */
+
+/* A small icon top right, apart from the tabs; on a phone a fourth item of the tab bar. */
+.analytics-button {
+  display: grid;
+  place-items: center;
+  justify-self: end;
+  width: 36px;
+  height: 36px;
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  background: var(--ios-fill);
+  color: var(--ios-label);
+  cursor: pointer;
+  transition: background 0.2s, color 0.2s;
+}
+
+.analytics-button.active {
+  background: var(--ios-tint);
+  color: #fff;
+}
+
+.analytics-button .tab-icon {
+  display: block;
+  width: 20px;
+  height: 20px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 2.4;
+  stroke-linecap: round;
+}
+
+.analytics-button > span {
+  display: none;
+}
+
+.segmented {
+  display: flex;
+  gap: 2px;
+  padding: 3px;
+  border-radius: 999px;
+  background: var(--ios-fill);
+}
+
+.segmented button {
+  padding: 5px 14px;
+  border: 0;
+  border-radius: 999px;
+  background: none;
+  color: var(--ios-label-2);
+  font-size: 14px;
+  font-weight: 500;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.segmented button[aria-pressed='true'] {
+  background: #636366;
+  color: var(--ios-label);
+}
+
+.stats {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 12px;
+  margin-top: 24px;
+}
+
+.stat {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 14px 16px;
+  border-radius: 14px;
+  background: var(--ios-card);
+}
+
+.stat-label,
+.stat-note {
+  font-size: 13px;
+  color: var(--ios-label-2);
+}
+
+.stat-value {
+  font-size: 34px;
+  font-weight: 700;
+  line-height: 41px;
+  font-variant-numeric: tabular-nums;
+}
+
+.chart {
+  --chart-visitors: var(--ios-tint);
+  --chart-others: #8e8e93;
+  --chart-gutter: 34px;
+}
+
+.chart-legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 16px;
+  margin-bottom: 14px;
+  font-size: 13px;
+  color: var(--ios-label-2);
+}
+
+.chart-key {
+  display: inline-block;
+  width: 10px;
+  height: 10px;
+  margin-right: 6px;
+  border-radius: 2px;
+}
+
+.chart-key.visitors,
+.chart-part.visitors {
+  background: var(--chart-visitors);
+}
+
+.chart-key.others,
+.chart-part.others {
+  background: var(--chart-others);
+}
+
+.chart-plot {
+  position: relative;
+  height: 240px;
+  margin-top: 10px;
+}
+
+.chart-grid {
+  position: absolute;
+  right: 0;
+  left: var(--chart-gutter);
+  height: 1px;
+  background: rgba(255, 255, 255, 0.08);
+}
+
+.chart-grid > span {
+  position: absolute;
+  right: 100%;
+  bottom: -8px;
+  padding-right: 8px;
+  font-size: 12px;
+  line-height: 16px;
+  color: var(--ios-label-2);
+  font-variant-numeric: tabular-nums;
+}
+
+.chart-bars {
+  position: absolute;
+  inset: 0 0 0 var(--chart-gutter);
+  display: flex;
+}
+
+/* The whole height is the target, not just the painted bar. */
+.chart-column {
+  display: flex;
+  flex: 1;
+  align-items: flex-end;
+  justify-content: center;
+  min-width: 0;
+  padding: 0 1px;
+  border: 0;
+  border-radius: 4px;
+  background: none;
+  cursor: default;
+}
+
+.chart-column.hover {
+  background: rgba(255, 255, 255, 0.05);
+}
+
+/* The gap between the two parts is the separator; only the top end is rounded. */
+.chart-stack {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  width: 100%;
+  max-width: 24px;
+  overflow: hidden;
+  border-radius: 4px 4px 0 0;
+}
+
+.chart-part {
+  flex-basis: 0;
+  min-height: 2px;
+}
+
+.chart-axis {
+  display: flex;
+  padding: 6px 0 0 var(--chart-gutter);
+}
+
+.chart-axis > span {
+  flex: 1;
+  min-width: 0;
+  overflow: visible;
+  font-size: 12px;
+  color: var(--ios-label-2);
+  text-align: center;
+  white-space: nowrap;
+}
+
+.chart-tooltip {
+  position: absolute;
+  top: 0;
+  z-index: 2;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  margin-left: calc(var(--chart-gutter) * 0.9);
+  padding: 8px 12px;
+  border-radius: 10px;
+  background: var(--ios-card-3);
+  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.4);
+  font-size: 13px;
+  color: var(--ios-label-2);
+  white-space: nowrap;
+  pointer-events: none;
+}
+
+.chart-tooltip[data-side='left'] {
+  transform: translateX(-100%);
+}
+
+.chart-tooltip b {
+  color: var(--ios-label);
+  font-variant-numeric: tabular-nums;
+}
+
+.chart-tooltip-title {
+  color: var(--ios-label);
+  font-weight: 600;
+}
+
+.chart-table {
+  margin-top: 14px;
+  font-size: 13px;
+  color: var(--ios-label-2);
+}
+
+.chart-table summary {
+  cursor: pointer;
+}
+
+.chart-table table {
+  width: 100%;
+  margin-top: 8px;
+  border-collapse: collapse;
+  font-variant-numeric: tabular-nums;
+}
+
+.chart-table th,
+.chart-table td {
+  padding: 5px 0;
+  border-top: 0.5px solid var(--ios-sep);
+  text-align: right;
+}
+
+.chart-table th:first-child,
+.chart-table td:first-child {
+  text-align: left;
+}
+
 /* ------------------------------------------------------------- head picker */
 
 /* Tablet and desktop: a form sheet in the middle; a phone gets a sheet from the bottom. */
@@ -1196,7 +1461,7 @@ label.studio-info-item {
   }
 
   .tabs {
-    flex: 1;
+    flex: 3;
     align-self: stretch;
     gap: 0;
     padding: 0;
@@ -1227,6 +1492,36 @@ label.studio-info-item {
     color: var(--ios-tint);
   }
 
+  /* Analytics is the fourth item of the tab bar here. */
+  .analytics-button,
+  .analytics-button.active {
+    display: flex;
+    flex: 1;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 3px;
+    align-self: stretch;
+    width: auto;
+    height: auto;
+    padding: 2px 0 0;
+    border-radius: 0;
+    background: none;
+    color: rgba(235, 235, 245, 0.45);
+    font-size: 10px;
+    font-weight: 500;
+    letter-spacing: 0.01em;
+  }
+
+  .analytics-button.active {
+    color: var(--ios-tint);
+  }
+
+  .analytics-button > span {
+    display: inline;
+  }
+
+  .analytics-button .tab-icon,
   .tab-icon {
     display: block;
     width: 26px;
@@ -1430,6 +1725,30 @@ label.studio-info-item {
   .camera-map {
     width: calc(100% - 32px);
     margin: 0 16px;
+  }
+
+  .segmented {
+    grid-area: action;
+    margin: 6px 0 2px;
+  }
+
+  .segmented button {
+    padding: 5px 10px;
+    font-size: 13px;
+  }
+
+  .stats {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 10px;
+    margin-top: 20px;
+  }
+
+  .chart {
+    --chart-gutter: 28px;
+  }
+
+  .chart-plot {
+    height: 200px;
   }
 
   /* The picker comes up from the bottom as a sheet, pulled down by its grabber to close. */

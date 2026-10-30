@@ -58,3 +58,9 @@ export const PlusIcon = ({ className }: { className?: string }) => (
     <path d="M12 5v14M5 12h14" />
   </Icon>
 )
+
+export const ChartIcon = ({ className }: { className?: string }) => (
+  <Icon className={className}>
+    <path d="M5 20v-6M12 20V5M19 20v-9" />
+  </Icon>
+)

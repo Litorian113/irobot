@@ -5,6 +5,7 @@ import { catalogEntry, PROMO_KEY } from './heads/catalog'
 import { cellColumns, gridLayout, type WallLayout } from './layout'
 import type { CreateHead, HeadDesign } from './heads/types'
 import { ParticleFace } from './viki/ParticleFace'
+import { VISITOR_AFTER_MS } from './analytics'
 
 /** The middle screen carries the HfG message instead of a head. */
 export const PROMO_SLOT = 4
@@ -13,7 +14,7 @@ export const PROMO_SLOT = 4
  * PROMO_AFTER_MS; then the HfG message fades in, and out again PROMO_HOLD_MS after they left.
  */
 export const PROMO_STAND_IN = 'main-11'
-export const PROMO_AFTER_MS = 8000
+export const PROMO_AFTER_MS = VISITOR_AFTER_MS
 export const PROMO_HOLD_MS = 4000
 
 // Screens without a working iMac (oben links, unten links) are left out: src/layout.ts, OFFLINE_SLOTS.

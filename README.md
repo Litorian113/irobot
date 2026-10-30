@@ -118,6 +118,18 @@ dem Server in `C:\Users\nakumu-02\.hfg-imac-admin` (nur dieses Konto darf die Da
 
 ---
 
+## Analytics
+
+Oben rechts in der Kopfleiste (am Handy in der Leiste unten) steht, wie viele vorbeigelaufen und wie viele
+stehen geblieben sind. Der Server zählt mit, ob die Seite offen ist oder nicht (`src/analytics.ts`):
+
+- **Passant**: jemand ist mindestens 1 Sekunde im Bild.
+- **Besucher**: jemand bleibt mindestens 8 Sekunden, so lange, bis auch die Werbung kommt (`VISITOR_AFTER_MS`).
+
+Das sind Schätzungen aus der Anzahl, die die Kamera sieht; die Kamera kennt keine Personen wieder. Wer länger als
+3 Sekunden verloren geht, zählt doppelt. Gezählt wird, solange die Kamera läuft, also auch nachts. Die Zahlen
+stehen pro Stunde in `walls/analytics.json` auf dem Server (übersteht Deploys, nicht im Repo).
+
 ## Die Wand umbauen (für alle im HfG-WLAN)
 
 `http://hfg-wall.local:8080` → Tab **Gestalten**. Auf dem Handy landet man direkt dort. Die Seite läuft auf
@@ -199,6 +211,7 @@ z.B. `rams/` (einfache Geometrie) oder `onyx/` (eigene Shader). Danach die Vorsc
 | `src/heads/designs.ts` | alle Köpfe: Name, Platz, Renderer |
 | `src/heads/*/` | die einzelnen Köpfe (Geometrie, Shader) |
 | `src/layout.ts` | Wand als Reihen von Bildschirmen; `OFFLINE_SLOTS` |
+| `src/analytics.ts` | Passanten und Besucher zählen (läuft auf dem Server) |
 | `src/wall.ts` | Abstände, Kamera-Montage, Werbung, URL-Parameter, `SLOT_SHIFT` |
 | `src/WallView.tsx`, `src/HeadCell.tsx` | eine Wand bzw. ein Bildschirm, wie die iMacs sie zeigen |
 | `src/workbench/` | die Arbeitsseite: `Workbench.tsx` (Tabs, Seitenleiste), `Studio.tsx` (Köpfe), `WallEditor.tsx` + `useWallDraft.ts` (Gestalten), `LiveView.tsx` + `CameraCard.tsx` (Live), gemeinsame Bausteine in `ui.tsx`, Styles in `workbench.css` |
@@ -410,7 +423,7 @@ Was ein bestimmter Bildschirm meldet (Fehler, Grafikkarte, Bildrate 20 s nach de
 |---|---|
 | `?slot=N` | ein Bildschirm der Wand (ohne: alle auf einer Seite) |
 | `?wall=custom` | die Live-Wand (so öffnen die iMacs ihre Seite) |
-| `?view=heads` / `custom` / `live` | Tab der Arbeitsseite (Köpfe / Gestalten / Live) |
+| `?view=heads` / `custom` / `live` / `analytics` | Ansicht der Arbeitsseite |
 | `&camera=1` | Kamera und Erkennung in diesem Fenster (nur auf `localhost` / `127.0.0.1`) |
 | `&preview=1` | Kameravorschau mit Erkennung (Taste `D`) |
 | `&cam=logitech` | Kamera nach Namen wählen |
@@ -432,7 +445,8 @@ Tasten: `D` Kameravorschau, `F` Vollbild.
 
 Die Kamerabilder werden auf dem Windows-Rechner im Browser von YOLO26n ausgewertet und sofort verworfen.
 Es wird nichts aufgezeichnet, und kein Bild verlässt den Rechner. Über das Netzwerk geht nur, *ob* jemand
-da ist und wo ungefähr (drei Zahlen in Metern).
+da ist und wo ungefähr (drei Zahlen in Metern). Auf dem Server bleibt davon nur, wie viele Passanten und Besucher
+es pro Stunde waren.
 
 ## Credits
 

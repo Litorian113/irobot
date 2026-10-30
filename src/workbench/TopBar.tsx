@@ -1,4 +1,4 @@
-import { SidebarIcon } from './icons'
+import { ChartIcon, SidebarIcon } from './icons'
 import { TABS, type View } from './tabs'
 
 /**
@@ -45,6 +45,17 @@ export default function TopBar({ view, onChoose, sidebarClosed, onToggleSidebar 
           </button>
         ))}
       </nav>
+      <button
+        type="button"
+        className={`analytics-button${view === 'analytics' ? ' active' : ''}`}
+        aria-pressed={view === 'analytics'}
+        aria-label="Analytics"
+        title="Analytics"
+        onClick={() => onChoose('analytics')}
+      >
+        <ChartIcon className="tab-icon" />
+        <span>Analytics</span>
+      </button>
     </header>
   )
 }

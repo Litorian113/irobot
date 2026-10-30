@@ -8,7 +8,16 @@ import { RamsHead } from './rams/RamsHead'
 import { GlassHead } from './glass/GlassHead'
 import { AviciiHead } from './avicii/AviciiHead'
 import { ColaniHead } from './colani/ColaniHead'
+import { AdamHead } from './adam/AdamHead'
 import { FluxHead } from './flux/FluxHead'
+import { JackHead } from './jack/JackHead'
+import { BillyHead } from './billy/BillyHead'
+import { CreeperHead } from './creeper/CreeperHead'
+import { HaendchenHead } from './haendchen/HaendchenHead'
+import { ArtHead } from './art/ArtHead'
+import { WaldHead } from './wald/WaldHead'
+import { XenoHead } from './xeno/XenoHead'
+import { FrankHead } from './frank/FrankHead'
 import type { HeadDesign } from './types'
 
 /**
@@ -103,5 +112,66 @@ export const DESIGNS: HeadDesign[] = [
     description: 'Low-Poly-Porträt in Grautönen: Cap verkehrt herum, Facetten blitzen im 128-BPM-Takt',
     slot: null,
     create: (canvas, options) => new AviciiHead(canvas, options),
+  },
+  {
+    id: 13,
+    name: 'J.A.C.K.',
+    description: 'Leuchtender Halloween-Kürbis mit Zylinder, Mantel und Krawatte im Abendnebel',
+    // For Halloween: pick it in "Eigene Wand".
+    slot: null,
+    create: (canvas, options) => new JackHead(canvas, options),
+  },
+  {
+    id: 14,
+    name: 'C.R.E.E.P.E.R.',
+    description: 'Block-Creeper aus echten Würfeln: blinkt, bläht sich auf und explodiert, wenn jemand auftaucht',
+    slot: null,
+    create: (canvas, options) => new CreeperHead(canvas, options),
+  },
+  {
+    id: 16,
+    name: 'B.I.L.L.Y.',
+    description: 'Horrorpuppe: rissige Pappmaché-Maske, rote Augen, Spiralwangen, klappendes Kinn, flackerndes Licht',
+    // For Halloween: pick it in "Eigene Wand".
+    slot: null,
+    create: (canvas, options) => new BillyHead(canvas, options),
+  },
+  {
+    id: 17,
+    name: 'A.D.A.M.',
+    description: 'Das Geschöpf aus Mary Shelleys Roman: fahle, genähte Haut, langes schwarzes Haar, Elektroden, die im Gewitter funken',
+    slot: null,
+    create: (canvas, options) => new AdamHead(canvas, options),
+  },
+  {
+    id: 18,
+    name: 'H.Ä.N.D.C.H.E.N.',
+    description: 'Zusammengenähte Hand ohne Körper: trommelt mit den Fingern, macht einen Salto und zeigt das Peacezeichen',
+    slot: null,
+    create: (canvas, options) => new HaendchenHead(canvas, options),
+  },
+  {
+    id: 19,
+    name: 'A.R.T.',
+    description: 'Der stumme Clown in Schwarz-Weiß: faltige Latexmaske, schwarzes Riesengrinsen, Mini-Zylinder. Legt den Kopf schief und lacht lautlos',
+    // For Halloween: pick it in "Eigene Wand".
+    slot: null,
+    create: (canvas, options) => new ArtHead(canvas, options),
+  },
+  {
+    id: 20,
+    name: 'W.A.L.D.',
+    description: 'Gruseliger Waldgeist: Hirschschädel mit riesigem Geweih, zerrissene Lederkutte, Knochen am Ast, Irrlichter',
+    // For Halloween: pick it in "Eigene Wand".
+    slot: null,
+    create: (canvas, options) => new WaldHead(canvas, options),
+  },
+  {
+    id: 30,
+    name: 'F.R.A.N.K.',
+    description: 'Das Monster aus dem alten Horrorfilm, schwarzweiß mit Filmkorn: Flachschädel, Klammern, Narbe, schwere Lider, Halsbolzen, die Funken schlagen',
+    // For Halloween: pick it in "Eigene Wand".
+    slot: null,
+    create: (canvas, options) => new FrankHead(canvas, options),
   },
 ]

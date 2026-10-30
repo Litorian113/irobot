@@ -1,4 +1,5 @@
-import { mkdir, readFile, writeFile } from 'node:fs/promises'
+import { readFileSync, renameSync } from 'node:fs'
+import { mkdir, readFile, rename, writeFile } from 'node:fs/promises'
 import type { IncomingMessage, Server, ServerResponse } from 'node:http'
 import { dirname } from 'node:path'
 import { networkInterfaces } from 'node:os'
@@ -6,6 +7,7 @@ import basicSsl from '@vitejs/plugin-basic-ssl'
 import react from '@vitejs/plugin-react'
 import { defineConfig, loadEnv, type Plugin } from 'vite'
 import { WebSocket, WebSocketServer } from 'ws'
+import { PeopleCounter, VISITOR_AFTER_MS, dayKey, type Stats } from './src/analytics.ts'
 import { isLayout } from './src/layout.ts'
 
 /** The middle screen (see src/wall.ts): the promo, with the camera above it. */
@@ -63,6 +65,78 @@ function customWallApi(broadcast: (message: unknown) => void) {
   }
 }
 
+/**
+ * Counts people from the camera's messages and keeps the numbers per hour (src/analytics.ts).
+ * Lives next to the custom wall: `walls/` survives every deploy and is not in the repo.
+ */
+const ANALYTICS_FILE = process.env.HFG_ANALYTICS_FILE ?? 'walls/analytics.json'
+/** A crash or deploy loses at most this much counting. */
+const ANALYTICS_SAVE_MS = 30000
+/** The camera sends many times a second: this long silent, and it is off. Nobody is seen then. */
+const CAMERA_LOST_MS = 5000
+
+function analyticsRecorder() {
+  let stats: Stats = {}
+  try {
+    stats = JSON.parse(readFileSync(ANALYTICS_FILE, 'utf8')) as Stats
+  } catch (error) {
+    // Nothing counted yet is normal; an unreadable file is kept to look at, not overwritten.
+    if ((error as NodeJS.ErrnoException).code !== 'ENOENT') {
+      console.warn(`[analytics] ${ANALYTICS_FILE} nicht lesbar, beginne neu:`, error)
+      renameSync(ANALYTICS_FILE, `${ANALYTICS_FILE}.bad`)
+    }
+  }
+  const counter = new PeopleCounter(stats)
+  let heard = 0
+  let dirty = false
+  let saving = false
+  const update = (seen: number, now: number) => {
+    if (counter.update(seen, now)) dirty = true
+  }
+  setInterval(() => {
+    const now = Date.now()
+    if (now - heard > CAMERA_LOST_MS) update(0, now)
+  }, 1000).unref()
+  setInterval(() => {
+    if (!dirty || saving) return
+    dirty = false
+    saving = true
+    const temporary = `${ANALYTICS_FILE}.tmp`
+    mkdir(dirname(ANALYTICS_FILE), { recursive: true })
+      .then(() => writeFile(temporary, JSON.stringify(stats)))
+      .then(() => rename(temporary, ANALYTICS_FILE))
+      .catch((error: unknown) => {
+        dirty = true
+        console.warn('[analytics] Speichern ging nicht:', error)
+      })
+      .finally(() => { saving = false })
+  }, ANALYTICS_SAVE_MS).unref()
+
+  return {
+    /** Any message on the relay; only the camera's say how many people there are. */
+    hear(data: unknown) {
+      try {
+        const count = (JSON.parse(String(data)) as { count?: unknown }).count
+        if (typeof count !== 'number') return
+        heard = Date.now()
+        update(count, heard)
+      } catch {
+        /* not ours */
+      }
+    },
+    api(request: IncomingMessage, response: ServerResponse) {
+      response.setHeader('Content-Type', 'application/json')
+      response.setHeader('Cache-Control', 'no-store')
+      if (request.method !== 'GET') {
+        response.statusCode = 405
+        response.end(JSON.stringify({ error: 'GET' }))
+        return
+      }
+      response.end(JSON.stringify({ days: stats, today: dayKey(new Date()), present: counter.present, visitorAfterMs: VISITOR_AFTER_MS }))
+    },
+  }
+}
+
 /** Screens of the wall post their console errors here (src/remoteLog.ts); printed with their place. */
 function screenLogApi() {
   return (request: IncomingMessage, response: ServerResponse) => {
@@ -97,8 +171,10 @@ function screenLogApi() {
  */
 function gazeRelay(): Plugin {
   const relay = new WebSocketServer({ noServer: true })
+  const analytics = analyticsRecorder()
   relay.on('connection', (socket) => {
     socket.on('message', (data, isBinary) => {
+      if (!isBinary) analytics.hear(data)
       for (const client of relay.clients) {
         if (client !== socket && client.readyState === WebSocket.OPEN) client.send(data, { binary: isBinary })
       }
@@ -126,11 +202,13 @@ function gazeRelay(): Plugin {
     name: 'irobot-gaze-relay',
     configureServer: (server) => {
       server.middlewares.use('/api/custom-wall', api)
+      server.middlewares.use('/api/analytics', analytics.api)
       server.middlewares.use('/api/log', screenLogApi())
       attach(server.httpServer as Server | null, 'dev')
     },
     configurePreviewServer: (server) => {
       server.middlewares.use('/api/custom-wall', api)
+      server.middlewares.use('/api/analytics', analytics.api)
       server.middlewares.use('/api/log', screenLogApi())
       attach(server.httpServer as Server, 'wall')
     },

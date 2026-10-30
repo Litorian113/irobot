@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import AnalyticsView from './AnalyticsView'
 import LiveView from './LiveView'
 import Studio from './Studio'
 import { TABS, type View } from './tabs'
@@ -15,6 +16,7 @@ function initialView(): View {
   const view = param === 'wall' ? 'live' : param
   // On a phone (from the QR code in the WLAN) the wall editor first, not a 3D head.
   const phone = window.matchMedia('(max-width: 720px)').matches
+  if (view === 'analytics') return view
   return TABS.find((tab) => tab.id === view)?.id ?? (phone ? 'custom' : 'heads')
 }
 
@@ -54,12 +56,13 @@ export default function Workbench() {
         view={view}
         onChoose={choose}
         sidebarClosed={sidebarClosed}
-        onToggleSidebar={view === 'live' ? undefined : toggleSidebar}
+        onToggleSidebar={view === 'heads' || view === 'custom' ? toggleSidebar : undefined}
       />
       <div className="app-content">
         {view === 'heads' && <Studio />}
         {view === 'custom' && <WallEditor onShowLive={() => choose('live')} />}
         {view === 'live' && <LiveView onEdit={() => choose('custom')} />}
+        {view === 'analytics' && <AnalyticsView />}
       </div>
     </div>
   )
