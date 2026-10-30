@@ -34,8 +34,8 @@ $once = New-ScheduledTaskSettingsSet -AllowStartIfOnBatteries -DontStopIfGoingOn
 Register-ScheduledTask -TaskName 'HfG Koepfe Update' -Action $update -Trigger $every `
   -Principal (New-ScheduledTaskPrincipal -UserId $user -LogonType Interactive -RunLevel Highest) -Settings $once -Force | Out-Null
 
-# Wann die Wand laeuft (plan.ps1, kiosk\ruhetage.txt): Mo-Fr 21:00 den naechsten Einschalttag setzen,
-# taeglich 17:05 an Ruhetagen einen iMac herunterfahren, der sich doch eingeschaltet hat.
+# Wann die Wand laeuft (plan.ps1, walls\schedule.json): Mo-Fr 21:00 als Reserve setzen,
+# taeglich 17:05 einen iMac herunterfahren, der laut Plan aus sein sollte.
 Get-ScheduledTask -TaskName 'HfG Koepfe Wochenende' -ErrorAction SilentlyContinue | Unregister-ScheduledTask -Confirm:$false
 $admin = New-ScheduledTaskPrincipal -UserId $user -LogonType Interactive -RunLevel Highest
 $plan = "-NoProfile -ExecutionPolicy Bypass -WindowStyle Hidden -File `"$root\scripts\windows\plan.ps1`""

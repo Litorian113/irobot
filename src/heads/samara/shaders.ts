@@ -3,29 +3,7 @@
  * (the 2009/2010 iMacs), so no derivatives.
  */
 
-export const PASS_VERTEX = /* glsl */ `
-varying vec2 vUv;
-void main() {
-  vUv = uv;
-  gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
-}
-`
-
 /** A wood out of focus, in the teal of the film: one painted texture drifting past itself. Applies its own colour space. */
-export const BACKDROP_FRAGMENT = /* glsl */ `
-varying vec2 vUv;
-uniform sampler2D uBlur;
-uniform float uTime, uFlicker;
-void main() {
-  float a = texture2D(uBlur, vUv * vec2(1.5, 1.0) + vec2(uTime * 0.0025, 0.0)).r;
-  float b = texture2D(uBlur, vUv * vec2(2.4, 1.5) + vec2(-uTime * 0.004, 0.37)).r;
-  float blur = a * 0.6 + b * 0.4;
-  float high = smoothstep(0.1, 0.8, vUv.y);
-  vec3 color = mix(vec3(0.012, 0.03, 0.028), vec3(0.17, 0.34, 0.33), blur * (0.45 + 1.05 * high));
-  gl_FragColor = vec4(pow(color * uFlicker, vec3(1.0 / 2.2)), 1.0);
-}
-`
-
 /** Declarations added to the head's material. */
 export const FACE_PARS = /* glsl */ `
 varying vec3 vFace;
@@ -130,7 +108,7 @@ export const TAPE_VERTEX = /* glsl */ `
 varying vec2 vUv;
 void main() {
   vUv = uv;
-  gl_Position = vec4(position.xy, 0.0, 1.0);
+  gl_Position = vec4(position.xy, 1.0, 1.0);
 }
 `
 

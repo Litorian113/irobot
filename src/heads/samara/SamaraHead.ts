@@ -1,7 +1,8 @@
 import * as THREE from 'three'
 import { GazeSpring } from '../GazeSpring'
+import { addDarkBackdrop, DARK_BACKDROP } from '../darkBackdrop'
 import type { Expression, HeadView, HeadViewOptions } from '../types'
-import { BACKDROP_FRAGMENT, FACE_GLOW, FACE_PAINT, FACE_PARS, HAIR_MOVE, HAIR_PARS, PASS_VERTEX, TAPE_FRAGMENT, TAPE_VERTEX } from './shaders'
+import { FACE_GLOW, FACE_PAINT, FACE_PARS, HAIR_MOVE, HAIR_PARS, TAPE_FRAGMENT, TAPE_VERTEX } from './shaders'
 
 /**
  * S.A.M.A.R.A. - the girl from the well, as a close-up on a worn-out video tape: wet black
@@ -359,34 +360,6 @@ function skinTexture() {
   return texture
 }
 
-/** Dark trunks and pale gaps, far out of focus. Wraps at the edges; painted once. */
-function blurTexture() {
-  const size = 256
-  const canvas = document.createElement('canvas')
-  canvas.width = canvas.height = size
-  const ctx = canvas.getContext('2d')!
-  const random = seeded(3)
-  ctx.fillStyle = '#000000'
-  ctx.fillRect(0, 0, size, size)
-  ctx.globalCompositeOperation = 'lighter'
-  for (let i = 0; i < 90; i++) {
-    const x = random() * size, y = random() * size, r = 8 + random() * 44
-    const light = 14 + random() * 52
-    for (const dx of [-size, 0, size]) {
-      for (const dy of [-size, 0, size]) {
-        const puff = ctx.createRadialGradient(x + dx, y + dy, 0, x + dx, y + dy, r)
-        puff.addColorStop(0, `rgb(${light}, ${light}, ${light})`)
-        puff.addColorStop(1, 'rgb(0, 0, 0)')
-        ctx.fillStyle = puff
-        ctx.fillRect(x + dx - r, y + dy - r, r * 2, r * 2)
-      }
-    }
-  }
-  const texture = new THREE.CanvasTexture(canvas)
-  texture.wrapS = texture.wrapT = THREE.RepeatWrapping
-  return texture
-}
-
 function grainTexture() {
   const size = 128
   const canvas = document.createElement('canvas')
@@ -477,26 +450,14 @@ export class SamaraHead implements HeadView {
     const context = opts.webgl1 ? canvas.getContext('webgl', attributes) ?? undefined : undefined
     this.renderer = new THREE.WebGLRenderer({ canvas, context, ...attributes })
     this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, opts.maxPixelRatio ?? 1.5))
-    this.renderer.setClearColor(0x020606, 1)
+    this.renderer.setClearColor(DARK_BACKDROP, 1)
     this.renderer.toneMapping = THREE.NeutralToneMapping
 
     this.camera.position.set(0, CAM_Y, CAM_DIST)
     this.camera.lookAt(0, CAM_Y, 0)
 
     // --- the wood behind her --------------------------------------------------------
-    const blur = blurTexture()
-    this.textures.push(blur)
-    this.backdrop = new THREE.ShaderMaterial({
-      uniforms: { uBlur: { value: blur }, uTime: { value: 0 }, uFlicker: { value: 1 } },
-      vertexShader: PASS_VERTEX,
-      fragmentShader: BACKDROP_FRAGMENT,
-      depthWrite: false,
-      toneMapped: false,
-    })
-    const wall = new THREE.Mesh(new THREE.PlaneGeometry(26, 15), this.backdrop)
-    wall.position.z = -6
-    wall.renderOrder = -10
-    this.scene.add(wall)
+    this.backdrop = addDarkBackdrop(this.scene)
 
     // A cold flat light from the front and above: sickly on the nose and brow, nothing in the hollows.
     this.scene.add(new THREE.HemisphereLight(0xa9c6bf, 0x050a09, 0.3))
@@ -557,7 +518,8 @@ export class SamaraHead implements HeadView {
       vertexShader: TAPE_VERTEX,
       fragmentShader: TAPE_FRAGMENT,
       transparent: true,
-      depthTest: false,
+      // Only over the figure: the background stays the same on every scary head.
+      depthFunc: THREE.GreaterDepth,
       depthWrite: false,
       toneMapped: false,
     }))
@@ -656,9 +618,7 @@ export class SamaraHead implements HeadView {
       this.tape.uOffset.value.set(Math.random(), Math.random())
       const flicker = 0.94 + 0.06 * Math.random()
       this.key.intensity = KEY_LIGHT * flicker
-      this.backdrop.uniforms.uFlicker.value = flicker
     }
-    this.backdrop.uniforms.uTime.value = t
     // A skipping tape holds its picture: the hair stands still until it runs again.
     if (!skipping) this.hair.uTime.value = t
 
@@ -713,6 +673,7 @@ export class SamaraHead implements HeadView {
       for (const material of Array.isArray(object.material) ? object.material : [object.material]) material.dispose()
     })
     for (const texture of this.textures) texture.dispose()
+    this.backdrop.dispose()
     this.renderer.dispose()
   }
 }

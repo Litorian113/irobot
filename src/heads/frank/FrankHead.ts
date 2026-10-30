@@ -1,8 +1,9 @@
 import * as THREE from 'three'
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js'
 import { GazeSpring } from '../GazeSpring'
+import { addDarkBackdrop, DARK_BACKDROP } from '../darkBackdrop'
 import type { Expression, HeadView, HeadViewOptions } from '../types'
-import { BACKDROP_FRAGMENT, FACE_GLOW, FACE_PAINT, FACE_PARS, FACE_ROUGHNESS, FILM_FRAGMENT, FILM_VERTEX, PASS_VERTEX } from './shaders'
+import { FACE_GLOW, FACE_PAINT, FACE_PARS, FACE_ROUGHNESS, FILM_FRAGMENT, FILM_VERTEX } from './shaders'
 
 /**
  * F.R.A.N.K. - the monster of the old horror films, on an old film print: a flat-topped
@@ -521,24 +522,14 @@ export class FrankHead implements HeadView {
     const context = opts.webgl1 ? canvas.getContext('webgl', attributes) ?? undefined : undefined
     this.renderer = new THREE.WebGLRenderer({ canvas, context, ...attributes })
     this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, opts.maxPixelRatio ?? 1.5))
-    this.renderer.setClearColor(0x050505, 1)
+    this.renderer.setClearColor(DARK_BACKDROP, 1)
     this.renderer.toneMapping = THREE.NeutralToneMapping
 
     this.camera.position.set(0, CAM_Y, CAM_DIST)
     this.camera.lookAt(0, CAM_Y, 0)
 
     // --- the studio -------------------------------------------------------------
-    this.wall = new THREE.ShaderMaterial({
-      uniforms: { uLight: { value: 1 } },
-      vertexShader: PASS_VERTEX,
-      fragmentShader: BACKDROP_FRAGMENT,
-      depthWrite: false,
-      toneMapped: false,
-    })
-    const backdrop = new THREE.Mesh(new THREE.PlaneGeometry(40, 24), this.wall)
-    backdrop.position.z = -8
-    backdrop.renderOrder = -10
-    this.scene.add(backdrop)
+    this.wall = addDarkBackdrop(this.scene)
 
     this.scene.add(new THREE.HemisphereLight(0xffffff, 0x1c1c1c, 0.46))
     this.key = new THREE.DirectionalLight(0xffffff, 3.9)
@@ -641,7 +632,8 @@ export class FrankHead implements HeadView {
       vertexShader: FILM_VERTEX,
       fragmentShader: FILM_FRAGMENT,
       transparent: true,
-      depthTest: false,
+      // Only over the figure: the background stays the same on every scary head.
+      depthFunc: THREE.GreaterDepth,
       depthWrite: false,
       toneMapped: false,
     })
@@ -725,7 +717,6 @@ export class FrankHead implements HeadView {
     // A hand-cranked lamp: the light breathes a little, frame by frame.
     const flicker = 1 + 0.025 * Math.sin(t * 13.7) * Math.sin(t * 7.1) + (Math.random() - 0.5) * 0.03
     this.key.intensity = 3.9 * flicker
-    this.wall.uniforms.uLight.value = flicker + 0.5 * crackle
     this.film.uniforms.uGrainOffset.value.set(Math.random(), Math.random())
     if (t > this.scratchUntil + 3 && Math.random() < 0.006) {
       this.scratchUntil = t + 0.1 + Math.random() * 0.45
@@ -779,6 +770,7 @@ export class FrankHead implements HeadView {
       for (const material of Array.isArray(object.material) ? object.material : [object.material]) material.dispose()
     })
     for (const texture of this.textures) texture.dispose()
+    this.wall.dispose()
     this.renderer.dispose()
   }
 }

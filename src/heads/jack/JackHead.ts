@@ -1,7 +1,8 @@
 import * as THREE from 'three'
 import { GazeSpring } from '../GazeSpring'
+import { addDarkBackdrop, DARK_BACKDROP } from '../darkBackdrop'
 import type { Expression, HeadView, HeadViewOptions } from '../types'
-import { DUSK_FRAGMENT, PASS_VERTEX, PUMPKIN_FRAGMENT, PUMPKIN_VERTEX } from './shaders'
+import { PUMPKIN_FRAGMENT, PUMPKIN_VERTEX } from './shaders'
 
 /**
  * J.A.C.K. - a gentleman with a jack-o'-lantern for a head: ribbed orange
@@ -214,22 +215,12 @@ export class JackHead implements HeadView {
     const context = opts.webgl1 ? canvas.getContext('webgl', attributes) ?? undefined : undefined
     this.renderer = new THREE.WebGLRenderer({ canvas, context, ...attributes })
     this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, opts.maxPixelRatio ?? 1.5))
-    this.renderer.setClearColor(0x20262c, 1)
+    this.renderer.setClearColor(DARK_BACKDROP, 1)
     this.camera.position.copy(CAM)
     this.camera.lookAt(LOOK)
 
     // --- the evening --------------------------------------------------------
-    const size = new THREE.Vector2(20, 12)
-    this.dusk = new THREE.ShaderMaterial({
-      uniforms: { uSize: { value: size }, uTime: { value: 0 }, uFlame: { value: 1 } },
-      vertexShader: PASS_VERTEX,
-      fragmentShader: DUSK_FRAGMENT,
-      depthWrite: false,
-    })
-    const sky = new THREE.Mesh(new THREE.PlaneGeometry(size.x, size.y), this.dusk)
-    sky.position.z = -5
-    sky.renderOrder = -10
-    this.scene.add(sky)
+    this.dusk = addDarkBackdrop(this.scene)
 
     this.scene.add(new THREE.HemisphereLight(0x9fb0c0, 0x15110e, 1.1))
     const key = new THREE.DirectionalLight(0xc4d2e0, 1.1)
@@ -402,8 +393,6 @@ export class JackHead implements HeadView {
     u.uLid.value = raised
     u.uTime.value = t
     this.head.worldToLocal((u.uCamera.value as THREE.Vector3).copy(this.camera.position))
-    this.dusk.uniforms.uTime.value = t
-    this.dusk.uniforms.uFlame.value = flame
     this.candle.intensity = 1.1 * flame
     const open = 1 - blink * 0.7
     this.glows[0].scale.setScalar(0.62 + 0.1 * flame)
@@ -448,6 +437,7 @@ export class JackHead implements HeadView {
       for (const material of Array.isArray(object.material) ? object.material : [object.material]) material.dispose()
     })
     for (const texture of this.textures) texture.dispose()
+    this.dusk.dispose()
     this.renderer.dispose()
   }
 }

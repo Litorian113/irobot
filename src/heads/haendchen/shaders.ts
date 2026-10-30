@@ -83,38 +83,3 @@ void main() {
   gl_FragColor = vec4(col, 1.0);
 }
 `
-
-export const BACKDROP_VERTEX = /* glsl */ `
-varying vec2 vUv;
-void main() {
-  vUv = uv;
-  gl_Position = vec4(position.xy, 1.0, 1.0);
-}
-`
-
-/** Plain dark violet, a little lighter behind the hand. */
-export const BACKDROP_FRAGMENT = /* glsl */ `
-varying vec2 vUv;
-void main() {
-  float d = length((vUv - vec2(0.5, 0.56)) * vec2(1.1, 1.0));
-  vec3 col = mix(vec3(0.2, 0.19, 0.42), vec3(0.055, 0.05, 0.17), smoothstep(0.0, 0.8, d));
-  gl_FragColor = vec4(col, 1.0);
-}
-`
-
-export const SHADOW_VERTEX = /* glsl */ `
-varying vec2 vUv;
-void main() {
-  vUv = uv;
-  gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
-}
-`
-
-export const SHADOW_FRAGMENT = /* glsl */ `
-uniform float uStrength;
-varying vec2 vUv;
-void main() {
-  float d = length(vUv - 0.5) * 2.0;
-  gl_FragColor = vec4(0.0, 0.0, 0.03, uStrength * (1.0 - smoothstep(0.1, 1.0, d)));
-}
-`

@@ -3,14 +3,6 @@
  * (the 2009/2010 iMacs), so no derivatives, no texelFetch, no float textures.
  */
 
-export const PASS_VERTEX = /* glsl */ `
-varying vec2 vUv;
-void main() {
-  vUv = uv;
-  gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
-}
-`
-
 export const PUMPKIN_VERTEX = /* glsl */ `
 uniform vec3 uShape;
 attribute float aLobe;
@@ -119,40 +111,3 @@ void main() {
  * The evening behind him: cold fog, pale high up, a warm smear of last light
  * on the right, and the out-of-focus branches of a bare tree.
  */
-export const DUSK_FRAGMENT = /* glsl */ `
-uniform vec2 uSize;
-uniform float uTime, uFlame;
-varying vec2 vUv;
-
-float hash(vec2 p) { return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453); }
-float noise(vec2 p) {
-  vec2 i = floor(p), f = fract(p);
-  f = f * f * (3.0 - 2.0 * f);
-  return mix(mix(hash(i), hash(i + vec2(1.0, 0.0)), f.x), mix(hash(i + vec2(0.0, 1.0)), hash(i + 1.0), f.x), f.y);
-}
-float branch(vec2 p, vec2 a, vec2 b, float w) {
-  vec2 pa = p - a, ba = b - a;
-  float h = clamp(dot(pa, ba) / dot(ba, ba), 0.0, 1.0);
-  return smoothstep(w, 0.0, length(pa - ba * h) - w * 0.3);
-}
-
-void main() {
-  vec2 p = (vUv - 0.5) * uSize;
-  vec3 col = mix(vec3(0.13, 0.17, 0.22), vec3(0.5, 0.55, 0.55), smoothstep(-3.0, 3.4, p.y));
-  // Banks of fog drifting past.
-  float fog = noise(p * 0.35 + vec2(uTime * 0.025, 0.0)) * 0.65 + noise(p * 0.8 - vec2(uTime * 0.04, uTime * 0.01)) * 0.35;
-  col = mix(col, vec3(0.42, 0.47, 0.5), smoothstep(0.3, 0.8, fog) * 0.6);
-  // The last light of the day, low on the right.
-  col += vec3(0.32, 0.2, 0.09) * exp(-dot((p - vec2(3.0, 0.3)) * vec2(0.5, 0.9), (p - vec2(3.0, 0.3)) * vec2(0.5, 0.9)) * 0.5);
-  // Bare branches, top right, far out of focus.
-  float tree = branch(p, vec2(4.9, 3.4), vec2(4.15, 0.9), 0.32);
-  tree = max(tree, branch(p, vec2(4.45, 2.1), vec2(3.2, 2.6), 0.16));
-  tree = max(tree, branch(p, vec2(3.65, 2.42), vec2(3.0, 3.2), 0.11));
-  tree = max(tree, branch(p, vec2(4.25, 1.4), vec2(3.45, 0.85), 0.1));
-  col = mix(col, vec3(0.16, 0.18, 0.2), tree * 0.5);
-  // His own glow on the fog behind him; the corners fall away.
-  col += vec3(0.16, 0.06, 0.012) * uFlame * exp(-dot(p - vec2(0.0, -0.3), p - vec2(0.0, -0.3)) * 0.22);
-  col *= 1.0 - 0.3 * smoothstep(2.5, 7.0, length(p));
-  gl_FragColor = vec4(col, 1.0);
-}
-`

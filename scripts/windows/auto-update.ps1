@@ -3,6 +3,8 @@
 # Laeuft als Aufgabe "HfG Koepfe Update"; was passiert, steht in logs\deploy.log.
 $root = Split-Path -Parent (Split-Path -Parent $PSScriptRoot)
 Set-Location $root
+# Der Zeitplan der Seite: bei Aenderungen die iMacs neu einstellen.
+try { & (Join-Path $PSScriptRoot 'plan.ps1') tick } catch { }
 $env:Path = "C:\Program Files\nodejs;C:\Program Files\Git\cmd;$env:Path"
 git fetch -q origin 2>$null
 if ($LASTEXITCODE -ne 0) { exit 0 }

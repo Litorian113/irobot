@@ -1,8 +1,9 @@
 import * as THREE from 'three'
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js'
 import { GazeSpring } from '../GazeSpring'
+import { addDarkBackdrop, DARK_BACKDROP } from '../darkBackdrop'
 import type { Expression, HeadView, HeadViewOptions } from '../types'
-import { BARK_FRAGMENT, BARK_VERTEX, BONE_FRAGMENT, BONE_VERTEX, BREATH_FRAGMENT, BREATH_VERTEX, FOREST_FRAGMENT, HOOD_FRAGMENT, HOOD_VERTEX, PASS_VERTEX, WISP_FRAGMENT, WISP_VERTEX } from './shaders'
+import { BARK_FRAGMENT, BARK_VERTEX, BONE_FRAGMENT, BONE_VERTEX, BREATH_FRAGMENT, BREATH_VERTEX, HOOD_FRAGMENT, HOOD_VERTEX, WISP_FRAGMENT, WISP_VERTEX } from './shaders'
 
 /**
  * W.A.L.D. - a forest spirit: a stag's bare skull with real holes for eyes and
@@ -541,22 +542,12 @@ export class WaldHead implements HeadView {
     const context = opts.webgl1 ? canvas.getContext('webgl', attributes) ?? undefined : undefined
     this.renderer = new THREE.WebGLRenderer({ canvas, context, ...attributes })
     this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, opts.maxPixelRatio ?? 1.5))
-    this.renderer.setClearColor(0x050607, 1)
+    this.renderer.setClearColor(DARK_BACKDROP, 1)
     this.camera.position.copy(CAM)
     this.camera.lookAt(LOOK)
 
     // --- the forest -----------------------------------------------------------
-    const size = new THREE.Vector2(24, 14)
-    this.forest = new THREE.ShaderMaterial({
-      uniforms: { uSize: { value: size }, uTime: { value: 0 }, uWake: { value: 0 } },
-      vertexShader: PASS_VERTEX,
-      fragmentShader: FOREST_FRAGMENT,
-      depthWrite: false,
-    })
-    const backdrop = new THREE.Mesh(new THREE.PlaneGeometry(size.x, size.y), this.forest)
-    backdrop.position.z = -6
-    backdrop.renderOrder = -10
-    this.scene.add(backdrop)
+    this.forest = addDarkBackdrop(this.scene)
     this.wisps = this.makeWisps()
 
     this.scene.add(new THREE.HemisphereLight(0xaabbc4, 0x0a0806, 0.9))
@@ -841,8 +832,6 @@ export class WaldHead implements HeadView {
     position.needsUpdate = true
     ages.needsUpdate = true
 
-    this.forest.uniforms.uTime.value = t
-    this.forest.uniforms.uWake.value = wake
     this.wisps.uniforms.uTime.value = t
     this.wisps.uniforms.uWake.value = wake
 
@@ -880,6 +869,7 @@ export class WaldHead implements HeadView {
       for (const material of Array.isArray(object.material) ? object.material : [object.material]) material.dispose()
     })
     for (const texture of this.textures) texture.dispose()
+    this.forest.dispose()
     this.renderer.dispose()
   }
 }

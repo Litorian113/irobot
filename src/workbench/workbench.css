@@ -1039,9 +1039,172 @@ label.studio-info-item {
   transition: cx 0.15s linear, cy 0.15s linear;
 }
 
+/* --------------------------------------------------------------- zeitplan */
+
+.schedule-section {
+  margin-top: 28px;
+}
+
+.schedule-section > h3 {
+  margin: 0 0 10px;
+  font-size: 20px;
+  font-weight: 600;
+}
+
+.schedule-card {
+  padding: 16px;
+  border-radius: 14px;
+  background: var(--ios-card);
+}
+
+.schedule-fields {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: 16px 20px;
+}
+
+.schedule-field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 0;
+  font-size: 13px;
+  color: var(--ios-label-2);
+}
+
+.schedule-field input,
+.schedule-field select {
+  min-height: 36px;
+  padding: 0 10px;
+  border: 0;
+  border-radius: 10px;
+  background: var(--ios-fill);
+  color: var(--ios-label);
+  color-scheme: dark;
+  font: inherit;
+  font-size: 15px;
+}
+
+.schedule-days {
+  display: flex;
+  gap: 4px;
+}
+
+.schedule-days button {
+  width: 38px;
+  height: 36px;
+  padding: 0;
+  border: 0;
+  border-radius: 10px;
+  background: var(--ios-fill);
+  color: var(--ios-label-2);
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.schedule-days button[aria-pressed='true'] {
+  background: var(--ios-tint);
+  color: #fff;
+}
+
+.schedule-exception {
+  display: grid;
+  grid-template-columns: 96px minmax(170px, 1fr) minmax(170px, 1fr) minmax(120px, 1.2fr) 36px;
+  align-items: end;
+  gap: 10px;
+  padding: 12px 0;
+  border-top: 0.5px solid var(--ios-sep);
+}
+
+.schedule-exception:first-child {
+  padding-top: 0;
+  border-top: 0;
+}
+
+.schedule-exception.past {
+  opacity: 0.45;
+}
+
+.schedule-exception input,
+.schedule-exception select {
+  width: 100%;
+}
+
+.schedule-remove {
+  width: 36px;
+  height: 36px;
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  background: var(--ios-fill);
+  color: var(--ios-red);
+  font-size: 18px;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.schedule-add {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-top: 12px;
+}
+
+.schedule-empty {
+  margin: 0;
+  color: var(--ios-label-2);
+}
+
+.schedule-next {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+  gap: 8px 16px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  font-variant-numeric: tabular-nums;
+}
+
+.schedule-next li {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.schedule-dot {
+  flex: none;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: #8e8e93;
+}
+
+.schedule-dot.on {
+  background: var(--ios-green);
+}
+
+.schedule-note {
+  margin: 10px 0 0;
+  font-size: 13px;
+  color: var(--ios-label-2);
+}
+
+.schedule-error {
+  margin-top: 16px;
+  color: var(--ios-red);
+}
+
 /* -------------------------------------------------------------- analytics */
 
-/* A small icon top right, apart from the tabs; on a phone a fourth item of the tab bar. */
+/* Small icons top right, apart from the tabs; on a phone further items of the tab bar. */
+.topbar-actions {
+  display: flex;
+  justify-self: end;
+  gap: 8px;
+}
+
 .analytics-button {
   display: grid;
   place-items: center;
@@ -1525,7 +1688,11 @@ label.studio-info-item {
     color: var(--ios-tint);
   }
 
-  /* Analytics is the fourth item of the tab bar here. */
+  /* Zeitplan and Analytics are further items of the tab bar here. */
+  .topbar-actions {
+    display: contents;
+  }
+
   .analytics-button,
   .analytics-button.active {
     display: flex;
@@ -1854,5 +2021,20 @@ label.studio-info-item {
     grid-template-columns: repeat(3, minmax(0, 1fr));
     gap: 14px 8px;
     padding: 16px 16px 24px;
+  }
+}
+
+@media (max-width: 720px) {
+  .schedule-exception {
+    grid-template-columns: minmax(0, 1fr) 36px;
+  }
+
+  .schedule-exception > .schedule-field:not(:first-child) {
+    grid-column: 1 / -1;
+  }
+
+  .schedule-exception > .schedule-remove {
+    grid-column: 2;
+    grid-row: 1;
   }
 }

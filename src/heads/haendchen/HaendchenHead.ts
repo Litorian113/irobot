@@ -1,7 +1,8 @@
 import * as THREE from 'three'
 import { GazeSpring } from '../GazeSpring'
+import { addDarkBackdrop, DARK_BACKDROP } from '../darkBackdrop'
 import type { Expression, HeadView, HeadViewOptions } from '../types'
-import { BACKDROP_FRAGMENT, BACKDROP_VERTEX, HAND_FRAGMENT, HAND_VERTEX, SHADOW_FRAGMENT, SHADOW_VERTEX } from './shaders'
+import { HAND_FRAGMENT, HAND_VERTEX } from './shaders'
 
 /**
  * H.Ä.N.D.C.H.E.N. - a stitched-together hand with no body, standing on its fingertips,
@@ -21,7 +22,6 @@ const TURN = 0.8
 /** Where it stands, and how it leans, on its fingers and on its wrist. */
 const STAND = { y: 0.42, tilt: -0.82, yaw: -0.5 }
 const PEACE = { y: -0.3, tilt: -Math.PI + 0.1, roll: -0.1 }
-const FLOOR_Y = -1.66
 
 /** How long each part of the gesture takes (seconds). */
 const CROUCH = 0.38
@@ -119,7 +119,6 @@ export class HaendchenHead implements HeadView {
   private camera = new THREE.PerspectiveCamera(FOV, 1, 0.1, 60)
   private material: THREE.ShaderMaterial
   private backdrop: THREE.ShaderMaterial
-  private shadow: THREE.ShaderMaterial
   private lines = linesTexture()
   private hand: THREE.Mesh | null = null
   private bones: Bone[] = []
@@ -148,7 +147,6 @@ export class HaendchenHead implements HeadView {
   private toJoint = new THREE.Matrix4()
   private fromJoint = new THREE.Matrix4()
   private euler = new THREE.Euler(0, 0, 0, 'YXZ')
-  private shadowMesh: THREE.Mesh
   private fitZ = 0
 
   constructor(canvas: HTMLCanvasElement, opts: HeadViewOptions = {}) {
@@ -161,26 +159,9 @@ export class HaendchenHead implements HeadView {
     const context = opts.webgl1 ? canvas.getContext('webgl', attributes) ?? undefined : undefined
     this.renderer = new THREE.WebGLRenderer({ canvas, context, ...attributes })
     this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, opts.maxPixelRatio ?? 1.5))
-    this.renderer.setClearColor(0x0e0d2b, 1)
+    this.renderer.setClearColor(DARK_BACKDROP, 1)
 
-    this.backdrop = new THREE.ShaderMaterial({ vertexShader: BACKDROP_VERTEX, fragmentShader: BACKDROP_FRAGMENT, depthWrite: false, depthTest: false })
-    const backdrop = new THREE.Mesh(new THREE.PlaneGeometry(2, 2), this.backdrop)
-    backdrop.frustumCulled = false
-    backdrop.renderOrder = -10
-    this.scene.add(backdrop)
-
-    this.shadow = new THREE.ShaderMaterial({
-      uniforms: { uStrength: { value: 0.6 } },
-      vertexShader: SHADOW_VERTEX,
-      fragmentShader: SHADOW_FRAGMENT,
-      transparent: true,
-      depthWrite: false,
-    })
-    this.shadowMesh = new THREE.Mesh(new THREE.PlaneGeometry(5, 3.2), this.shadow)
-    this.shadowMesh.rotation.x = -Math.PI / 2
-    this.shadowMesh.position.set(0, FLOOR_Y, 0)
-    this.shadowMesh.renderOrder = -5
-    this.scene.add(this.shadowMesh)
+    this.backdrop = addDarkBackdrop(this.scene)
 
     this.material = new THREE.ShaderMaterial({
       uniforms: {
@@ -389,12 +370,6 @@ export class HaendchenHead implements HeadView {
       this.hand.matrix.setPosition(pose.yaw * 0.32, y, 0)
       this.hand.matrixWorldNeedsUpdate = true
     }
-    this.shadowMesh.position.x = pose.yaw * 0.32
-    const away = Math.max(0, hop)
-    this.shadow.uniforms.uStrength.value = 0.62 * (1 - Math.min(0.8, away * 1.1))
-    const shadowSize = (1 - 0.38 * mixed) * (1 - Math.min(0.3, away * 0.4))
-    this.shadowMesh.scale.set(shadowSize, shadowSize, 1)
-
     this.renderer.render(this.scene, this.camera)
     this.fpsCount++
     if (now - this.fpsSince > 1000) {
@@ -430,7 +405,6 @@ export class HaendchenHead implements HeadView {
     })
     this.material.dispose()
     this.backdrop.dispose()
-    this.shadow.dispose()
     this.lines.dispose()
     this.renderer.dispose()
   }

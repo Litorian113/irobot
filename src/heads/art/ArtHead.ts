@@ -1,8 +1,9 @@
 import * as THREE from 'three'
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js'
 import { GazeSpring } from '../GazeSpring'
+import { addDarkBackdrop, DARK_BACKDROP } from '../darkBackdrop'
 import type { Expression, HeadView, HeadViewOptions } from '../types'
-import { BALL_VERTEX, EYE_FRAGMENT, FILM_FRAGMENT, FILM_VERTEX, MASK_FRAGMENT, MASK_VERTEX, PASS_VERTEX, ROOM_FRAGMENT } from './shaders'
+import { BALL_VERTEX, EYE_FRAGMENT, FILM_FRAGMENT, FILM_VERTEX, MASK_FRAGMENT, MASK_VERTEX } from './shaders'
 
 /**
  * A.R.T. - the silent clown, on black-and-white film: a tall white latex hood
@@ -403,6 +404,7 @@ function hatGeometry() {
 
 export class ArtHead implements HeadView {
   private renderer: THREE.WebGLRenderer
+  private backdrop: THREE.ShaderMaterial
   private scene = new THREE.Scene()
   private camera = new THREE.PerspectiveCamera(FOV, 1, 0.1, 60)
   private head = new THREE.Group()
@@ -452,16 +454,11 @@ export class ArtHead implements HeadView {
     const context = opts.webgl1 ? canvas.getContext('webgl', attributes) ?? undefined : undefined
     this.renderer = new THREE.WebGLRenderer({ canvas, context, ...attributes })
     this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, opts.maxPixelRatio ?? 1.5))
-    this.renderer.setClearColor(0x000000, 1)
+    this.renderer.setClearColor(DARK_BACKDROP, 1)
     this.camera.position.copy(CAM)
     this.camera.lookAt(LOOK)
 
-    const room = new THREE.Mesh(new THREE.PlaneGeometry(16, 9), new THREE.ShaderMaterial({
-      uniforms: { uLight: this.light }, vertexShader: PASS_VERTEX, fragmentShader: ROOM_FRAGMENT, depthWrite: false,
-    }))
-    room.position.z = -3
-    room.renderOrder = -10
-    this.scene.add(room)
+    this.backdrop = addDarkBackdrop(this.scene)
 
     this.fill = new THREE.HemisphereLight(0xffffff, 0x101010, 0.55)
     this.key = new THREE.DirectionalLight(0xffffff, 2.2)
@@ -533,7 +530,8 @@ export class ArtHead implements HeadView {
       vertexShader: FILM_VERTEX,
       fragmentShader: FILM_FRAGMENT,
       transparent: true,
-      depthTest: false,
+      // Only over the figure: the background stays the same on every scary head.
+      depthFunc: THREE.GreaterDepth,
       depthWrite: false,
     }))
     film.frustumCulled = false
@@ -694,6 +692,7 @@ export class ArtHead implements HeadView {
       for (const material of Array.isArray(object.material) ? object.material : [object.material]) material.dispose()
     })
     for (const texture of this.textures) texture.dispose()
+    this.backdrop.dispose()
     this.renderer.dispose()
   }
 }

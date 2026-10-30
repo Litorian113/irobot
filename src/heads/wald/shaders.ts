@@ -12,14 +12,6 @@ float noise(vec2 p) {
 }
 `
 
-export const PASS_VERTEX = /* glsl */ `
-varying vec2 vUv;
-void main() {
-  vUv = uv;
-  gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
-}
-`
-
 export const BONE_VERTEX = /* glsl */ `
 attribute vec2 aPaint;
 varying vec3 vNormal;
@@ -176,27 +168,6 @@ void main() {
 `
 
 /** The forest at night: black trunks in thin cold fog, a little pale light behind the antlers. */
-export const FOREST_FRAGMENT = /* glsl */ `
-uniform vec2 uSize;
-uniform float uTime, uWake;
-varying vec2 vUv;
-${NOISE}
-void main() {
-  vec2 p = (vUv - 0.5) * uSize;
-  float fog = noise(p * 0.45 + vec2(uTime * 0.03, 0.0)) * 0.6 + noise(p * 1.1 - vec2(uTime * 0.05, uTime * 0.012)) * 0.4;
-  vec3 col = vec3(0.022, 0.026, 0.03) + vec3(0.05, 0.062, 0.068) * smoothstep(0.3, 0.85, fog);
-  col += vec3(0.085, 0.105, 0.11) * exp(-dot((p - vec2(0.0, 1.5)) * vec2(0.34, 0.5), (p - vec2(0.0, 1.5)) * vec2(0.34, 0.5)));
-  // Trunks, far out of focus: uneven columns, leaning a little.
-  float x = p.x + p.y * 0.06;
-  float trunks = smoothstep(0.34, 0.72, noise(vec2(x * 0.95, 3.0))) * (0.75 + 0.25 * noise(vec2(x * 2.6, p.y * 0.3)));
-  col *= 1.0 - 0.55 * trunks;
-  // When the forest wakes, a sick green breath through the fog.
-  col += vec3(0.03, 0.075, 0.035) * uWake * smoothstep(0.3, 0.8, fog);
-  col *= 1.0 - 0.45 * smoothstep(2.0, 7.0, length(p - vec2(0.0, 0.5)));
-  gl_FragColor = vec4(col, 1.0);
-}
-`
-
 /** Will-o'-the-wisps. Positions come from seeds and time only. */
 export const WISP_VERTEX = /* glsl */ `
 uniform float uTime, uScale, uWake;

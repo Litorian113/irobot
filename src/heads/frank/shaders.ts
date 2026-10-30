@@ -3,31 +3,13 @@
  * (the 2009/2010 iMacs), so no derivatives.
  */
 
-export const PASS_VERTEX = /* glsl */ `
-varying vec2 vUv;
-void main() {
-  vUv = uv;
-  gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
-}
-`
-
 /** A studio wall, a pool of light behind him to one side. Applies its own colour space. */
-export const BACKDROP_FRAGMENT = /* glsl */ `
-varying vec2 vUv;
-uniform float uLight;
-void main() {
-  float pool = 1.0 - smoothstep(0.0, 0.62, length((vUv - vec2(0.36, 0.42)) * vec2(1.5, 1.0)));
-  float color = mix(0.003, 0.11, pool * pool) * uLight;
-  gl_FragColor = vec4(vec3(pow(color, 1.0 / 2.2)), 1.0);
-}
-`
-
 /** Drawn over the finished picture, straight in clip space. */
 export const FILM_VERTEX = /* glsl */ `
 varying vec2 vUv;
 void main() {
   vUv = uv;
-  gl_Position = vec4(position.xy, 0.0, 1.0);
+  gl_Position = vec4(position.xy, 1.0, 1.0);
 }
 `
 

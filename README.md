@@ -14,7 +14,7 @@ und was noch offen ist.
 | | |
 |---|---|
 | **Wand ansehen und umbauen** | im WLAN `hfg`: **http://hfg-wall.local:8080** → Tab **Gestalten** (umbauen) bzw. **Live** (ansehen) |
-| **Betriebszeit** | iMacs **Montag bis Freitag 16:55 an, 21:30 aus** (von selbst); Wochenenden und Ruhetage (`kiosk/ruhetage.txt`, z.B. Weihnachten) aus |
+| **Betriebszeit** | iMacs **Montag bis Freitag 16:55 an, 21:30 aus** (von selbst); Ausnahmen und Änderungen im **Zeitplan** auf der Wand-Seite (Kalender-Symbol) |
 | **Server** | Windows-Rechner **`hfg-wall`**, läuft durchgehend |
 | **Änderung ausrollen** | `git push` auf `main` → spätestens 2 Minuten später live |
 | **Auf den Server** | `ssh nakumu-02@hfg-wall.local` (nur mit eingetragenem Schlüssel, siehe unten) |
@@ -94,27 +94,24 @@ Plätze ohne iMac stehen in `src/layout.ts` in `OFFLINE_SLOTS` und werden in all
 Ein ausgeschalteter iMac lässt sich **nicht übers Netz** einschalten. Deshalb hat jeder seine eigene
 Einschaltzeit (`pmset`), und der Server kann ihn nicht wecken.
 
-**Zeiten ändern** (Admin-Passwort der iMacs nötig, Format HH:MM, Tage wie bei `pmset`: `MTWRFSU`):
+**Zeiten ändern:** Kalender-Symbol oben rechts auf der Wand-Seite (`http://hfg-wall.local:8080/?view=schedule`).
+Dort stehen die **Woche** (an, aus, Tage) und die **Ausnahmen**: von wann bis wann die Wand an bleibt oder aus bleibt
+(Sonderbetrieb, Weihnachten, Ferien). Ändern darf das jeder im WLAN `hfg`, wie die Wand selbst. Gespeichert wird in
+`walls/schedule.json` auf dem Server (übersteht Deploys, nicht im Repo).
 
-```
-bash scripts/imacs.sh schedule 16:55 21:30 MTWRF
-```
+So kommt das auf die iMacs (`src/schedule.ts`, `scripts/windows/plan.ps1`, `imacs.sh program`):
 
-Den Zeitplan kann man nur ändern, solange die iMacs an sind.
+- **Alle 2 Minuten** (in „HfG Koepfe Update“) und einmal am Tag programmiert der Server die iMacs neu, wenn der
+  Plan sich geändert hat und mindestens einer an ist: die Woche als Wiederholung, die nächste Abweichung als
+  einmaliges Ereignis. Die Abschaltung selbst macht dann der iMac, auch ohne Server.
+- **Sind alle aus, geht das nicht:** Sie wachen dann zur zuletzt programmierten Zeit auf und bekommen den Plan danach.
+  Ein früheres Einschalten muss also eingetragen sein, solange sie noch an sind. Die Seite zeigt, ob der Plan auf den iMacs ist.
+- **Täglich 17:05** („HfG Koepfe Ruhetage“): Soll die Wand laut Plan aus sein und ein iMac ist doch an (z.B. nach
+  einem Stromausfall), fährt er ihn herunter.
+- Probelauf ohne Wirkung: `powershell -File scripts\windows\plan.ps1 tick -dry`.
 
-**Ruhetage** (Weihnachten, Feiertage, Ferien) stehen in **`kiosk/ruhetage.txt`**, eine Zeile pro Zeitraum:
-`2026-12-23 2027-01-06 Weihnachten`. Die iMacs kennen selbst nur Wochentage, deshalb kümmert sich der
-Server darum (`scripts/windows/plan.ps1`):
-
-- **Mo–Fr 21:00** (Aufgabe „HfG Koepfe Zeitplan"): Kommt als Nächstes ein Ruhetag, schalten sich die iMacs
-  erst am ersten Tag danach wieder ein; sonst gilt der normale Wochenplan.
-- **Täglich 17:05** („HfG Koepfe Ruhetage"): Hat sich an einem Wochenende oder Ruhetag doch ein iMac
-  eingeschaltet (z.B. nach einem Stromausfall), fährt er ihn wieder herunter.
-- Probelauf ohne Wirkung: `powershell -File scripts\windows\plan.ps1 abend -dry -today 2026-12-22`.
-
-Eine Änderung an `ruhetage.txt` einfach pushen; sie muss spätestens am Abend vor dem ersten Ruhetag
-auf dem Server sein. Protokoll: `logs\imacs.log`. Das Admin-Passwort der iMacs liegt dafür auf
-dem Server in `C:\Users\nakumu-02\.hfg-imac-admin` (nur dieses Konto darf die Datei lesen).
+Protokoll: `logs\imacs.log`. Das Admin-Passwort der iMacs liegt dafür auf dem Server in
+`C:\Users\nakumu-02\.hfg-imac-admin` (nur dieses Konto darf die Datei lesen).
 
 ---
 
@@ -198,6 +195,8 @@ Im Tab Köpfe gibt es dafür „WebGL 1 testen".
 
 ### Einen neuen Kopf bauen
 
+Gruselige Köpfe (Kategorie `gruselig`) nehmen alle denselben dunklen Hintergrund: `addDarkBackdrop` aus `src/heads/darkBackdrop.ts`.
+
 Ein Eintrag in `src/heads/designs.ts`: Name, Beschreibung, Kategorien für den Filter über den Listen
 (`categories`, ein Kopf darf in mehreren stehen), Platz (`slot`, oder `null` für „nur in der Auswahl") und eine `create`-Funktion, die ein `HeadView` liefert (`src/heads/types.ts`: `setLook`,
 `setExpression`, `debug`, `dispose`). Die vorhandenen Köpfe in `src/heads/*/` sind gute Vorlagen,
@@ -248,9 +247,9 @@ Windows 10 Pro, Intel i5-7500T, NVIDIA GTX 1060, 16 GB. Repo unter **`C:\hfg\iro
 | HfG Koepfe Server | beim Hochfahren, als SYSTEM | `wall-server.cmd`: Wand-Server, startet nach Absturz neu |
 | HfG Koepfe Kamera | bei der Anmeldung | `camera.ps1`: Chrome im Vollbild, `http://127.0.0.1:8080/?slot=4&camera=1&preview=1` |
 | HfG Koepfe WLAN | bei der Anmeldung | `wlan.ps1`: verbindet `hfg` neu, wenn die Verbindung fehlt |
-| HfG Koepfe Update | alle 2 Minuten | `auto-update.ps1`: neuer Stand auf GitHub → `deploy.ps1` |
-| HfG Koepfe Zeitplan | Mo–Fr 21:00 | `plan.ps1 abend`: vor Ruhetagen pausieren, sonst Wochenplan |
-| HfG Koepfe Ruhetage | täglich 17:05 | `plan.ps1 check`: an Wochenenden und Ruhetagen iMacs herunterfahren |
+| HfG Koepfe Update | alle 2 Minuten | `auto-update.ps1`: Zeitplan auf die iMacs (`plan.ps1 tick`), neuer Stand auf GitHub → `deploy.ps1` |
+| HfG Koepfe Zeitplan | Mo–Fr 21:00 | `plan.ps1 abend`: Reserve, falls der Lauf alle 2 Minuten nicht geht |
+| HfG Koepfe Ruhetage | täglich 17:05 | `plan.ps1 check`: laut Zeitplan aus, aber ein iMac an: herunterfahren |
 
 **Protokolle** in `C:\hfg\irobot\logs\`: `wall-server.log` (Server und alle Meldungen der Bildschirme,
 z.B. `[Platz 3 192.168.0.5] error: …`), `deploy.log`, `camera.log`.

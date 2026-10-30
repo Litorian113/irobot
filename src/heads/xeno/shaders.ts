@@ -97,22 +97,4 @@ void main() {
 }
 `
 
-export const BACKDROP_VERTEX = /* glsl */ `
-varying vec2 vUv;
-void main() {
-  vUv = uv;
-  gl_Position = vec4(position.xy, 1.0, 1.0);
-}
-`
-
 /** The studio wall: paper white, a breath darker in the corners. */
-export const BACKDROP_FRAGMENT = /* glsl */ `
-uniform float uFlash;
-varying vec2 vUv;
-void main() {
-  vec2 p = vUv - 0.5;
-  float grey = 0.97 - 0.2 * dot(p, p);
-  gl_FragColor = vec4(vec3(grey + uFlash), 1.0);
-  #include <colorspace_fragment>
-}
-`

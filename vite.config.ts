@@ -9,6 +9,7 @@ import { defineConfig, loadEnv, type Plugin } from 'vite'
 import { WebSocket, WebSocketServer } from 'ws'
 import { PeopleCounter, VISITOR_AFTER_MS, dayKey, type Stats } from './src/analytics.ts'
 import { isLayout } from './src/layout.ts'
+import { DEFAULT_SCHEDULE, changes, imacsProgram, isOn, isSchedule, type Schedule } from './src/schedule.ts'
 
 /** The middle screen (see src/wall.ts): the promo, with the camera above it. */
 const PROMO_SLOT = 4
@@ -60,6 +61,71 @@ function customWallApi(broadcast: (message: unknown) => void) {
           broadcast({ kind: 'wall-saved', wall: 'custom' })
           send(200, { layout })
         })
+        .catch((error: unknown) => send(500, { error: String(error) }))
+    })
+  }
+}
+
+/** The wall's times, from the Zeitplan page. Like the custom wall: `walls/` survives every deploy. */
+const SCHEDULE_FILE = 'walls/schedule.json'
+/** Written by scripts/windows/plan.ps1: `command|time` of what the iMacs were last programmed with. */
+const SCHEDULE_APPLIED_FILE = 'walls/schedule-applied.txt'
+
+/**
+ * GET: the schedule, whether the wall should be on, its next changes, and `command`, what the iMacs should be
+ * programmed with, which scripts/windows/plan.ps1 fetches and runs. PUT: save a schedule.
+ */
+function scheduleApi() {
+  const load = async (): Promise<Schedule> => {
+    try {
+      const saved = JSON.parse(await readFile(SCHEDULE_FILE, 'utf8')) as unknown
+      // Never let a broken file reach a command line.
+      return isSchedule(saved) ? saved : DEFAULT_SCHEDULE
+    } catch {
+      return DEFAULT_SCHEDULE
+    }
+  }
+  const report = async (schedule: Schedule) => {
+    const now = new Date()
+    const applied = await readFile(SCHEDULE_APPLIED_FILE, 'utf8').then((text) => text.trim().split('|')).catch(() => [])
+    return {
+      schedule,
+      on: isOn(schedule, now),
+      changes: changes(schedule, now).map((change) => ({ at: change.at.getTime(), on: change.on })),
+      command: imacsProgram(schedule, now),
+      applied: applied.length === 2 ? { command: applied[0], at: applied[1] } : null,
+    }
+  }
+  return (request: IncomingMessage, response: ServerResponse) => {
+    const send = (status: number, body: unknown) => {
+      response.statusCode = status
+      response.setHeader('Content-Type', 'application/json')
+      response.setHeader('Cache-Control', 'no-store')
+      response.end(JSON.stringify(body))
+    }
+    if (request.method === 'GET') {
+      load().then(report).then((body) => send(200, body)).catch((error: unknown) => send(500, { error: String(error) }))
+      return
+    }
+    if (request.method !== 'PUT') return send(405, { error: 'GET or PUT' })
+    let body = ''
+    request.on('data', (chunk: Buffer) => {
+      body += chunk
+      if (body.length > 65536) request.destroy()
+    })
+    request.on('end', () => {
+      let schedule: unknown
+      try {
+        schedule = (JSON.parse(body) as { schedule?: unknown }).schedule
+      } catch {
+        return send(400, { error: 'invalid JSON' })
+      }
+      if (!isSchedule(schedule)) return send(400, { error: 'expected a week and exceptions' })
+      const saved = schedule
+      mkdir(dirname(SCHEDULE_FILE), { recursive: true })
+        .then(() => writeFile(SCHEDULE_FILE, JSON.stringify(saved, null, 2) + '\n'))
+        .then(() => report(saved))
+        .then((reply) => send(200, reply))
         .catch((error: unknown) => send(500, { error: String(error) }))
     })
   }
@@ -188,6 +254,7 @@ function gazeRelay(): Plugin {
   // with a server reboot, and wait on it forever (src/tracking/bus.ts reconnects when it stops).
   setInterval(() => broadcast({ kind: 'tick' }), HEARTBEAT_MS).unref()
   const api = customWallApi(broadcast)
+  const schedule = scheduleApi()
   const attach = (httpServer: Server | null, label: string) => {
     httpServer?.on('upgrade', (request, socket, head) => {
       if (!request.url?.startsWith('/gaze')) return // Vite's own live-reload socket
@@ -203,12 +270,14 @@ function gazeRelay(): Plugin {
     configureServer: (server) => {
       server.middlewares.use('/api/custom-wall', api)
       server.middlewares.use('/api/analytics', analytics.api)
+      server.middlewares.use('/api/schedule', schedule)
       server.middlewares.use('/api/log', screenLogApi())
       attach(server.httpServer as Server | null, 'dev')
     },
     configurePreviewServer: (server) => {
       server.middlewares.use('/api/custom-wall', api)
       server.middlewares.use('/api/analytics', analytics.api)
+      server.middlewares.use('/api/schedule', schedule)
       server.middlewares.use('/api/log', screenLogApi())
       attach(server.httpServer as Server, 'wall')
     },

@@ -1,5 +1,10 @@
-import { ChartIcon, SidebarIcon } from './icons'
+import { CalendarIcon, ChartIcon, SidebarIcon } from './icons'
 import { TABS, type View } from './tabs'
+
+const EXTRA_VIEWS = [
+  { id: 'schedule', label: 'Zeitplan', Icon: CalendarIcon },
+  { id: 'analytics', label: 'Analytics', Icon: ChartIcon },
+] as const
 
 /**
  * The bar with the tabs: on top as a segmented control on a tablet or desktop, at the
@@ -45,17 +50,22 @@ export default function TopBar({ view, onChoose, sidebarClosed, onToggleSidebar 
           </button>
         ))}
       </nav>
-      <button
-        type="button"
-        className={`analytics-button${view === 'analytics' ? ' active' : ''}`}
-        aria-pressed={view === 'analytics'}
-        aria-label="Analytics"
-        title="Analytics"
-        onClick={() => onChoose('analytics')}
-      >
-        <ChartIcon className="tab-icon" />
-        <span>Analytics</span>
-      </button>
+      <div className="topbar-actions">
+        {EXTRA_VIEWS.map(({ id, label, Icon }) => (
+          <button
+            key={id}
+            type="button"
+            className={`analytics-button${view === id ? ' active' : ''}`}
+            aria-pressed={view === id}
+            aria-label={label}
+            title={label}
+            onClick={() => onChoose(id)}
+          >
+            <Icon className="tab-icon" />
+            <span>{label}</span>
+          </button>
+        ))}
+      </div>
     </header>
   )
 }

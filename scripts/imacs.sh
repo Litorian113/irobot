@@ -12,7 +12,7 @@
 #   npm run imacs -- kiosk           WLAN aus, keine WLAN-Anmeldefenster, kein Tastatur-/Maus-Assistent (Admin-Passwort)
 #   npm run imacs -- schedule        Mo-Fr 16:55 an, 21:30 aus, prüft die automatische Anmeldung (Admin-Passwort)
 #                                    (eigene Zeiten und Tage: schedule 16:55 21:30 MTWRF, Tage wie bei pmset: MTWRFSU)
-#   npm run imacs -- pause 2027-01-07 aus bis zu diesem Tag (dann 16:55 an), danach wieder schedule (Admin-Passwort)
+#   npm run imacs -- program ...     was der Server alle paar Minuten aus dem Zeitplan einstellt (scripts/windows/plan.ps1)
 #   npm run imacs -- shutdown        alle iMacs jetzt ausschalten (Admin-Passwort)
 #
 # Benutzer auf den iMacs: IMAC_USER, sonst wird beim ersten Mal gefragt und gemerkt.
@@ -119,14 +119,32 @@ auto="$(defaults read /Library/Preferences/com.apple.loginwindow autoLoginUser 2
 echo "__DAYS__ an __ON__, aus __OFF__, automatische Anmeldung: ${auto:-AUS - bitte in den Systemeinstellungen einschalten}"
 '
 
-# Eine Pause: kein tägliches Einschalten mehr, nur noch das Ausschalten, und einmal Einschalten am
-# Tag nach der Pause. Danach stellt der Server mit schedule den Wochenplan wieder her (scripts/windows/plan.ps1).
-PAUSE_SCRIPT='
-pmset schedule cancelall >/dev/null 2>&1
-pmset repeat shutdown MTWRF __OFF__:00
-pmset schedule wakeorpoweron "__WHEN__"
-echo "pausiert, nächstes Einschalten: __WHEN__"
+# Der Zeitplan der Seite: die Woche als Wiederholung, Ausnahmen als einmalige Ereignisse (src/schedule.ts).
+# Vorher alle einmaligen Ereignisse löschen. Die Felder kommen geprüft von src/schedule.ts.
+PROGRAM_SCRIPT='
+pmset -g sched | sed -n "/Scheduled power events/,\$p" | sed -n -E "s/.*\[[0-9]+\] +([a-z]+) at ([0-9\/]+ [0-9:]+).*/\1|\2/p" | while IFS="|" read -r type when; do
+  [ "$type" = "wakepoweron" ] && type=wakeorpoweron
+  pmset schedule cancel "$type" "$when"
+done
+repeat=""
+[ "__REPEAT_ON__" != "-" ] && repeat="wakeorpoweron __DAYS__ __REPEAT_ON__:00"
+[ "__REPEAT_OFF__" != "-" ] && repeat="$repeat shutdown __DAYS__ __REPEAT_OFF__:00"
+pmset repeat cancel
+[ -n "$repeat" ] && pmset repeat $repeat
+[ "__ONCE_ON__" != "-" ] && pmset schedule wakeorpoweron "__ONCE_ON__"
+[ "__ONCE_OFF__" != "-" ] && pmset schedule shutdown "__ONCE_OFF__"
+pmset -a autorestart 1
+pmset -a sleep 0 displaysleep 0 disksleep 0
+echo "Woche an __REPEAT_ON__, aus __REPEAT_OFF__ (__DAYS__); einmalig an __ONCE_ON__, aus __ONCE_OFF__"
 '
+
+# YYYY-MM-DDTHH:MM wie pmset es will: MM/DD/YY HH:MM:SS. "-" bleibt "-".
+pmset_time() {
+  case "$1" in
+    -) echo "-" ;;
+    *) echo "${1:5:2}/${1:8:2}/${1:2:2} ${1:11:5}:00" ;;
+  esac
+}
 
 command="${1:-}"
 case "$command" in
@@ -200,15 +218,14 @@ if launchctl print "gui/$u/de.hfg-gmuend.koepfe" >/dev/null 2>&1; then echo "Sta
     script="${script//__DAYS__/$days}"
     on_all_as_admin "${script//__OFF__/$off}"
     ;;
-  pause)
+  program)
     USER_NAME="$(imac_user)"
-    day="${2:?Tag fehlt, z.B. pause 2027-01-07}"
-    on="${3:-16:55}"
-    off="${4:-21:30}"
-    # pmset will MM/DD/YY HH:MM:SS.
-    when="${day:5:2}/${day:8:2}/${day:2:2} $on:00"
-    script="${PAUSE_SCRIPT//__WHEN__/$when}"
-    on_all_as_admin "${script//__OFF__/$off}"
+    script="${PROGRAM_SCRIPT//__REPEAT_ON__/${2:?}}"
+    script="${script//__REPEAT_OFF__/${3:?}}"
+    script="${script//__DAYS__/${4:?}}"
+    script="${script//__ONCE_ON__/$(pmset_time "${5:?}")}"
+    script="${script//__ONCE_OFF__/$(pmset_time "${6:?}")}"
+    on_all_as_admin "$script"
     ;;
   shutdown)
     USER_NAME="$(imac_user)"

@@ -1,8 +1,9 @@
 import * as THREE from 'three'
 import { RoundedBoxGeometry } from 'three/addons/geometries/RoundedBoxGeometry.js'
 import { GazeSpring } from '../GazeSpring'
+import { addDarkBackdrop, DARK_BACKDROP } from '../darkBackdrop'
 import type { Expression, HeadView, HeadViewOptions } from '../types'
-import { BALL_VERTEX, CHEEK_FRAGMENT, EYE_FRAGMENT, MASK_FRAGMENT, MASK_VERTEX, PASS_VERTEX, ROOM_FRAGMENT } from './shaders'
+import { BALL_VERTEX, CHEEK_FRAGMENT, EYE_FRAGMENT, MASK_FRAGMENT, MASK_VERTEX } from './shaders'
 
 /**
  * B.I.L.L.Y. - the ventriloquist's puppet out of a horror film: a cracked
@@ -241,6 +242,7 @@ function wingGeometry(side: number) {
 
 export class BillyHead implements HeadView {
   private renderer: THREE.WebGLRenderer
+  private backdrop: THREE.ShaderMaterial
   private scene = new THREE.Scene()
   private camera = new THREE.PerspectiveCamera(FOV, 1, 0.1, 60)
   private head = new THREE.Group()
@@ -282,16 +284,11 @@ export class BillyHead implements HeadView {
     const context = opts.webgl1 ? canvas.getContext('webgl', attributes) ?? undefined : undefined
     this.renderer = new THREE.WebGLRenderer({ canvas, context, ...attributes })
     this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, opts.maxPixelRatio ?? 1.5))
-    this.renderer.setClearColor(0x000000, 1)
+    this.renderer.setClearColor(DARK_BACKDROP, 1)
     this.camera.position.copy(CAM)
     this.camera.lookAt(LOOK)
 
-    const room = new THREE.Mesh(new THREE.PlaneGeometry(16, 9), new THREE.ShaderMaterial({
-      uniforms: { uLight: this.light }, vertexShader: PASS_VERTEX, fragmentShader: ROOM_FRAGMENT, depthWrite: false,
-    }))
-    room.position.z = -3
-    room.renderOrder = -10
-    this.scene.add(room)
+    this.backdrop = addDarkBackdrop(this.scene)
 
     this.fill = new THREE.HemisphereLight(0xc8c8d0, 0x050505, 0.5)
     this.key = new THREE.DirectionalLight(0xfff4e8, 2)
@@ -501,6 +498,7 @@ export class BillyHead implements HeadView {
       for (const material of Array.isArray(object.material) ? object.material : [object.material]) material.dispose()
     })
     for (const texture of this.textures) texture.dispose()
+    this.backdrop.dispose()
     this.renderer.dispose()
   }
 }

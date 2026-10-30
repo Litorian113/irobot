@@ -1,7 +1,8 @@
 import * as THREE from 'three'
 import { GazeSpring } from '../GazeSpring'
+import { addDarkBackdrop, DARK_BACKDROP } from '../darkBackdrop'
 import type { Expression, HeadView, HeadViewOptions } from '../types'
-import { BACKDROP_FRAGMENT, BACKDROP_VERTEX, XENO_FRAGMENT, XENO_VERTEX } from './shaders'
+import { XENO_FRAGMENT, XENO_VERTEX } from './shaders'
 
 /**
  * X.E.N.O. - a biomechanical creature in a white studio: a long dome of black glass, wet hoses,
@@ -79,21 +80,10 @@ export class XenoHead implements HeadView {
     const context = opts.webgl1 ? canvas.getContext('webgl', attributes) ?? undefined : undefined
     this.renderer = new THREE.WebGLRenderer({ canvas, context, ...attributes })
     this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, opts.maxPixelRatio ?? 1.5))
-    this.renderer.setClearColor(0xf4f4f4, 1)
+    this.renderer.setClearColor(DARK_BACKDROP, 1)
     this.renderer.toneMapping = THREE.NeutralToneMapping
 
-    this.backdrop = new THREE.ShaderMaterial({
-      uniforms: { uFlash: { value: 0 } },
-      vertexShader: BACKDROP_VERTEX,
-      fragmentShader: BACKDROP_FRAGMENT,
-      depthWrite: false,
-      depthTest: false,
-      toneMapped: false,
-    })
-    const backdrop = new THREE.Mesh(new THREE.PlaneGeometry(2, 2), this.backdrop)
-    backdrop.frustumCulled = false
-    backdrop.renderOrder = -10
-    this.scene.add(backdrop)
+    this.backdrop = addDarkBackdrop(this.scene)
 
     this.material = new THREE.ShaderMaterial({
       uniforms: {

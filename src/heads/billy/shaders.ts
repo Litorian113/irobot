@@ -120,22 +120,4 @@ void main() {
 }
 `
 
-export const PASS_VERTEX = /* glsl */ `
-varying vec2 vUv;
-void main() {
-  vUv = uv;
-  gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
-}
-`
-
 /** Almost pure black: the faintest grimy wall behind him, there only while the light is on. */
-export const ROOM_FRAGMENT = /* glsl */ `
-uniform float uLight;
-varying vec2 vUv;
-void main() {
-  vec2 p = (vUv - 0.5) * vec2(16.0, 9.0);
-  float pool = exp(-dot(p - vec2(0.0, 0.2), p - vec2(0.0, 0.2)) * 0.22);
-  vec3 col = vec3(0.06, 0.055, 0.05) * pool * uLight;
-  gl_FragColor = vec4(col, 1.0);
-}
-`

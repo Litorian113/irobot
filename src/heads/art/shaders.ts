@@ -90,31 +90,12 @@ void main() {
 }
 `
 
-export const PASS_VERTEX = /* glsl */ `
-varying vec2 vUv;
-void main() {
-  vUv = uv;
-  gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
-}
-`
-
 /** The dark behind him: out of focus, something like a shop window at night. */
-export const ROOM_FRAGMENT = /* glsl */ `
-uniform float uLight;
-varying vec2 vUv;
-void main() {
-  vec2 p = (vUv - 0.5) * vec2(16.0, 9.0);
-  float pool = exp(-dot(p - vec2(0.4, 0.5), p - vec2(0.4, 0.5)) * 0.16);
-  float bars = 0.8 + 0.2 * sin(p.y * 2.3 + sin(p.x * 0.7) * 0.8) * sin(p.x * 0.9 + 1.0);
-  gl_FragColor = vec4(vec3(0.15 * pool * bars * uLight), 1.0);
-}
-`
-
 export const FILM_VERTEX = /* glsl */ `
 varying vec2 vUv;
 void main() {
   vUv = uv;
-  gl_Position = vec4(position.xy, 0.0, 1.0);
+  gl_Position = vec4(position.xy, 1.0, 1.0);
 }
 `
 
