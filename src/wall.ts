@@ -201,6 +201,6 @@ export function screensFromLayout(layout: WallLayout): WallRows {
     if (entry?.create) {
       return { kind: 'head', head: { create: entry.create, design: null, stiffness: motion.stiffness, delay: motion.delay } }
     }
-    return { kind: 'empty', design: { id: slot + 1, name: 'Leer', description: '', slot, create: null } }
+    return { kind: 'empty', design: { id: slot + 1, name: 'Leer', categories: [], description: '', slot, create: null } }
   })
 }

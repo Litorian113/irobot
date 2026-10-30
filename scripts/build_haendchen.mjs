@@ -505,8 +505,8 @@ for (const seam of SEAMS) sewPath(subdivide(seam.path, seam.side), 0.105)
 }
 // A dark line across the thumb, as on the prop.
 {
-  const b = limbs[13]
-  const c = add(b.joint, mul(b.dir, b.length * 0.4))
+  const b = limbs[14]
+  const c = add(b.joint, mul(b.dir, b.length * 0.3))
   const across = crossV(b.dorsal, b.dir)
   const arc = []
   for (let i = 0; i <= 8; i++) {

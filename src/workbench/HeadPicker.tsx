@@ -1,16 +1,20 @@
 import { useEffect, useRef, type TouchEvent } from 'react'
 import { CATALOG } from '../heads/catalog'
 import { slotLabel } from '../layout'
+import type { HeadCategory } from '../heads/types'
 import { CloseIcon } from './icons'
-import { Tile } from './ui'
+import { CategoryFilter, Tile } from './ui'
+import { inCategory } from './useCategoryFilter'
 
 /** Pulling the sheet down this far closes it. */
 const DISMISS_PX = 110
 
 /** Choose the head of one screen: a form sheet on a tablet or desktop, a sheet from the bottom on a phone. */
-export default function HeadPicker({ slot, current, onPick, onClose }: {
+export default function HeadPicker({ slot, current, category, onCategory, onPick, onClose }: {
   slot: number
   current: string | null
+  category: HeadCategory | null
+  onCategory: (category: HeadCategory | null) => void
   onPick: (key: string | null) => void
   onClose: () => void
 }) {
@@ -54,9 +58,10 @@ export default function HeadPicker({ slot, current, onPick, onClose }: {
             <span className="picker-close-label">Fertig</span>
           </button>
         </header>
+        <CategoryFilter value={category} onChange={onCategory} />
         {/* The same tiles as the sidebar; "Leer lassen" is the last one. */}
         <div className="picker-list">
-          {CATALOG.map((entry) => (
+          {CATALOG.filter((entry) => inCategory(entry, category)).map((entry) => (
             <Tile
               key={entry.key}
               name={entry.name}

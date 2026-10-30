@@ -55,7 +55,7 @@ const POSE_PEACE: Pose = {
   middle0: [-0.44, -0.2], middle1: [-0.35, 0], middle2: [-0.17, 0],
   ring0: [1.02, 0.05], ring1: [1.5, 0], ring2: [0.75, 0],
   pinky0: [1.02, 0.22], pinky1: [1.5, 0], pinky2: [0.75, 0],
-  thumb0: [0.42, -0.95, 1.1], thumb1: [0.0, -0.85, 0.7], thumb2: [0.0, -0.5, 0.4],
+  thumb0: [0.42, -0.85], thumb1: [0.0, -0.35, -1.0], thumb2: [0.0, -0.05, -0.8],
 }
 
 const FINGER_ORDER = ['pinky', 'ring', 'middle', 'index']

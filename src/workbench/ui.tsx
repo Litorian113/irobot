@@ -1,5 +1,6 @@
 import { useState, type ButtonHTMLAttributes, type ComponentType, type ReactNode } from 'react'
-import { snapshotUrl } from '../heads/catalog'
+import { HEAD_CATEGORIES, snapshotUrl } from '../heads/catalog'
+import type { HeadCategory } from '../heads/types'
 
 /*
  * The small building blocks every view of the working page shares: snapshots, the
@@ -19,12 +20,25 @@ export function Thumb({ snapshot, name }: { snapshot: string | null; name: strin
 }
 
 /** The list beside a view: a gallery of tiles that folds away (Workbench), a library below the head on a phone. */
-export function Sidebar({ label, hint, children }: { label: string; hint?: string; children: ReactNode }) {
+export function Sidebar({ label, hint, filter, children }: { label: string; hint?: string; filter?: ReactNode; children: ReactNode }) {
   return (
     <aside className="sidebar" aria-label={label}>
       {hint && <p className="sidebar-hint">{hint}</p>}
+      {filter}
       <div className="sidebar-grid">{children}</div>
     </aside>
+  )
+}
+
+/** Above a list of heads: "Alle" and one button per category. */
+export function CategoryFilter({ value, onChange }: { value: HeadCategory | null; onChange: (category: HeadCategory | null) => void }) {
+  return (
+    <div className="category-filter" role="group" aria-label="Köpfe filtern">
+      <button type="button" aria-pressed={value === null} onClick={() => onChange(null)}>Alle</button>
+      {HEAD_CATEGORIES.map(({ key, label }) => (
+        <button key={key} type="button" aria-pressed={value === key} onClick={() => onChange(key)}>{label}</button>
+      ))}
+    </div>
   )
 }
 

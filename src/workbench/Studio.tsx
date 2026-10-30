@@ -3,7 +3,8 @@ import { DESIGNS } from '../heads/designs'
 import type { HeadDesign } from '../heads/types'
 import { slotLabel } from '../layout'
 import { isOffline, PROMO_SLOT, SLOTS } from '../wall'
-import { Sidebar, Tile } from './ui'
+import { CategoryFilter, Sidebar, Tile } from './ui'
+import { inCategory, useCategoryFilter } from './useCategoryFilter'
 
 /** First they notice you (brows up), then they smile - as on the wall. */
 const NOTICE_MS = 1500
@@ -36,6 +37,7 @@ function Info({ value, label, before, after, as: Tag = 'div' }: {
 /** Köpfe: one head at a time, on a 16:9 screen like an iMac's - only one WebGL context runs. */
 export default function Studio() {
   const [selected, setSelected] = useState(initialDesign)
+  const [category, setCategory] = useCategoryFilter()
   const [webgl1, setWebgl1] = useState(false)
   const [status, setStatus] = useState('lädt …')
   const design = DESIGNS.find((d) => d.id === selected) ?? DESIGNS[0]
@@ -49,8 +51,8 @@ export default function Studio() {
 
   return (
     <div className="split studio">
-      <Sidebar label="Köpfe">
-        {DESIGNS.map((d) => (
+      <Sidebar label="Köpfe" filter={<CategoryFilter value={category} onChange={setCategory} />}>
+        {DESIGNS.filter((d) => inCategory(d, category)).map((d) => (
           <Tile key={d.id} name={d.name} snapshot={d.create ? `main-${d.id}` : null} active={d.id === selected} onClick={() => choose(d.id)} />
         ))}
       </Sidebar>

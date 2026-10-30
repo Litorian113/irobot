@@ -3,7 +3,8 @@ import { CATALOG, catalogEntry } from '../heads/catalog'
 import { cellColumns, MAX_PER_ROW, MAX_ROWS, slotLabel, type WallCell } from '../layout'
 import HeadPicker from './HeadPicker'
 import { CheckIcon, PencilIcon, PlusIcon } from './icons'
-import { PageButton, PageHeader, SaveBar, Sidebar, StatusLine, Thumb, Tile } from './ui'
+import { CategoryFilter, PageButton, PageHeader, SaveBar, Sidebar, StatusLine, Thumb, Tile } from './ui'
+import { inCategory, useCategoryFilter } from './useCategoryFilter'
 import { useWallDraft } from './useWallDraft'
 
 /** Drag payloads: a head from the sidebar, or a screen of the wall (to swap two screens). */
@@ -88,6 +89,7 @@ export default function WallEditor({ onShowLive }: { onShowLive: () => void }) {
   const [editing, setEditing] = useState(false)
   /** In edit mode, the screen tapped first, waiting for a second one to swap with. */
   const [selected, setSelected] = useState<number | null>(null)
+  const [category, setCategory] = useCategoryFilter()
 
   const { layout } = draft
   if (!layout) {
@@ -125,8 +127,8 @@ export default function WallEditor({ onShowLive }: { onShowLive: () => void }) {
 
   return (
     <div className={`split editor${editing ? ' editing' : ''}`}>
-      <Sidebar label="Alle Köpfe" hint="Auf einen Bildschirm ziehen">
-        {CATALOG.map((entry) => (
+      <Sidebar label="Alle Köpfe" hint="Auf einen Bildschirm ziehen" filter={<CategoryFilter value={category} onChange={setCategory} />}>
+        {CATALOG.filter((entry) => inCategory(entry, category)).map((entry) => (
           <Tile
             key={entry.key}
             name={entry.name}
@@ -205,6 +207,8 @@ export default function WallEditor({ onShowLive }: { onShowLive: () => void }) {
         <HeadPicker
           slot={picker}
           current={draft.keyOf(picker)}
+          category={category}
+          onCategory={setCategory}
           onPick={(key) => {
             draft.assign(picker, key)
             setPicker(null)

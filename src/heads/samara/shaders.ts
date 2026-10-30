@@ -55,9 +55,9 @@ if (vFace.z > 0.0) {
   diffuseColor.rgb = mix(diffuseColor.rgb, vec3(0.006, 0.012, 0.012), socket * socket * (0.65 + 0.3 * hidden));
 
   // Lips without blood, the corners pulled down.
-  float dy = p.y + 0.525 + 0.8 * p.x * p.x;
+  float dy = p.y + 0.52 + 1.25 * p.x * p.x;
   float ends = fall(0.17, 0.215, m.x);
-  float lips = fall(0.018, 0.07, abs(dy + 0.006)) * ends;
+  float lips = fall(0.022, 0.085, abs(dy + 0.008)) * ends;
   diffuseColor.rgb = mix(diffuseColor.rgb, vec3(0.03, 0.033, 0.036), lips * 0.9);
 
   // The mouth: a dark line that parts when she has seen you.
@@ -71,28 +71,37 @@ if (vFace.z > 0.0) {
   eyeMask = fall(high - 0.003, high + 0.003, abs(e.y + 0.004)) * step(0.0015, high) * step(0.0, along);
   vec2 q = p - vec2(sign(p.x) * 0.25, 0.137) - uLook * vec2(0.034, 0.014);
   float d = length(q);
-  vec3 white = vec3(0.2, 0.2, 0.17) * (0.45 + 0.55 * fall(0.02, 0.08, abs(e.x)));
-  vec3 iris = mix(vec3(0.72, 0.86, 0.95), vec3(0.3, 0.44, 0.52), smoothstep(0.014, 0.04, d));
+  vec3 white = vec3(0.12, 0.125, 0.11) * (0.4 + 0.6 * fall(0.02, 0.08, abs(e.x)));
+  vec3 iris = mix(vec3(0.52, 0.7, 0.86), vec3(0.17, 0.27, 0.36), smoothstep(0.016, 0.04, d));
   eyeColor = mix(iris, white, smoothstep(0.038, 0.043, d));
-  eyeColor = mix(vec3(0.004), eyeColor, smoothstep(0.0075 - 0.002 * uWide, 0.0105 - 0.002 * uWide, d));
+  eyeColor = mix(vec3(0.004), eyeColor, smoothstep(0.012 - 0.003 * uWide, 0.016 - 0.003 * uWide, d));
+  eyeColor *= 1.0 - 0.8 * hidden;
   diffuseColor.rgb = mix(diffuseColor.rgb, eyeColor, eyeMask);
 
   // The curtain of hair throws its shadow over everything at the edge of the face.
   float curtain = smoothstep(0.16, 0.4, m.x + 0.05 * hidden);
-  float above = smoothstep(0.32, 0.68, p.y);
-  diffuseColor.rgb *= (1.0 - 0.9 * curtain) * (1.0 - 0.4 * above);
+  float above = smoothstep(0.42, 0.72, p.y);
+  diffuseColor.rgb *= (1.0 - 0.9 * curtain) * (1.0 - 0.9 * above);
+
+  // Under the nose, and the lower half of the face sinks into the dirt.
+  diffuseColor.rgb *= 1.0 - 0.72 * fall(0.02, 0.1, length((p - vec2(0.0, -0.345)) * vec2(0.55, 1.6)));
+  diffuseColor.rgb *= 1.0 - 0.9 * fall(-0.98, -0.58, p.y);
+  diffuseColor.rgb *= 1.0 - 0.6 * fall(0.015, 0.05, abs(p.y + 0.615 + 0.5 * p.x * p.x)) * ends;
+
+  // The sides of the nose, for shape where the flat light gives none.
+  diffuseColor.rgb *= 1.0 - 0.62 * fall(0.0, 0.05, abs(m.x - 0.105)) * fall(0.0, 0.2, abs(p.y + 0.07));
 }
 // Where the hair grows the skin is never seen.
-float hairline = 0.72 - 0.34 * smoothstep(0.08, 0.6, m.x);
+float hairline = 0.78 - 0.34 * smoothstep(0.08, 0.6, m.x);
 if (vFace.z < 0.05 || p.y > hairline) diffuseColor.rgb = vec3(0.004, 0.005, 0.006);
 `
 
 /** Only the eye lights up by itself: pale out of the dark, with a wet glint. */
 export const FACE_GLOW = /* glsl */ `
-totalEmissiveRadiance += eyeColor * eyeMask * (0.5 + 0.35 * uWide);
+totalEmissiveRadiance += eyeColor * eyeMask * (0.32 + 0.3 * uWide);
 if (vFace.z > 0.0) {
   vec2 g = vFace.xy - vec2(sign(vFace.x) * 0.25, 0.137) - uLook * vec2(0.034, 0.014) - vec2(-0.009, 0.007);
-  totalEmissiveRadiance += vec3(0.7, 0.85, 0.95) * fall(0.0025, 0.007, length(g)) * eyeMask;
+  totalEmissiveRadiance += vec3(0.7, 0.85, 0.95) * fall(0.0025, 0.007, length(g)) * eyeMask * (1.0 - hidden);
 }
 `
 

@@ -91,9 +91,9 @@ function profile(keys) {
 
 const DOME_FRONT = 1.05
 const DOME_BACK = -2.95
-const domeTop = profile([[1.05, 0.2], [1.0, 0.33], [0.9, 0.67], [0.6, 1.03], [0.27, 1.25], [-0.07, 1.33], [-0.57, 1.32], [-1.07, 1.12], [-1.43, 0.93], [-1.73, 0.73], [-2.3, 0.42], [-2.95, 0.12]])
-const domeRim = profile([[1.05, 0.2], [0.75, 0.25], [0.4, 0.2], [0.13, 0.12], [-0.4, 0.32], [-0.97, 0.5], [-1.73, 0.4], [-2.4, 0.22], [-2.95, 0.1]])
-const domeWidth = profile([[1.05, 0.06], [0.95, 0.25], [0.7, 0.39], [0.3, 0.51], [-0.2, 0.61], [-0.9, 0.61], [-1.6, 0.5], [-2.3, 0.3], [-2.8, 0.09], [-2.95, 0.02]])
+const domeTop = profile([[1.05, 0.2], [1.0, 0.33], [0.9, 0.67], [0.6, 1.03], [0.27, 1.25], [-0.07, 1.33], [-0.57, 1.32], [-1.07, 1.12], [-1.43, 0.93], [-1.73, 0.78], [-2.3, 0.56], [-2.7, 0.34], [-2.95, 0.04]])
+const domeRim = profile([[1.05, 0.2], [0.75, 0.25], [0.4, 0.2], [0.13, 0.12], [-0.4, 0.32], [-0.97, 0.44], [-1.73, 0.26], [-2.4, 0.02], [-2.95, -0.1]])
+const domeWidth = profile([[1.05, 0.06], [0.95, 0.25], [0.7, 0.39], [0.3, 0.51], [-0.2, 0.61], [-0.9, 0.61], [-1.6, 0.54], [-2.3, 0.42], [-2.75, 0.24], [-2.95, 0.03]])
 
 function dome(p) {
   const z = clamp(p[2], DOME_BACK, DOME_FRONT)
@@ -103,8 +103,8 @@ function dome(p) {
   const y = p[1] - rim
   // A flat underside: the shell ends at the rim, the machinery comes out from below it.
   const q = Math.hypot(p[0] / w, y / (y > 0 ? h : 0.09))
-  let d = (q - 1) * Math.min(w, h > 0.2 ? h * 0.8 : h)
-  d = Math.max(d, p[2] - DOME_FRONT, DOME_BACK - p[2])
+  let d = (q - 1) * Math.min(w, h) * 0.8
+  d = smax(smax(d, p[2] - DOME_FRONT, 0.09), DOME_BACK - p[2], 0.18)
   return d
 }
 
@@ -146,8 +146,8 @@ function tubeDistance(tb, p) {
     if (rib) {
       const s = mix(lengths[i], lengths[i + 1], t)
       if (s >= rib.from && s <= rib.to) {
-        const ring = Math.abs(Math.sin((s * Math.PI) / rib.period))
-        r *= 1 + rib.amp * (Math.pow(ring, 0.6) - 0.7)
+        // Soft rings: a sharp groove would flash white along its whole length.
+        r *= 1 + rib.amp * Math.cos((s * Math.PI * 2) / rib.period) * 0.5
       }
     }
     const d = Math.hypot(ax - bx * t, ay - by * t, az - bz * t) - r
@@ -173,13 +173,26 @@ const ribs = (period, amp, from = 0, to = 99) => ({ period, amp, from, to })
 const CORE = [
   tube([[-300, 400, 0, 0.25], [0, 430, 0, 0.44], [200, 430, 0, 0.5], [400, 450, 0, 0.42], [560, 480, 0, 0.27], [700, 470, 0, 0.14]], { k: 0.12 }),
   tube([[420, 500, 0, 0.32], [450, 620, 0, 0.3], [480, 720, 0, 0.23], [540, 790, 0, 0.14]], { k: 0.1 }),
+  tube([[-340, 530, 0, 0.22], [-120, 500, 0, 0.36], [60, 540, 0, 0.5]], { k: 0.14 }),
+  // The inside of the mouth: palate, back wall and floor, so it is black behind the teeth.
+  tube([[560, 560, 0.08, 0.2], [640, 575, 0.07, 0.15], [710, 565, 0.05, 0.11], [770, 540, 0.03, 0.07]], { k: 0.09 }),
+  tube([[575, 590, 0.1, 0.17], [582, 680, 0.1, 0.19], [590, 780, 0.1, 0.16]], { k: 0.1 }),
+  tube([[580, 810, 0.1, 0.13], [650, 815, 0.08, 0.09], [710, 815, 0.04, 0.05]], { k: 0.08 }),
 ]
 
 /** Hoses and lumps on the side of the head, below the rim. */
+const RIM = []
+for (let i = 0; i <= 22; i++) {
+  const z = mix(-2.72, 0.86, i / 22)
+  RIM.push([domeWidth(z) * 0.985, domeRim(z) - 0.012, z, mix(0.03, 0.042, Math.sin((i / 22) * Math.PI))])
+}
 const HOSES = [
-  tube([[-90, 500, 0.44, 0.08], [0, 455, 0.5, 0.085], [110, 400, 0.56, 0.095], [235, 355, 0.55, 0.085], [320, 345, 0.5, 0.05]], { rib: ribs(0.045, 0.2, 0.86, 1.2), k: 0.03 }),
-  tube([[110, 470, 0.55, 0.055], [180, 440, 0.6, 0.078], [240, 425, 0.58, 0.06], [300, 440, 0.53, 0.035]], { k: 0.025 }),
-  tube([[335, 455, 0.48, 0.06], [420, 470, 0.44, 0.072], [500, 478, 0.4, 0.06], [570, 495, 0.36, 0.034]], { k: 0.03 }),
+  tube(RIM, { k: 0.02, world: true }),
+  tube([[-330, 530, 0.2, 0.03], [-280, 520, 0.34, 0.08], [-200, 490, 0.42, 0.095], [-90, 480, 0.47, 0.1], [0, 455, 0.5, 0.1], [110, 400, 0.56, 0.11], [235, 355, 0.55, 0.095], [320, 345, 0.5, 0.055]], { rib: ribs(0.045, 0.2, 2.1, 2.5), k: 0.03 }),
+  tube([[-300, 600, 0.2, 0.13], [-170, 590, 0.36, 0.13], [-20, 640, 0.5, 0.13], [60, 760, 0.6, 0.12]], { rib: ribs(0.16, 0.2), k: 0.03 }),
+  tube([[-200, 545, 0.46, 0.08], [-70, 545, 0.56, 0.095], [40, 610, 0.68, 0.095], [90, 730, 0.74, 0.09]], { rib: ribs(0.13, 0.2), k: 0.03 }),
+  tube([[110, 470, 0.55, 0.065], [180, 440, 0.6, 0.09], [240, 425, 0.58, 0.07], [300, 440, 0.53, 0.04]], { k: 0.03 }),
+  tube([[335, 455, 0.48, 0.07], [420, 470, 0.44, 0.085], [500, 478, 0.4, 0.075], [570, 495, 0.36, 0.045], [620, 530, 0.34, 0.03]], { k: 0.035 }),
   tube([[380, 410, 0.47, 0.035], [440, 425, 0.44, 0.048], [480, 450, 0.41, 0.03]], { k: 0.02 }),
   tube([[-60, 420, 0.42, 0.05], [0, 395, 0.5, 0.05], [120, 345, 0.56, 0.04], [260, 305, 0.56, 0.035], [400, 345, 0.53, 0.03], [500, 430, 0.46, 0.025]], { k: 0.025 }),
   tube([[230, 395, 0.59, 0.03], [300, 395, 0.55, 0.036], [360, 420, 0.5, 0.03]], { rib: ribs(0.05, 0.25), k: 0.02 }),
@@ -197,17 +210,22 @@ for (let i = 0; i < 14; i++) {
 
 /** The cheek: sinews from under the lip down to the jaw, with real holes between them. */
 const CHEEK = [
-  tube([[628, 545, 0.33, 0.028], [603, 620, 0.34, 0.037], [592, 700, 0.35, 0.04], [592, 790, 0.33, 0.04], [625, 860, 0.29, 0.03]], { k: 0.02 }),
-  tube([[565, 500, 0.38, 0.03], [552, 590, 0.39, 0.016], [546, 660, 0.38, 0.018], [575, 740, 0.36, 0.02], [592, 780, 0.34, 0.016]], { k: 0.015 }),
-  tube([[470, 500, 0.42, 0.04], [430, 590, 0.44, 0.046], [425, 690, 0.43, 0.058], [470, 770, 0.39, 0.052]], { k: 0.025 }),
-  tube([[350, 480, 0.47, 0.045], [345, 610, 0.5, 0.05], [390, 690, 0.47, 0.05], [430, 730, 0.43, 0.04]], { k: 0.03 }),
-  tube([[340, 640, 0.49, 0.035], [420, 640, 0.44, 0.03], [490, 680, 0.39, 0.024], [545, 690, 0.37, 0.012]], { k: 0.018 }),
-  tube([[480, 530, 0.4, 0.018], [520, 610, 0.385, 0.014], [540, 680, 0.37, 0.013]], { k: 0.012 }),
-  tube([[430, 590, 0.44, 0.024], [490, 555, 0.4, 0.018], [545, 540, 0.385, 0.012]], { k: 0.015 }),
-  tube([[390, 540, 0.45, 0.03], [340, 560, 0.49, 0.036], [300, 620, 0.5, 0.03]], { k: 0.02 }),
-  tube([[400, 610, 0.45, 0.016], [370, 670, 0.47, 0.015]], { k: 0.012 }),
-  tube([[455, 650, 0.41, 0.014], [510, 720, 0.38, 0.016], [560, 780, 0.35, 0.014]], { k: 0.012 }),
-  tube([[440, 740, 0.41, 0.03], [510, 770, 0.37, 0.026], [590, 800, 0.33, 0.024]], { k: 0.022 }),
+  tube([[628, 545, 0.33, 0.036], [603, 620, 0.34, 0.052], [592, 700, 0.35, 0.058], [592, 790, 0.33, 0.056], [625, 860, 0.29, 0.042]], { k: 0.04 }),
+  tube([[565, 500, 0.38, 0.04], [552, 590, 0.39, 0.024], [546, 660, 0.38, 0.026], [575, 740, 0.36, 0.03], [592, 780, 0.34, 0.024]], { k: 0.03 }),
+  tube([[470, 500, 0.42, 0.055], [430, 590, 0.44, 0.066], [425, 690, 0.43, 0.08], [470, 770, 0.39, 0.075]], { k: 0.04 }),
+  tube([[350, 480, 0.47, 0.06], [345, 610, 0.5, 0.07], [390, 690, 0.47, 0.07], [430, 730, 0.43, 0.055]], { k: 0.045 }),
+  tube([[340, 640, 0.49, 0.048], [420, 640, 0.44, 0.042], [490, 680, 0.39, 0.034], [545, 690, 0.37, 0.018]], { k: 0.035 }),
+  tube([[480, 530, 0.4, 0.026], [520, 610, 0.385, 0.02], [540, 680, 0.37, 0.019]], { k: 0.025 }),
+  tube([[430, 590, 0.44, 0.034], [490, 555, 0.4, 0.026], [545, 540, 0.385, 0.018]], { k: 0.028 }),
+  tube([[390, 540, 0.45, 0.04], [340, 560, 0.49, 0.05], [300, 620, 0.5, 0.042]], { k: 0.035 }),
+  tube([[400, 610, 0.45, 0.024], [370, 670, 0.47, 0.022]], { k: 0.022 }),
+  tube([[455, 650, 0.41, 0.02], [510, 720, 0.38, 0.024], [560, 780, 0.35, 0.02]], { k: 0.024 }),
+  tube([[440, 740, 0.41, 0.042], [510, 770, 0.37, 0.038], [590, 800, 0.33, 0.034]], { k: 0.035 }),
+  tube([[500, 690, 0.385, 0.03], [520, 740, 0.375, 0.05], [545, 790, 0.35, 0.05]], { k: 0.05 }),
+  tube([[455, 560, 0.42, 0.02], [470, 620, 0.41, 0.03], [460, 690, 0.41, 0.022]], { k: 0.03 }),
+  tube([[300, 690, 0.53, 0.05], [360, 740, 0.48, 0.06], [440, 800, 0.4, 0.06]], { k: 0.05 }),
+  tube([[540, 610, 0.385, 0.012], [585, 590, 0.35, 0.02]], { k: 0.02 }),
+  tube([[555, 720, 0.365, 0.014], [590, 740, 0.35, 0.02]], { k: 0.018 }),
 ]
 
 /** Upper lip and gums: an arch in plan, like a horseshoe. */
@@ -223,15 +241,16 @@ const UPPER = [
 /** The lower jaw: rim, chin, floor of the mouth. */
 const JAW_RIM = [[600, 770, 0.3, 0.028], [640, 835, 0.28, 0.034], [690, 850, 0.2, 0.036], [730, 835, 0.09, 0.036], [740, 826, 0, 0.036]]
 const JAW = [
-  tube(JAW_RIM, { k: 0.04 }),
-  tube([[470, 790, 0.35, 0.07], [540, 860, 0.3, 0.095], [610, 930, 0.21, 0.095], [680, 950, 0.11, 0.085], [700, 948, 0, 0.09]], { k: 0.06 }),
-  tube([[600, 868, 0.24, 0.085], [680, 900, 0.14, 0.075], [722, 872, 0, 0.075]], { k: 0.06 }),
+  tube(JAW_RIM, { k: 0.05 }),
+  tube([[455, 780, 0.36, 0.09], [535, 860, 0.31, 0.125], [610, 925, 0.23, 0.125], [680, 945, 0.12, 0.11], [706, 945, 0, 0.11]], { k: 0.07 }),
+  tube([[600, 868, 0.25, 0.1], [680, 898, 0.15, 0.09], [728, 870, 0, 0.09]], { k: 0.07 }),
   tube([[550, 835, 0.1, 0.09], [640, 880, 0.08, 0.06], [710, 865, 0, 0.04]], { k: 0.08 }),
-  tube([[500, 800, 0.33, 0.04], [570, 835, 0.31, 0.03], [625, 870, 0.27, 0.03]], { k: 0.03 }),
-  tube([[540, 900, 0.28, 0.02], [600, 960, 0.2, 0.022], [650, 975, 0.13, 0.018]], { k: 0.02 }),
+  tube([[500, 800, 0.34, 0.05], [570, 835, 0.32, 0.04], [625, 870, 0.28, 0.04]], { k: 0.04 }),
+  tube([[530, 905, 0.33, 0.028], [600, 970, 0.23, 0.03], [655, 992, 0.13, 0.026]], { k: 0.03 }),
+  tube([[470, 840, 0.38, 0.03], [530, 830, 0.39, 0.03], [580, 880, 0.34, 0.024]], { k: 0.03 }),
 ]
 /** Pits in the jaw, like the nostrils of a dead thing. */
-const PITS = [at(525, 872, 0.37), at(628, 957, 0.21), at(700, 985, 0.03)]
+const PITS = [at(525, 880, 0.42), at(628, 968, 0.26), at(702, 1012, 0.04)]
 
 /** Neck: a core, a smooth throat in front, big ringed tubes round the rest. */
 const NECK_LINE = (s) => {
@@ -243,7 +262,7 @@ const NECK = [
   tube([[540, 830, 0, 0.13], [450, 980, 0, 0.3], [330, 1240, 0, 0.42], [240, 1650, 0, 0.56]], { k: 0.14 }),
 ]
 {
-  const COUNT = 8
+  const COUNT = 7
   for (let i = 0; i < COUNT; i++) {
     const phi = 0.86 + (i / (COUNT - 1)) * (Math.PI - 0.86)
     const keys = []
@@ -251,12 +270,12 @@ const NECK = [
     for (let s = 0; s <= 6; s++) {
       const f = s / 6
       const [z, y, r] = NECK_LINE(mix(top, 1, f))
-      const a = phi + Math.sin(f * 7 + i * 1.7) * 0.07
+      const a = phi + Math.sin(f * 5 + i * 1.7) * 0.11
       const out = r * (1.0 + hash(i * 3 + s) * 0.05) * smoothstep(-0.2, 0.15, f + 0.1)
-      keys.push([Math.sin(a) * out, y + Math.sin(i * 2.3) * 0.08, z + Math.cos(a) * out, 0.1 + hash(i + 340) * 0.035 + f * 0.04])
+      keys.push([Math.sin(a) * out, y + Math.sin(i * 2.3) * 0.08, z + Math.cos(a) * out, 0.135 + hash(i + 340) * 0.05 + f * 0.05])
     }
-    const period = 0.075 + hash(i + 400) * 0.045
-    NECK.push(tube(keys.map(([x, y, z, r]) => [x, y, z, r]), { rib: ribs(period, 0.3), k: 0.022, world: true }))
+    const period = 0.13 + hash(i + 400) * 0.09
+    NECK.push(tube(keys.map(([x, y, z, r]) => [x, y, z, r]), { rib: ribs(period, 0.2), k: 0.03, world: true }))
   }
   // Beaded cords in the grooves: vertebrae and tendons.
   for (const [phi, r, top] of [[0.72, 0.042, 0.28], [1.25, 0.03, 0.12], [1.72, 0.03, 0.05]]) {
@@ -283,15 +302,15 @@ const RING_HOLES = [at(64, 562, 0.68), at(266, 815, 0.76), at(150, 690, 0.77)]
 
 const INNER = [
   // The throat that carries the second mouth; ringed like a windpipe.
-  tube([[505, 770, 0, 0.14], [610, 730, 0, 0.11], [670, 680, 0, 0.088], [710, 655, 0, 0.076]], { rib: ribs(0.05, 0.16), k: 0.02 }),
-  tube([[640, 620, 0.12, 0.028], [700, 600, 0.1, 0.03], [745, 606, 0.05, 0.026], [754, 612, 0, 0.026]], { k: 0.03 }),
-  tube([[650, 720, 0.11, 0.03], [705, 706, 0.09, 0.03], [745, 692, 0.045, 0.024], [754, 686, 0, 0.024]], { k: 0.03 }),
+  tube([[505, 770, 0, 0.14], [610, 730, 0, 0.11], [655, 690, 0, 0.082], [690, 665, 0, 0.045]], { rib: ribs(0.05, 0.16), k: 0.02 }),
+  tube([[640, 620, 0.14, 0.032], [700, 600, 0.12, 0.034], [745, 606, 0.06, 0.03], [754, 612, 0, 0.03]], { rib: ribs(0.05, 0.3), k: 0.03 }),
+  tube([[650, 720, 0.13, 0.034], [705, 706, 0.105, 0.034], [745, 692, 0.055, 0.028], [754, 686, 0, 0.028]], { rib: ribs(0.05, 0.3), k: 0.03 }),
   tube([[628, 615, 0.08, 0.034], [660, 660, 0.085, 0.05], [646, 722, 0.07, 0.034]], { k: 0.035 }),
   tube([[680, 595, 0.05, 0.024], [640, 610, 0.05, 0.03]], { k: 0.04 }),
 ]
 
 // --- the fields ---------------------------------------------------------------------------------
-const lumps = (p) => 0.016 * (noise3(p[0] * 8, p[1] * 8, p[2] * 8) - 0.5) + 0.009 * (noise3(p[0] * 21, p[1] * 21, p[2] * 21) - 0.5)
+const lumps = (p) => 0.022 * (noise3(p[0] * 6, p[1] * 6, p[2] * 6) - 0.5) + 0.004 * (noise3(p[0] * 14, p[1] * 14, p[2] * 14) - 0.5)
 const mirror = (p) => [Math.abs(p[0]), p[1], p[2]]
 
 function bio(world) {
@@ -378,7 +397,7 @@ const lineDown = norm([0, -(LIP_CORNER[2] - HINGE[2]), LIP_CORNER[1] - HINGE[1]]
 
 function jawWeight(p) {
   const s = dot(sub(p, HINGE), lineDown)
-  return smoothstep(-0.17, 0.16, -s) * smoothstep(-0.46, -0.14, p[2]) * smoothstep(-2.4, -1.6, p[1])
+  return smoothstep(-0.17, 0.16, s) * smoothstep(-0.46, -0.14, p[2]) * smoothstep(-2.4, -1.6, p[1])
 }
 function bendWeight(p) {
   return mix(0.38, 1, smoothstep(-3.3, -0.85, p[1] + Math.max(p[2], 0) * 1.1))
@@ -390,15 +409,15 @@ function occlusion(p, n) {
   for (const [h, w] of [[0.025, 1], [0.06, 0.8], [0.13, 0.55], [0.26, 0.4], [0.45, 0.25]]) {
     shade += (w * Math.max(0, h - everything(add(p, mul(n, h))))) / h
   }
-  return clamp(1 - shade * 0.4, 0.02, 1)
+  return clamp(1 - shade * 0.27, 0.03, 1)
 }
 /** Raised edges catch the light and rub pale; 0.5 is flat. */
 function wearOf(field, p) {
   let sum = 0
-  for (const e of [0.02, 0.05]) {
+  for (const e of [0.04, 0.09]) {
     let mean = 0
     for (const c of [[e, 0, 0], [-e, 0, 0], [0, e, 0], [0, -e, 0], [0, 0, e], [0, 0, -e]]) mean += field(add(p, c))
-    sum += (mean / 6 / e) * 2.2
+    sum += (mean / 6 / e) * 1.5
   }
   return clamp(0.5 + sum)
 }
@@ -406,16 +425,39 @@ function wearOf(field, p) {
 /** kind: 0 machinery, 0.5 shell, 1 tooth. */
 const KIND = { bio: 0, dome: 128, tooth: 255 }
 const parts = []
+/** XENO_PREVIEW=1: a coarse mesh in a fraction of the time, for looking at shapes. */
+const SCALE = process.env.XENO_PREVIEW ? 1.5 : 1
+
+/** Paint varies over the mesh, not from cell to cell: blur it along the surface. */
+function blurPaint(vertices, indices, name, passes) {
+  const neighbours = vertices.map(() => new Set())
+  for (let i = 0; i < indices.length; i += 3) {
+    const [a, b, c] = [indices[i], indices[i + 1], indices[i + 2]]
+    neighbours[a].add(b).add(c)
+    neighbours[b].add(a).add(c)
+    neighbours[c].add(a).add(b)
+  }
+  for (let pass = 0; pass < passes; pass++) {
+    const next = vertices.map((v, i) => {
+      let sum = 0
+      for (const j of neighbours[i]) sum += vertices[j][name]
+      return neighbours[i].size ? v[name] * 0.4 + (sum / neighbours[i].size) * 0.6 : v[name]
+    })
+    vertices.forEach((v, i) => { v[name] = next[i] })
+  }
+}
 
 function bake(name, field, bounds, cell, kind, keep, rig) {
   const start = Date.now()
-  const { positions, indices } = surfaceNets(field, bounds, cell)
+  const { positions, indices } = surfaceNets(field, bounds, cell * SCALE)
   const vertices = positions.map((p) => {
     const n = gradientOf(field, p)
     const ao = occlusion(p, n)
-    const wear = kind === 'dome' ? smoothstep(-0.6, -2.2, p[2]) * 0.6 + 0.1 * noise3(p[0] * 2, p[1] * 2, p[2] * 2) : wearOf(field, p)
+    const wear = kind === 'dome' ? smoothstep(-0.8, -2.6, p[2]) * 0.34 + 0.1 * noise3(p[0] * 2, p[1] * 2, p[2] * 2) : wearOf(field, p)
     return { p, n, ao, wear, kind: KIND[kind], rig: rig(p) }
   })
+  blurPaint(vertices, indices, 'wear', 4)
+  blurPaint(vertices, indices, 'ao', 1)
   const kept = []
   for (let i = 0; i < indices.length; i += 3) {
     const a = indices[i], b = indices[i + 1], c = indices[i + 2]
@@ -428,11 +470,14 @@ function bake(name, field, bounds, cell, kind, keep, rig) {
 /** Everything hidden deep inside the shell is left out. */
 const headRig = (p) => [bendWeight(p), jawWeight(p), 0]
 
-bake('Kuppel', dome, { min: [-0.72, -0.05, -3.05], max: [0.72, 1.45, 1.15] }, 0.03, 'dome', () => true, () => [1, 0, 0])
-const WAIST = -0.9
-bake('Kopf', bio, { min: [-0.8, WAIST - 0.06, -1.2], max: [0.8, 0.75, 1.2] }, 0.017, 'bio', (p) => dome(p) > -0.05, headRig)
-bake('Hals', bio, { min: [-1.15, -3.7, -1.5], max: [1.15, 0.75, 0.55] }, 0.024, 'bio', (p) => dome(p) > -0.05 && !(p[1] > WAIST && p[2] > -1.15), headRig)
-bake('Innerer Kiefer', inner, { min: [-0.3, -1.05, 0.0], max: [0.3, -0.2, 0.95] }, 0.012, 'bio', () => true, (p) => [bendWeight(p), 0, innerWeight(p)])
+bake('Kuppel', dome, { min: [-0.72, -0.25, -3.05], max: [0.72, 1.45, 1.15] }, 0.036, 'dome', () => true, () => [1, 0, 0])
+/** What the fine head grid covers: the side of the head, and in front the whole jaw down to the chin. */
+const NECK_CUT = -2.4
+const inFineGrid = (p, m = 0) => Math.abs(p[0]) < 1.02 + m && p[1] > -1.8 - m && ((p[1] > -0.9 - m && p[2] > -1.15 - m) || p[2] > -0.1 - m)
+bake('Kopf', bio, { min: [-1.1, -1.9, -1.25], max: [1.1, 0.75, 1.2] }, 0.024, 'bio', (p) => dome(p) > -0.05 && inFineGrid(p, 0.05), headRig)
+bake('Hals', bio, { min: [-1.2, NECK_CUT - 0.1, -3.2], max: [1.2, 0.75, 0.4] }, 0.04, 'bio', (p) => dome(p) > -0.05 && !inFineGrid(p), headRig)
+bake('Brust', bio, { min: [-1.45, -3.9, -1.9], max: [1.45, NECK_CUT + 0.1, 0.55] }, 0.07, 'bio', () => true, headRig)
+bake('Innerer Kiefer', inner, { min: [-0.3, -1.05, 0.0], max: [0.3, -0.2, 0.95] }, 0.014, 'bio', () => true, (p) => [bendWeight(p), 0, innerWeight(p)])
 
 // --- teeth: real points, too fine for the grid ----------------------------------------------------
 function curveThrough(keys) {
@@ -492,25 +537,25 @@ function teethRow(gumKeys, count, { length, radius, dir, curl, rig, tiltOut = 0.
   }
 }
 
-const upperRig = (p) => [1, jawWeight(p) * 0.1, 0]
+const upperRig = () => [1, 0, 0]
 const lowerRig = (p) => [bendWeight(p), 1, 0]
 const innerRig = () => [1, 0, 1]
 
 // The big upper teeth: long in front, smaller towards the corners.
-teethRow(GUM, 9, {
-  length: (t) => mix(0.17, 0.3, smoothstep(0.1, 0.8, t)), radius: (t) => mix(0.028, 0.044, t),
+teethRow(GUM, 7, {
+  length: (t) => mix(0.17, 0.3, smoothstep(0.1, 0.8, t)), radius: (t) => mix(0.04, 0.062, t),
   dir: [0, -1, -0.12], curl: [0, 0, -0.5], rig: upperRig, tiltOut: 0.05,
 })
-teethRow(JAW_RIM.map(([u, v, x]) => [u, v - 6, x]), 9, {
-  length: (t) => mix(0.13, 0.22, smoothstep(0.1, 0.9, t)), radius: (t) => mix(0.024, 0.036, t),
+teethRow(JAW_RIM.map(([u, v, x]) => [u, v - 6, x]), 8, {
+  length: (t) => mix(0.13, 0.2, smoothstep(0.1, 0.9, t)), radius: (t) => mix(0.034, 0.05, t),
   dir: [0, 1, 0.12], curl: [0, 0, -0.5], rig: lowerRig, tiltOut: 0.08, seed: 50,
 })
-teethRow([[640, 618, 0.12], [700, 604, 0.1], [745, 610, 0.05], [754, 616, 0]], 6, {
-  length: (t) => mix(0.05, 0.12, smoothstep(0.2, 0.9, t)), radius: (t) => mix(0.012, 0.018, t),
+teethRow([[640, 618, 0.14], [700, 604, 0.12], [745, 610, 0.06], [754, 616, 0]], 5, {
+  length: (t) => mix(0.06, 0.13, smoothstep(0.2, 0.9, t)), radius: (t) => mix(0.018, 0.028, t),
   dir: [0, -1, 0.05], curl: [0, 0, -0.5], rig: innerRig, tiltOut: 0.05, seed: 100,
 })
-teethRow([[650, 716, 0.11], [705, 702, 0.09], [745, 688, 0.045], [754, 682, 0]], 6, {
-  length: (t) => mix(0.05, 0.11, smoothstep(0.2, 0.9, t)), radius: (t) => mix(0.012, 0.017, t),
+teethRow([[650, 716, 0.13], [705, 702, 0.105], [745, 688, 0.055], [754, 682, 0]], 5, {
+  length: (t) => mix(0.06, 0.12, smoothstep(0.2, 0.9, t)), radius: (t) => mix(0.018, 0.026, t),
   dir: [0, 1, 0.12], curl: [0, 0, -0.5], rig: innerRig, tiltOut: 0.05, seed: 150,
 })
 

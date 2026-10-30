@@ -25,9 +25,13 @@ export interface HeadViewOptions {
 
 export type CreateHead = (canvas: HTMLCanvasElement, options: HeadViewOptions) => HeadView
 
+/** The filter above every list of heads. A head can be in several: C.O.L.A.N.I. is a designer made of blocks. */
+export type HeadCategory = 'designer' | 'roboter' | 'gruselig' | 'bloecke' | 'kunst'
+
 export interface HeadDesign {
   id: number
   name: string
+  categories: HeadCategory[]
   description: string
   /**
    * Screen of the wall this head will live on (0 top-left ... 8 bottom-right, 4 is the promo).

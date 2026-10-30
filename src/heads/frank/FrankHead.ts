@@ -25,7 +25,7 @@ const NECK_FOLLOW = 0.35
 
 const SKIN = 0xc4c4bf
 /** Hard, from above and a little to one side: the shadows of brow and nose are the whole face. */
-const KEY_DIRECTION = new THREE.Vector3(0.3, 0.8, 0.6).normalize()
+const KEY_DIRECTION = new THREE.Vector3(0.3, 0.72, 0.64).normalize()
 
 const MOOD: Record<Expression, { smile: number; wide: number; charge: number }> = {
   neutral: { smile: 0, wide: 0, charge: 0 },
@@ -50,8 +50,8 @@ function profile(table: number[][], y: number) {
 }
 
 /** Half-width and depth of the head from chin (-1) to crown (1). */
-const WIDTH = [[-1, 0.27], [-0.8, 0.41], [-0.6, 0.53], [-0.4, 0.635], [-0.1, 0.685], [0.2, 0.7], [0.5, 0.7], [0.8, 0.66], [1, 0.6]]
-const DEPTH = [[-1, 0.46], [-0.7, 0.64], [-0.4, 0.73], [0.1, 0.78], [0.5, 0.78], [0.8, 0.74], [1, 0.66]]
+const WIDTH = [[-1, 0.34], [-0.8, 0.45], [-0.6, 0.55], [-0.4, 0.64], [-0.1, 0.685], [0.2, 0.7], [0.5, 0.7], [0.8, 0.66], [1, 0.6]]
+const DEPTH = [[-1, 0.56], [-0.7, 0.68], [-0.4, 0.73], [0.1, 0.78], [0.5, 0.78], [0.8, 0.74], [1, 0.66]]
 
 /** Must say the same as `hairlineY` in shaders.ts. */
 function hairlineY(side: number, z: number) {
@@ -67,30 +67,30 @@ function relief(x: number, y: number) {
   const along = THREE.MathUtils.clamp(((side - 0.2) * 0.17 + (y + 0.2) * -0.32) / (0.17 * 0.17 + 0.32 * 0.32), 0, 1)
   const fold = Math.exp(-((Math.hypot(side - (0.2 + 0.17 * along), y - (-0.2 - 0.32 * along)) / 0.028) ** 2))
   return 0.03 * bump(0, 0.6, 0.5, 0.2) // forehead
-    + 0.13 * bump(0.27, 0.33, 0.36, 0.08) // the shelf of the brow
+    + 0.1 * bump(0.27, 0.33, 0.36, 0.08) // the shelf of the brow
     + 0.05 * bump(0, 0.3, 0.12, 0.07) // between the brows
-    - 0.17 * bump(0.31, 0.11, 0.2, 0.1) // sockets
+    - 0.14 * bump(0.31, 0.11, 0.2, 0.1) // sockets
     + 0.06 * bump(0.305, 0.095, 0.13, 0.05) // heavy lids
     + 0.022 * bump(0.31, -0.03, 0.14, 0.035) // bags under the eyes
-    + 0.16 * bump(0, 0.05, 0.075, 0.24) // bridge of the nose
-    + 0.24 * bump(0, -0.12, 0.11, 0.085) // its tip
-    + 0.13 * bump(0.14, -0.17, 0.06, 0.055) // its wings
+    + 0.15 * bump(0, 0.05, 0.095, 0.24) // bridge of the nose
+    + 0.185 * bump(0, -0.12, 0.13, 0.095) // its tip
+    + 0.09 * bump(0.16, -0.165, 0.065, 0.06) // its wings
     - 0.05 * bump(0.075, -0.215, 0.04, 0.02) // nostrils
     + 0.055 * bump(0, -0.38, 0.3, 0.14) // the long upper lip
     + 0.03 * bump(0, -0.485, 0.26, 0.03) // lips
-    + 0.05 * bump(0, -0.565, 0.2, 0.035)
-    - 0.05 * bump(0, -0.66, 0.2, 0.045) // under them
-    + 0.11 * bump(0, -0.83, 0.17, 0.1) // chin
+    + 0.02 * bump(0, -0.565, 0.2, 0.035)
+    - 0.015 * bump(0, -0.66, 0.2, 0.045) // under them
+    + 0.13 * bump(0, -0.86, 0.2, 0.13) // chin
     + 0.05 * bump(0.52, -0.02, 0.16, 0.12) // cheekbones
-    - 0.1 * bump(0.5, -0.42, 0.16, 0.2) // hollow cheeks
+    - 0.1 * bump(0.5, -0.42, 0.17, 0.2) // hollow cheeks
     - 0.03 * fold
 }
 
 /** The front of the head as a grid of depths: for the baked shadows and to set things on the skin. */
 class DepthGrid {
-  private static CELL = 0.03
-  private static COLS = 64
-  private static ROWS = 84
+  private static CELL = 0.02
+  private static COLS = 96
+  private static ROWS = 126
   private cells = new Float32Array(DepthGrid.COLS * DepthGrid.ROWS)
 
   constructor(position: THREE.BufferAttribute) {
@@ -143,19 +143,19 @@ function headGeometry() {
     const ring = Math.hypot(position.getX(i), position.getZ(i))
     // Square seen from above, flat on top, rounder towards the chin.
     const box = (Math.abs(Math.sin(angle)) ** 3 + Math.abs(Math.cos(angle)) ** 3) ** (-1 / 3)
-    const power = unitY > 0 ? 5 : 2.6
+    const power = unitY > 0 ? 5 : 3.6
     const scale = (ring ** power + Math.abs(unitY) ** power) ** (-1 / power)
     const y = unitY * scale
     const px = Math.sin(angle) * box * ring * scale
     const pz = Math.cos(angle) * box * ring * scale
-    const back = pz < 0 ? 1.05 * (1 - 0.7 * sstep(-0.3, -0.9, y) * 0) * (1 - 0.65 * sstep(0.3, 0.9, -y)) : 1
+    const back = pz < 0 ? 1.05 * (1 - 0.65 * sstep(0.3, 0.9, -y)) : 1
     let sx = px * profile(WIDTH, y)
     const sy = y * HEAD_Y
     let sz = pz * profile(DEPTH, y) * back + relief(sx, sy) * sstep(0.15, 0.6, pz)
     // The hair lies on the skull as a thick mat, with an edge over the forehead.
-    const cap = sstep(-0.012, 0.012, sy - hairlineY(Math.abs(sx), sz))
-    sz += cap * 0.05 * Math.max(pz, 0)
-    sx += cap * 0.028 * Math.sign(sx) * Math.min(1, Math.abs(px) * 1.5)
+    const cap = sstep(-0.035, 0.035, sy - hairlineY(Math.abs(sx), sz))
+    sz += cap * 0.03 * Math.max(pz, 0)
+    sx += cap * 0.022 * Math.sign(sx) * Math.min(1, Math.abs(px) * 1.5)
     position.setXYZ(i, sx, sy, sz)
     uv.setXY(i, sx / 1.6 + 0.5, sy / 2.16 + 0.5)
   }
@@ -168,6 +168,7 @@ function headGeometry() {
 /** Walks from every vertex towards the key light: whatever lies on the way shades it. Vertex colours. */
 function bakeShadows(geometry: THREE.BufferGeometry, depth: DepthGrid) {
   const position = geometry.attributes.position as THREE.BufferAttribute
+  const normal = geometry.attributes.normal as THREE.BufferAttribute
   const colors = new Float32Array(position.count * 3)
   const L = KEY_DIRECTION
   for (let i = 0; i < position.count; i++) {
@@ -176,15 +177,17 @@ function bakeShadows(geometry: THREE.BufferGeometry, depth: DepthGrid) {
     if (z > 0.05) {
       let shadow = 0
       for (let s = 0.03; s < 0.9; s += 0.03) {
-        const over = depth.at(x + L.x * s, y + L.y * s) - (z + L.z * s) - 0.012
-        if (over > 0) shadow = Math.max(shadow, Math.min(1, over / (0.012 + 0.07 * s)))
+        const over = depth.at(x + L.x * s, y + L.y * s) - (z + L.z * s) - 0.018
+        if (over > 0) shadow = Math.max(shadow, Math.min(1, over / (0.022 + 0.13 * s)))
       }
       // Hollows are dark even out of the light's way: how far the skin lies below its surroundings.
       let around = 0
       for (const [dx, dy] of [[0.07, 0], [-0.07, 0], [0, 0.07], [0, -0.07], [0.05, 0.05], [-0.05, 0.05], [0.05, -0.05], [-0.05, -0.05]]) {
         around += Math.max(0, depth.at(x + dx, y + dy) - z)
       }
-      shade = (1 - 0.86 * shadow) * (1 - Math.min(0.6, around * 1.5))
+      // Round the sides of the head the light does this by itself, and the grid is too coarse.
+      const facing = sstep(0.3, 0.62, normal.getZ(i))
+      shade = 1 - facing * (1 - (1 - 0.76 * shadow) * (1 - Math.min(0.5, around * 1.2)))
     }
     colors[i * 3] = colors[i * 3 + 1] = colors[i * 3 + 2] = shade
   }
@@ -237,47 +240,68 @@ function skinTexture() {
   }
 
   // Furrows across the forehead, a little broken.
-  for (const y of [0.5, 0.57, 0.64, 0.7]) {
+  for (const y of [0.52, 0.63]) {
     const points = []
     for (let x = -0.46; x <= 0.46; x += 0.07) points.push([x, y + 0.012 * Math.sin(x * 9 + y * 30) + (Math.random() - 0.5) * 0.008])
-    crease(points, 3, 0.26, 2)
+    crease(points, 6, 0.16, 3.5)
   }
 
   both((x) => {
+    // The socket falls away dark around the eye, up into the brow; the hollow of the cheek.
+    const blob = (cx: number, cy: number, rx: number, ry: number, alpha: number) => {
+      ctx.save()
+      ctx.translate(px(x(cx)), py(cy))
+      ctx.scale(rx / 1.6 * size, ry / 2.16 * size)
+      const dark = ctx.createRadialGradient(0, 0, 0, 0, 0, 1)
+      dark.addColorStop(0, `rgba(12, 12, 12, ${alpha})`)
+      dark.addColorStop(0.55, `rgba(12, 12, 12, ${alpha * 0.7})`)
+      dark.addColorStop(1, 'rgba(12, 12, 12, 0)')
+      ctx.fillStyle = dark
+      ctx.fillRect(-1, -1, 2, 2)
+      ctx.restore()
+    }
+    blob(0.31, 0.13, 0.27, 0.16, 0.58)
+    blob(0.52, -0.45, 0.22, 0.3, 0.26)
+    blob(0.42, -0.8, 0.2, 0.3, 0.3)
+    crease([[x(0.08), 0.3], [x(0.28), 0.315], [x(0.5), 0.27]], 24, 0.42, 7)
     // The brows: a thick dark mass of short hairs along the shelf.
-    for (let i = 0; i < 260; i++) {
+    for (let i = 0; i < 170; i++) {
       const t = Math.random()
       const bx = 0.09 + 0.43 * t
-      const by = 0.285 - 0.03 * (t - 0.42) ** 2 * 6 + (Math.random() - 0.5) * (0.06 - 0.03 * t)
-      ctx.strokeStyle = `rgba(10, 10, 10, ${0.3 + Math.random() * 0.4})`
+      const by = 0.305 - 0.18 * (t - 0.42) ** 2 + (Math.random() - 0.5) * (0.045 - 0.025 * t)
+      ctx.strokeStyle = `rgba(10, 10, 10, ${0.25 + Math.random() * 0.35})`
       ctx.lineWidth = 1.5 + Math.random() * 2
       trace([[x(bx), by], [x(bx + 0.025 + Math.random() * 0.02), by + 0.012 + Math.random() * 0.018]])
     }
     // The crease over the lid, and the wrinkled bags under the eye.
-    crease([[x(0.17), 0.13], [x(0.26), 0.168], [x(0.36), 0.17], [x(0.46), 0.125]], 6, 0.75, 2.2)
-    for (const [drop, a] of [[0, 0.7], [0.032, 0.5], [0.066, 0.42], [0.105, 0.3]]) {
-      crease([[x(0.18 - drop * 0.4), 0.05 - drop * 0.9], [x(0.3), 0.012 - drop], [x(0.42 + drop * 0.5), 0.045 - drop * 0.8]], 3.5, a)
+    crease([[x(0.17), 0.125], [x(0.24), 0.155], [x(0.3), 0.165], [x(0.37), 0.155], [x(0.45), 0.115]], 7, 0.8, 2.6)
+    for (const [drop, a] of [[0, 0.7], [0.04, 0.34], [0.085, 0.22]]) {
+      const points = []
+      for (let t = 0; t <= 1; t += 0.1) {
+        const across = 2 * t - 1
+        points.push([x(0.3 + (0.12 + drop * 0.5) * across), 0.012 - drop + (0.038 + drop * 0.1) * across * across + (Math.random() - 0.5) * 0.005])
+      }
+      crease(points, 3, a, 1.8)
     }
-    for (let i = 0; i < 4; i++) crease([[x(0.45), 0.09 - i * 0.03], [x(0.54), 0.1 - i * 0.05]], 2.5, 0.35) // crow's feet
+    for (let i = 0; i < 3; i++) crease([[x(0.45), 0.08 - i * 0.035], [x(0.53), 0.09 - i * 0.055]], 3, 0.22, 2) // crow's feet
     // Beside the nose, the nostril, the fold down to the mouth and on to the jaw.
     crease([[x(0.08), 0.1], [x(0.095), -0.03], [x(0.125), -0.09]], 6, 0.3, 4)
-    crease([[x(0.205), -0.14], [x(0.215), -0.19], [x(0.15), -0.225], [x(0.09), -0.215]], 5, 0.8, 1.6)
-    crease([[x(0.09), -0.215], [x(0.04), -0.225]], 7, 0.85, 1.6)
-    crease([[x(0.21), -0.2], [x(0.3), -0.36], [x(0.37), -0.54]], 5, 0.5, 2.4)
-    crease([[x(0.34), -0.57], [x(0.33), -0.72], [x(0.25), -0.84]], 4, 0.3, 2.4)
-    for (const reach of [0.47, 0.5]) crease([[x(reach), -0.22], [x(reach + 0.02), -0.42], [x(reach - 0.05), -0.6]], 3, 0.2, 2)
+    crease([[x(0.205), -0.12], [x(0.222), -0.17], [x(0.19), -0.22]], 5, 0.45, 2.4)
+    crease([[x(0.115), -0.218], [x(0.06), -0.222]], 9, 0.85, 2)
+    crease([[x(0.225), -0.2], [x(0.28), -0.3], [x(0.34), -0.42], [x(0.375), -0.56]], 9, 0.42, 4)
+    crease([[x(0.36), -0.6], [x(0.34), -0.74], [x(0.26), -0.86]], 6, 0.24, 3.5)
   })
   // The dimple of the upper lip, the shadow over the chin, the crease under the lip.
   crease([[-0.025, -0.28], [-0.03, -0.46]], 3, 0.22, 2.5)
   crease([[0.025, -0.28], [0.03, -0.46]], 3, 0.22, 2.5)
-  crease([[-0.17, -0.68], [0, -0.705], [0.17, -0.68]], 5, 0.35, 3)
+  crease([[-0.17, -0.67], [-0.08, -0.705], [0.08, -0.705], [0.17, -0.67]], 9, 0.5, 4)
   crease([[-0.09, 0.42], [-0.06, 0.32]], 4, 0.45, 2)
   crease([[0.09, 0.42], [0.06, 0.32]], 4, 0.45, 2)
 
   // The big scar, down from the clamp to the brow, jagged and dark; a cut on the cheek.
   const scar = [[-0.33, 0.78], [-0.32, 0.72], [-0.3, 0.67], [-0.315, 0.62], [-0.29, 0.56], [-0.285, 0.5], [-0.26, 0.44], [-0.25, 0.37]]
-  crease(scar, 9, 0.5, 2)
-  crease(scar, 4, 1, 0.6)
+  crease(scar, 6, 0.4, 1.6)
+  crease(scar, 2.6, 1, 0.5)
   crease([[-0.46, -0.335], [-0.41, -0.385], [-0.37, -0.4]], 4, 0.9, 0.7)
   crease([[0.33, 0.68], [0.36, 0.72], [0.37, 0.78]], 3, 0.6, 1)
 
@@ -289,7 +313,7 @@ function skinTexture() {
 
 /** A cupped ear with a rim, big and standing out from the head. Inner parts are darkened in its vertex colours. */
 function earGeometry() {
-  const geometry = new THREE.PlaneGeometry(2, 2, 44, 60)
+  const geometry = new THREE.PlaneGeometry(2, 2, 30, 42)
   const position = geometry.attributes.position as THREE.BufferAttribute
   const colors = new Float32Array(position.count * 3)
   for (let i = 0; i < position.count; i++) {
@@ -302,9 +326,9 @@ function earGeometry() {
     const bowl = Math.exp(-(((r - 0.28) / 0.3) ** 2))
     // Wider at the top, narrowing to the lobe.
     const narrow = 1 - 0.3 * sstep(0.2, -1, dy)
-    position.setXYZ(i, dx * 0.17 * narrow, dy * 0.31, 0.04 * rim + 0.018 * fold - 0.05 * bowl)
-    const shade = 1 - 0.8 * bowl - 0.25 * Math.exp(-(((r - 0.72) / 0.05) ** 2))
-    colors[i * 3] = colors[i * 3 + 1] = colors[i * 3 + 2] = Math.max(0.1, shade)
+    position.setXYZ(i, dx * 0.2 * narrow, dy * 0.31, 0.04 * rim + 0.018 * fold - 0.05 * bowl)
+    const shade = 0.68 * (1 - 0.85 * bowl - 0.3 * Math.exp(-(((r - 0.72) / 0.05) ** 2)))
+    colors[i * 3] = colors[i * 3 + 1] = colors[i * 3 + 2] = Math.max(0.05, shade)
   }
   geometry.setAttribute('color', new THREE.BufferAttribute(colors, 3))
   geometry.computeVertexNormals()
@@ -313,7 +337,7 @@ function earGeometry() {
 
 /** A long thick neck, folded across, its cords running down to the throat. Under the chin it lies in shadow. */
 function neckGeometry() {
-  const geometry = new THREE.CylinderGeometry(0.5, 0.57, 1.1, 72, 70, true)
+  const geometry = new THREE.CylinderGeometry(0.53, 0.6, 1.1, 56, 80, true)
   const position = geometry.attributes.position as THREE.BufferAttribute
   const colors = new Float32Array(position.count * 3)
   for (let i = 0; i < position.count; i++) {
@@ -321,14 +345,15 @@ function neckGeometry() {
     const around = Math.atan2(x, z)
     const t = (y + 0.55) / 1.1
     const wobble = Math.sin(around * 3.1) * 0.05 + Math.sin(around * 7.3) * 0.02
-    const folds = Math.sin((y + wobble) * 62) * Math.sin((y + 0.1) * 13 + around * 2) * Math.max(0, Math.cos(around * 0.7))
+    // Fine, broken wrinkles, deeper towards the collar.
+    const folds = (0.6 * Math.sin((y + wobble) * 96) + 0.4 * Math.sin((y - wobble * 2) * 41 + around * 3)) * Math.sin(around * 2.3 + y * 7) * (0.35 + 0.65 * (1 - t))
     // Two cords from behind the ears to the middle of the throat.
     const cordAt = 1.15 - 0.95 * (1 - t)
     const cord = Math.exp(-(((Math.abs(around) - cordAt) / 0.14) ** 2))
-    const out = 1 + 0.024 * folds + 0.05 * cord
+    const out = 1 + 0.005 * folds + 0.05 * cord
     position.setXYZ(i, x * out, y, z * out * 0.84 - 0.08)
-    const shadow = sstep(0.42, 1, t) * (0.4 + 0.6 * Math.max(0, Math.cos(around)))
-    const shade = (1 - 0.92 * shadow) * (0.8 + 0.2 * folds) * (0.82 + 0.18 * cord) * (0.5 + 0.5 * sstep(1.75, 0.55, Math.abs(around)))
+    const shadow = sstep(0.22, 0.8, t) * (0.55 + 0.45 * Math.max(0, Math.cos(around)))
+    const shade = 0.5 * (1 - 0.97 * shadow) * (0.82 + 0.22 * folds) * (0.72 + 0.28 * cord) * (0.12 + 0.88 * sstep(0.08, 0.3, t)) * (0.5 + 0.5 * sstep(1.75, 0.55, Math.abs(around)))
     colors[i * 3] = colors[i * 3 + 1] = colors[i * 3 + 2] = Math.max(0.015, shade)
   }
   geometry.setAttribute('color', new THREE.BufferAttribute(colors, 3))
@@ -342,57 +367,57 @@ function boltGeometry() {
   return new THREE.LatheGeometry(steps.map(([r, y]) => new THREE.Vector2(r, y)), 28)
 }
 
-/** A clamp: a bent strip through the edge of the scalp, one end hanging down over the forehead to a point. */
+/** A clamp: a plate gripping the edge of the scalp, a bent strip from it down the forehead, ending in a rivet. */
 function clampGeometry(depth: DepthGrid, side: number) {
   const x = side * 0.39
   const on = (px: number, y: number, lift: number) => new THREE.Vector3(px, y, depth.at(px, y) + lift)
   const hook = new THREE.CatmullRomCurve3([
-    on(x - side * 0.012, 0.93, 0.03),
-    on(x - side * 0.02, 0.87, 0.075),
-    on(x, 0.8, 0.05),
-    on(x + side * 0.012, 0.74, 0.03),
-    on(x + side * 0.03, 0.68, 0.022),
+    on(x - side * 0.01, 0.88, 0.02),
+    on(x - side * 0.016, 0.82, 0.03),
+    on(x + side * 0.004, 0.76, 0.024),
+    on(x + side * 0.02, 0.7, 0.016),
   ])
-  const strap = new THREE.TubeGeometry(hook, 16, 0.017, 6, false)
-  // The end flattens to a blade.
-  const blade = new THREE.ConeGeometry(0.03, 0.11, 6)
-  blade.rotateX(Math.PI)
-  blade.scale(1, 1, 0.45)
-  const tip = on(x + side * 0.035, 0.635, 0.022)
-  blade.translate(tip.x, tip.y, tip.z)
-  return mergeGeometries([strap, blade])
+  const strap = new THREE.TubeGeometry(hook, 14, 0.013, 6, false)
+  const plate = new THREE.BoxGeometry(0.075, 0.04, 0.016)
+  const grip = on(x - side * 0.01, 0.875, 0.024)
+  plate.rotateZ(side * 0.14)
+  plate.translate(grip.x, grip.y, grip.z)
+  const rivet = new THREE.SphereGeometry(0.019, 10, 8)
+  const end = on(x + side * 0.022, 0.692, 0.014)
+  rivet.translate(end.x, end.y, end.z)
+  return mergeGeometries([strap.toNonIndexed(), plate.toNonIndexed(), rivet.toNonIndexed()])
 }
 
 /** Stitches across a seam: short lengths of thread standing off the skin, at these points. */
 function stitchGeometry(depth: DepthGrid, seam: number[][]) {
   const parts = seam.map(([x, y], i) => {
-    const lean = i % 2 ? 0.012 : -0.012
+    const lean = i % 2 ? 0.008 : -0.006
     const on = (px: number, py: number, lift: number) => new THREE.Vector3(px, py, depth.at(px, py) + lift)
     const thread = new THREE.CatmullRomCurve3([
-      on(x - 0.035, y + lean, 0.004),
-      on(x - 0.012, y + lean * 0.3, 0.014),
-      on(x + 0.012, y - lean * 0.3, 0.014),
-      on(x + 0.035, y - lean, 0.004),
+      on(x - 0.02, y + lean, 0.002),
+      on(x - 0.007, y + lean * 0.3, 0.01),
+      on(x + 0.007, y - lean * 0.3, 0.01),
+      on(x + 0.02, y - lean, 0.002),
     ])
-    return new THREE.TubeGeometry(thread, 5, 0.0065, 4, false)
+    return new THREE.TubeGeometry(thread, 5, 0.0045, 4, false)
   })
   return mergeGeometries(parts)
 }
 
-/** Shoulders of a very large man in a dark jacket. */
-function torsoGeometry() {
+/** Shoulders of a very large man in a dark jacket, open at the front. Lathe angle 0 looks at the viewer. */
+function jacketGeometry() {
   const curve = new THREE.SplineCurve([
-    [0.56, -1.56], [0.86, -1.66], [1.32, -1.78], [1.78, -2.02], [1.94, -2.5], [1.96, -3.4],
+    [0.7, -1.5], [0.98, -1.6], [1.38, -1.76], [1.8, -2.02], [1.96, -2.5], [1.98, -3.4],
   ].map(([r, y]) => new THREE.Vector2(r, y)))
-  return new THREE.LatheGeometry(curve.getSpacedPoints(70), 96)
+  return new THREE.LatheGeometry(curve.getSpacedPoints(24), 48, 0.62, Math.PI * 2 - 1.24)
 }
 
-/** The jacket's collar, standing up beside the neck and open at the front. Lathe angle 0 looks at the viewer. */
-function collarGeometry() {
+/** The black sweater: closes round the neck, fills the front of the jacket. */
+function sweaterGeometry() {
   const curve = new THREE.SplineCurve([
-    [0.86, -1.82], [0.74, -1.66], [0.64, -1.52], [0.63, -1.42],
+    [0.6, -1.56], [0.63, -1.52], [0.69, -1.56], [0.92, -1.76], [1.5, -2.2], [1.6, -3.2],
   ].map(([r, y]) => new THREE.Vector2(r, y)))
-  return new THREE.LatheGeometry(curve.getSpacedPoints(20), 72, 0.72, Math.PI * 2 - 1.44)
+  return new THREE.LatheGeometry(curve.getSpacedPoints(20), 40)
 }
 
 /** Random noise that tiles: the film grain. */
@@ -515,11 +540,11 @@ export class FrankHead implements HeadView {
     backdrop.renderOrder = -10
     this.scene.add(backdrop)
 
-    this.scene.add(new THREE.HemisphereLight(0xffffff, 0x1a1a1a, 0.5))
-    this.key = new THREE.DirectionalLight(0xffffff, 3.3)
+    this.scene.add(new THREE.HemisphereLight(0xffffff, 0x1c1c1c, 0.46))
+    this.key = new THREE.DirectionalLight(0xffffff, 3.9)
     this.key.position.copy(KEY_DIRECTION).multiplyScalar(6)
-    const fill = new THREE.DirectionalLight(0xffffff, 0.3)
-    fill.position.set(-4, -1, 4)
+    const fill = new THREE.DirectionalLight(0xffffff, 0.34)
+    fill.position.set(-4, 0, 4)
     const rim = new THREE.DirectionalLight(0xffffff, 1.1)
     rim.position.set(-3, 3, -5)
     this.arcFlash = new THREE.PointLight(0xffffff, 0, 3, 1.4)
@@ -548,14 +573,14 @@ export class FrankHead implements HeadView {
 
     const earSkin = new THREE.MeshStandardMaterial({ color: SKIN, roughness: 0.7, vertexColors: true, side: THREE.DoubleSide })
     const steel = new THREE.MeshStandardMaterial({ color: 0xd2d2d2, roughness: 0.3, metalness: 0.45 })
-    const darkSteel = new THREE.MeshStandardMaterial({ color: 0x4c4c4c, roughness: 0.42, metalness: 0.5 })
+    const darkSteel = new THREE.MeshStandardMaterial({ color: 0x6a6a6a, roughness: 0.42, metalness: 0.5 })
     for (const side of [-1, 1]) {
       const ear = new THREE.Mesh(earGeometry(), earSkin)
-      ear.position.set(side * 0.74, -0.33, -0.1)
-      ear.rotation.set(0, side * 0.85, side * -0.09)
+      ear.position.set(side * 0.73, -0.31, -0.08)
+      ear.rotation.set(0, side * 0.62, side * -0.09)
       ear.scale.x = side
       head.add(ear)
-      head.add(new THREE.Mesh(clampGeometry(depth, side), side < 0 ? darkSteel : darkSteel))
+      head.add(new THREE.Mesh(clampGeometry(depth, side), darkSteel))
     }
     const thread = new THREE.MeshStandardMaterial({ color: 0x1d1d1d, roughness: 0.75 })
     head.add(new THREE.Mesh(stitchGeometry(depth, [
@@ -595,13 +620,13 @@ export class FrankHead implements HeadView {
     this.scene.add(this.neck)
 
     // --- jacket and black sweater: they do not turn ------------------------------
-    const jacket = new THREE.MeshStandardMaterial({ color: 0x2c2c2c, roughness: 0.84, side: THREE.DoubleSide })
-    const sweater = new THREE.Mesh(
-      new THREE.CylinderGeometry(0.6, 0.86, 0.5, 48),
-      new THREE.MeshStandardMaterial({ color: 0x090909, roughness: 0.9 }),
-    )
-    sweater.position.y = -1.82
-    this.scene.add(sweater, new THREE.Mesh(torsoGeometry(), jacket), new THREE.Mesh(collarGeometry(), jacket))
+    const jacket = new THREE.MeshStandardMaterial({ color: 0x5c5c5c, roughness: 0.84, side: THREE.DoubleSide })
+    const sweater = new THREE.MeshStandardMaterial({ color: 0x090909, roughness: 0.9, side: THREE.DoubleSide })
+    // As flat as the neck that comes out of it.
+    const sweaterMesh = new THREE.Mesh(sweaterGeometry(), sweater)
+    sweaterMesh.scale.z = 0.84
+    sweaterMesh.position.z = -0.08
+    this.scene.add(sweaterMesh, new THREE.Mesh(jacketGeometry(), jacket))
 
     // --- the film over everything ------------------------------------------------
     const noise = noiseTexture()
@@ -641,8 +666,8 @@ export class FrankHead implements HeadView {
     const halfFov = THREE.MathUtils.degToRad(FOV / 2)
     this.camera.position.z = Math.max(CAM_DIST, 2.5 / (2 * Math.tan(halfFov) * this.camera.aspect))
     this.camera.updateProjectionMatrix()
-    // The grain stays the same size on every screen: one noise texel, about two pixels.
-    this.film.uniforms.uGrainScale.value.set(w / 512, h / 512)
+    // The grain stays the same size on every screen: one noise texel per pixel.
+    this.film.uniforms.uGrainScale.value.set(w / 256, h / 256)
   }
 
   private onVisibility = () => {
@@ -695,11 +720,11 @@ export class FrankHead implements HeadView {
     const crackle = arcing && Math.random() < 0.72 ? 0.65 + Math.random() * 0.35 : 0
     this.arcMaterial.opacity = crackle
     if (crackle) this.arcTexture.offset.y = Math.floor(Math.random() * 4) / 4
-    this.arcFlash.intensity = 5 * crackle
+    this.arcFlash.intensity = 2.2 * crackle
 
     // A hand-cranked lamp: the light breathes a little, frame by frame.
     const flicker = 1 + 0.025 * Math.sin(t * 13.7) * Math.sin(t * 7.1) + (Math.random() - 0.5) * 0.03
-    this.key.intensity = 3.3 * flicker
+    this.key.intensity = 3.9 * flicker
     this.wall.uniforms.uLight.value = flicker + 0.5 * crackle
     this.film.uniforms.uGrainOffset.value.set(Math.random(), Math.random())
     if (t > this.scratchUntil + 3 && Math.random() < 0.006) {

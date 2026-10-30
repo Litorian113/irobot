@@ -11,8 +11,8 @@ import { BACKDROP_FRAGMENT, FACE_GLOW, FACE_PAINT, FACE_PARS, HAIR_MOVE, HAIR_PA
  */
 
 const FOV = 28
-const CAM_DIST = 5.25
-const CAM_Y = -0.1
+const CAM_DIST = 4.8
+const CAM_Y = -0.03
 
 /** The head's half-size (head units). */
 const HEAD_X = 0.7
@@ -57,7 +57,7 @@ function relief(x: number, y: number, z: number) {
   return 0.1 * Math.exp(-(((side - 0.3) / 0.34) ** 2) - (((y - browY) / 0.07) ** 2)) * front
     - 0.035 * bump(0, 0.33, 0.035, 0.1) // the furrow between the brows
     - 0.16 * bump(0.36, 0.11, 0.17, 0.085) // sockets
-    + 0.13 * bump(0, -0.02, 0.085, 0.24) // bridge of the nose
+    + 0.16 * bump(0, -0.02, 0.075, 0.25) // bridge of the nose
     + 0.09 * bump(0, -0.25, 0.1, 0.07) // its tip
     + 0.025 * bump(0.11, -0.3, 0.05, 0.04) // nostrils
     + 0.045 * bump(0.58, -0.08, 0.16, 0.11) // cheekbones
@@ -71,7 +71,7 @@ function relief(x: number, y: number, z: number) {
 const narrowing = (y: number) => smoothstep(-y, 0.2, 1)
 
 function headGeometry() {
-  const geometry = new THREE.SphereGeometry(1, 128, 96)
+  const geometry = new THREE.SphereGeometry(1, 96, 72)
   const position = geometry.attributes.position as THREE.BufferAttribute
   const uv = geometry.attributes.uv as THREE.BufferAttribute
   for (let i = 0; i < position.count; i++) {
@@ -99,7 +99,7 @@ function faceZ(x: number, y: number) {
 /** The solid hair behind the strands, as wide as this at height y. */
 function massRadius(y: number) {
   const top = 1.13
-  if (y > 0.4) return 0.98 * Math.sqrt(Math.max(0, 1 - ((y - 0.4) / (top - 0.4)) ** 2))
+  if (y > 0.1) return 0.98 * Math.sqrt(Math.max(0, 1 - ((y - 0.1) / (top - 0.1)) ** 2))
   return 0.98 + 0.05 * smoothstep(-y, 0.2, 2.2)
 }
 const MASS_DEPTH = 0.62
@@ -112,11 +112,11 @@ function massZ(x: number, y: number) {
 function massGeometry() {
   const points: THREE.Vector2[] = []
   // From the bottom up: that way the lathe's faces look outwards.
-  for (let i = 0; i <= 60; i++) {
-    const y = -2.97 + (i / 60) * 4.1
+  for (let i = 0; i <= 30; i++) {
+    const y = -2.97 + (i / 30) * 4.1
     points.push(new THREE.Vector2(massRadius(y), y))
   }
-  const geometry = new THREE.LatheGeometry(points, 64)
+  const geometry = new THREE.LatheGeometry(points, 40)
   geometry.scale(1, 1, MASS_DEPTH)
   geometry.translate(0, 0, -MASS_BACK)
   geometry.computeVertexNormals()
@@ -135,8 +135,8 @@ function table(rows: number[][], y: number) {
 }
 
 /** Where the curtain of hair begins, on either side of the face. Over her other eye it closes. */
-const OPENING_RIGHT = [[1.1, 0.03], [0.74, 0.07], [0.5, 0.2], [0.2, 0.37], [-0.1, 0.39], [-0.4, 0.33], [-0.75, 0.29], [-1.05, 0.24], [-3, 0.2]]
-const OPENING_LEFT = [[1.1, 0.03], [0.74, 0.05], [0.5, 0.11], [0.25, 0.14], [0.05, 0.2], [-0.15, 0.25], [-0.45, 0.27], [-0.75, 0.27], [-1.05, 0.23], [-3, 0.2]]
+const OPENING_RIGHT = [[1.1, 0.03], [0.76, 0.1], [0.5, 0.26], [0.2, 0.4], [-0.1, 0.41], [-0.4, 0.35], [-0.72, 0.27], [-1, 0.1], [-3, 0.06]]
+const OPENING_LEFT = [[1.1, 0.03], [0.76, 0.08], [0.5, 0.2], [0.25, 0.27], [0.05, 0.3], [-0.15, 0.32], [-0.45, 0.32], [-0.72, 0.26], [-1, 0.08], [-3, 0.04]]
 
 interface Strand {
   curve: THREE.Curve<THREE.Vector3>
@@ -146,7 +146,7 @@ interface Strand {
 
 /** One mesh of thin tapering three-sided tubes; 16-bit indices are plenty, and always there on WebGL 1. */
 function strandsGeometry(strands: Strand[]) {
-  const SEGMENTS = 20, SIDES = 3
+  const SEGMENTS = 24, SIDES = 3
   const ringCount = SEGMENTS + 1
   const vertices = strands.length * ringCount * SIDES
   if (vertices > 65535) throw new Error('S.A.M.A.R.A.: too many strands')
@@ -162,8 +162,8 @@ function strandsGeometry(strands: Strand[]) {
     const first = v
     for (let s = 0; s < ringCount; s++) {
       const u = s / SEGMENTS
-      curve.getPoint(u, point)
-      curve.getTangent(u, tangent)
+      curve.getPointAt(u, point)
+      curve.getTangentAt(u, tangent)
       across.crossVectors(tangent, toViewer).normalize()
       other.crossVectors(across, tangent)
       // Thick at the root, wet ends running out to a point. Darker at the root, too.
@@ -174,7 +174,7 @@ function strandsGeometry(strands: Strand[]) {
         normal.copy(across).multiplyScalar(Math.cos(angle)).addScaledVector(other, Math.sin(angle))
         positions.set([point.x + normal.x * r, point.y + normal.y * r, point.z + normal.z * r], v * 3)
         normals.set([normal.x, normal.y, normal.z], v * 3)
-        colors.set([light * 0.92, light, light], v * 3)
+        colors.set([light, light, light], v * 3)
         v++
       }
     }
@@ -210,7 +210,7 @@ function hairStrands() {
   const HEIGHTS = [1, 0.9, 0.78, 0.63, 0.48, 0.34, 0.2, 0.05, -0.1, -0.25, -0.4, -0.55, -0.72, -0.9, -1.2, -1.6]
 
   // The curtain: from the parting over the temples, down to the shoulders.
-  for (let i = 0; i < 260; i++) {
+  for (let i = 0; i < 240; i++) {
     const side = i % 2 ? 1 : -1
     const opening = side > 0 ? OPENING_RIGHT : OPENING_LEFT
     const across = Math.pow(random(), 1.15)
@@ -237,18 +237,18 @@ function hairStrands() {
     const last = points[points.length - 1]
     points.push(new THREE.Vector3(last.x * (1 + 0.04 * random()), end, last.z))
     strands.push({
-      curve: new THREE.CatmullRomCurve3(points),
-      radius: 0.01 + 0.019 * random(),
+      curve: new THREE.CatmullRomCurve3(points, false, 'centripetal'),
+      radius: 0.011 + 0.02 * random(),
       shade: 0.5 + 1.9 * random() * random(),
     })
   }
 
   // Loose strands across the face: [x at the forehead, x at the chin, thickness].
   const loose = [
-    [0.02, -0.17, 0.011], [-0.03, -0.15, 0.006], [0.06, 0.1, 0.008], [0.09, 0.2, 0.0065],
-    [-0.02, 0.05, 0.0055], [0.14, 0.29, 0.009], [0.17, 0.12, 0.0045], [-0.07, -0.2, 0.0095],
-    [-0.1, -0.09, 0.005], [0.05, -0.04, 0.0042], [0.12, -0.08, 0.0048], [-0.05, 0.14, 0.0042],
-    [0.19, 0.25, 0.0065], [-0.12, -0.26, 0.012], [0.03, 0.17, 0.0048], [-0.15, -0.24, 0.009],
+    [0.03, -0.16, 0.0085], [-0.04, -0.13, 0.0045], [0.08, 0.17, 0.006], [0.15, 0.3, 0.0075],
+    [0.16, 0.08, 0.0035], [0.05, -0.05, 0.0032], [-0.07, 0.04, 0.0035],
+    // A clump over the other eye.
+    [-0.12, -0.23, 0.0095], [-0.15, -0.3, 0.012], [-0.17, -0.26, 0.008], [-0.2, -0.33, 0.011], [-0.1, -0.2, 0.0045],
   ]
   for (const [top, bottom, radius] of loose) {
     const rootZ = 0.3 + 0.25 * random()
@@ -256,23 +256,23 @@ function hairStrands() {
     const phase = random() * 6.28
     for (const y of [0.82, 0.64, 0.44, 0.24, 0.04, -0.16, -0.36, -0.56, -0.78, -1, -1.3]) {
       const f = THREE.MathUtils.clamp((0.7 - y) / 1.7, 0, 1)
-      const x = top + (bottom - top) * f + 0.014 * Math.sin(phase + y * 6)
+      const x = top + (bottom - top) * f + 0.03 * Math.sin(phase + y * 3.4) * Math.min(1, f * 2.5)
       points.push(new THREE.Vector3(x, y, clearZ(x, y, 0.014 + 0.014 * random())))
     }
-    strands.push({ curve: new THREE.CatmullRomCurve3(points), radius, shade: 0.8 + 0.9 * random() })
+    strands.push({ curve: new THREE.CatmullRomCurve3(points, false, 'centripetal'), radius, shade: 0.5 + 0.5 * random() })
   }
 
   // Stray hairs round the outside, against the light.
-  for (let i = 0; i < 36; i++) {
+  for (let i = 0; i < 26; i++) {
     const side = i % 2 ? 1 : -1
-    const start = 1.08 + 0.1 * random(), wander = 0.05 + 0.1 * random()
+    const wander = 0.03 + 0.09 * random()
     const phase = random() * 6.28
     const points: THREE.Vector3[] = []
-    for (let y = 0.7; y > -2.6; y -= 0.4) {
-      const x = side * (Math.min(massRadius(y), start) + wander * Math.sin(phase + y * 1.9) + 0.02)
-      points.push(new THREE.Vector3(x, y, -0.05 + 0.2 * random()))
+    for (let y = 0.15 + 0.6 * random(); y > -2.6; y -= 0.55) {
+      const x = side * (massRadius(y) + wander * (0.5 + 0.5 * Math.sin(phase + y * 1.3)))
+      points.push(new THREE.Vector3(x, y, 0.02 + 0.12 * random()))
     }
-    strands.push({ curve: new THREE.CatmullRomCurve3(points), radius: 0.004 + 0.006 * random(), shade: 1 })
+    strands.push({ curve: new THREE.CatmullRomCurve3(points, false, 'centripetal'), radius: 0.0035 + 0.005 * random(), shade: 0.8 })
   }
   return strands
 }
@@ -296,8 +296,8 @@ function skinTexture() {
     ctx.fillStyle = stain
     ctx.fillRect(x - r, y - r, r * 2, r * 2)
   }
-  for (let i = 0; i < 130; i++) {
-    blotch(random() * size, random() * size, 18 + random() * 80, i % 4 ? '38, 52, 46' : '62, 58, 42', 0.06 + random() * 0.15)
+  for (let i = 0; i < 190; i++) {
+    blotch(random() * size, random() * size, 12 + random() * 70, i % 4 ? '30, 42, 38' : '58, 52, 38', 0.08 + random() * 0.2)
   }
   // The mud gets denser towards the chin.
   for (let i = 0; i < 90; i++) {
@@ -328,10 +328,10 @@ function skinTexture() {
   }
   // The scowl: creases above the nose, furrows across the forehead, deep lines by nose and mouth.
   for (const side of [-1, 1]) {
-    line([[side * 0.022, 0.42], [side * 0.042, 0.33], [side * 0.03, 0.22]], 7, 0.75, 2)
-    line([[side * 0.075, 0.37], [side * 0.09, 0.28]], 5, 0.5, 2)
+    line([[side * 0.024, 0.37], [side * 0.04, 0.31], [side * 0.03, 0.25]], 6, 0.55, 3)
+    line([[side * 0.07, 0.34], [side * 0.08, 0.29]], 4, 0.3, 3)
     line([[side * 0.09, -0.26], [side * 0.15, -0.38], [side * 0.195, -0.5]], 7, 0.6, 3)
-    line([[side * 0.1, 0.04], [side * 0.2, -0.01], [side * 0.3, 0.02]], 6, 0.55, 3)
+    line([[side * 0.13, 0.03], [side * 0.22, -0.015], [side * 0.31, 0.015]], 9, 0.28, 6)
     line([[side * 0.2, -0.56], [side * 0.17, -0.68]], 6, 0.6, 3)
   }
   for (const y of [0.47, 0.53, 0.59]) line([[-0.26, y - 0.02], [-0.1, y + 0.012], [0.08, y - 0.006], [0.27, y + 0.016]], 3, 0.42, 1.5)
@@ -371,7 +371,7 @@ function blurTexture() {
   ctx.globalCompositeOperation = 'lighter'
   for (let i = 0; i < 90; i++) {
     const x = random() * size, y = random() * size, r = 8 + random() * 44
-    const light = 10 + random() * 34
+    const light = 14 + random() * 52
     for (const dx of [-size, 0, size]) {
       for (const dy of [-size, 0, size]) {
         const puff = ctx.createRadialGradient(x + dx, y + dy, 0, x + dx, y + dy, r)
@@ -499,19 +499,19 @@ export class SamaraHead implements HeadView {
     this.scene.add(wall)
 
     // A cold flat light from the front and above: sickly on the nose and brow, nothing in the hollows.
-    this.scene.add(new THREE.HemisphereLight(0x9fc2bb, 0x050a09, 0.34))
-    this.key = new THREE.DirectionalLight(0xd6ece4, KEY_LIGHT)
+    this.scene.add(new THREE.HemisphereLight(0xa9c6bf, 0x050a09, 0.3))
+    this.key = new THREE.DirectionalLight(0xdde9e5, KEY_LIGHT)
     this.key.position.set(0.5, 2.6, 4.2)
     const sheen = new THREE.DirectionalLight(0xbfe0dc, 1.6)
     sheen.position.set(-2.6, 3.2, 1.8)
-    const rim = new THREE.DirectionalLight(0x7fb0ac, 0.9)
+    const rim = new THREE.DirectionalLight(0x7fb0ac, 0.45)
     rim.position.set(3, 1.5, -4)
     this.scene.add(this.key, sheen, rim)
 
     // --- head --------------------------------------------------------------------------
     const pattern = skinTexture()
     this.textures.push(pattern)
-    const skin = new THREE.MeshStandardMaterial({ color: 0xaebfb2, map: pattern, roughness: 0.74 })
+    const skin = new THREE.MeshStandardMaterial({ color: 0xb4bfb8, map: pattern, roughness: 0.74 })
     skin.onBeforeCompile = (shader) => {
       Object.assign(shader.uniforms, this.paint)
       shader.vertexShader = shader.vertexShader
@@ -532,9 +532,9 @@ export class SamaraHead implements HeadView {
         .replace('#include <common>', `#include <common>\n${HAIR_PARS}`)
         .replace('#include <begin_vertex>', `#include <begin_vertex>\n${HAIR_MOVE}`)
     }
-    const massMaterial = new THREE.MeshStandardMaterial({ color: 0x070909, roughness: 0.5 })
+    const massMaterial = new THREE.MeshStandardMaterial({ color: 0x040505, roughness: 0.6 })
     massMaterial.onBeforeCompile = moveHair
-    const strandMaterial = new THREE.MeshStandardMaterial({ color: 0x30393a, roughness: 0.3, vertexColors: true })
+    const strandMaterial = new THREE.MeshStandardMaterial({ color: 0x1c1f20, roughness: 0.28, vertexColors: true })
     strandMaterial.onBeforeCompile = moveHair
     const strands = new THREE.Mesh(strandsGeometry(hairStrands()), strandMaterial)
     strands.frustumCulled = false

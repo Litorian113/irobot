@@ -198,8 +198,8 @@ Im Tab Köpfe gibt es dafür „WebGL 1 testen".
 
 ### Einen neuen Kopf bauen
 
-Ein Eintrag in `src/heads/designs.ts`: Name, Beschreibung, Platz (`slot`, oder `null` für „nur in der
-Auswahl") und eine `create`-Funktion, die ein `HeadView` liefert (`src/heads/types.ts`: `setLook`,
+Ein Eintrag in `src/heads/designs.ts`: Name, Beschreibung, Kategorien für den Filter über den Listen
+(`categories`, ein Kopf darf in mehreren stehen), Platz (`slot`, oder `null` für „nur in der Auswahl") und eine `create`-Funktion, die ein `HeadView` liefert (`src/heads/types.ts`: `setLook`,
 `setExpression`, `debug`, `dispose`). Die vorhandenen Köpfe in `src/heads/*/` sind gute Vorlagen,
 z.B. `rams/` (einfache Geometrie) oder `onyx/` (eigene Shader). Danach die Vorschaubilder neu machen:
 `npm run snapshots` (braucht Google Chrome).

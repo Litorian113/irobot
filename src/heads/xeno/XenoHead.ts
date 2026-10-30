@@ -13,11 +13,11 @@ import { BACKDROP_FRAGMENT, BACKDROP_VERTEX, XENO_FRAGMENT, XENO_VERTEX } from '
 
 const MODEL = `${import.meta.env.BASE_URL}models/Xeno`
 const FOV = 26
-const CAM_DIST = 12.2
+const CAM_DIST = 7.4
 /** Where the camera looks: the head a little above the middle, the neck runs out at the bottom. */
-const CENTRE = new THREE.Vector2(0.02, -0.42)
+const CENTRE = new THREE.Vector2(0.05, -0.1)
 /** How much of the width it needs, for narrow screens: from the mouth to the middle of the dome. */
-const NEEDS_WIDTH = 4.3
+const NEEDS_WIDTH = 3.9
 
 /** The pose of the photo, when nobody is there. */
 const PROFILE_YAW = 1.12
@@ -212,7 +212,7 @@ export class XenoHead implements HeadView {
     const a = this.attention
     const u = this.material.uniforms
     ;(u.uTurn.value as THREE.Vector2).set(
-      PROFILE_YAW * (1 - a) + (pose.yaw + 0.12) * a + pose.yaw * 0.25 * (1 - a),
+      PROFILE_YAW * (1 - a) + pose.yaw * a + pose.yaw * 0.25 * (1 - a),
       PROFILE_PITCH * (1 - a) + (pose.pitch + 0.1) * a + breath * 0.008 - strike * 0.03,
     )
     u.uJaw.value = this.jaw + breath * 0.016 + strike * 0.14 + shiver
