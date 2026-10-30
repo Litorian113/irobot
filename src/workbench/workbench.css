@@ -1231,6 +1231,136 @@ label.studio-info-item {
   color: var(--ios-label-2);
 }
 
+.schedule-calendar {
+  display: grid;
+  grid-template-columns: minmax(280px, 1fr) minmax(240px, 1fr);
+  gap: 24px;
+}
+
+.calendar-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 10px;
+}
+
+.calendar-head button {
+  width: 34px;
+  height: 34px;
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  background: var(--ios-fill);
+  color: var(--ios-label);
+  font-size: 20px;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.calendar-grid {
+  display: grid;
+  grid-template-columns: repeat(7, minmax(0, 1fr));
+  row-gap: 3px;
+}
+
+.calendar-weekday {
+  padding-bottom: 4px;
+  font-size: 12px;
+  text-align: center;
+  color: var(--ios-label-2);
+}
+
+.calendar-day {
+  position: relative;
+  height: 40px;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--ios-label);
+  font: inherit;
+  font-size: 15px;
+  font-variant-numeric: tabular-nums;
+  cursor: pointer;
+}
+
+.calendar-day.other {
+  color: var(--ios-label-3);
+}
+
+.calendar-day.today {
+  color: var(--ios-tint);
+  font-weight: 700;
+}
+
+.calendar-day.range {
+  background: var(--ios-tint-soft);
+}
+
+.calendar-day.edge {
+  border-radius: 10px;
+  background: var(--ios-tint);
+  color: #fff;
+}
+
+.calendar-mark {
+  display: inline-block;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: #8e8e93;
+}
+
+.calendar-mark.on {
+  background: var(--ios-green);
+}
+
+.calendar-day .calendar-mark {
+  position: absolute;
+  left: 50%;
+  bottom: 4px;
+  margin-left: -3px;
+}
+
+.calendar-form {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  min-width: 0;
+}
+
+.calendar-span {
+  margin: 0;
+  min-height: 42px;
+  font-size: 15px;
+  font-weight: 600;
+}
+
+.calendar-times {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.calendar-add {
+  justify-content: center;
+}
+
+.calendar-add:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+
+.calendar-reset {
+  align-self: center;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--ios-label-2);
+  font: inherit;
+  font-size: 13px;
+  cursor: pointer;
+}
+
 .schedule-error {
   margin-top: 16px;
   color: var(--ios-red);
@@ -2065,6 +2195,10 @@ label.studio-info-item {
 }
 
 @media (max-width: 720px) {
+  .schedule-calendar {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
   .schedule-exception {
     grid-template-columns: minmax(0, 1fr) 36px;
   }

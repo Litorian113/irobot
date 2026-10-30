@@ -96,7 +96,7 @@ Einschaltzeit (`pmset`), und der Server kann ihn nicht wecken.
 
 **Zeiten ändern:** Kalender-Symbol oben rechts auf der Wand-Seite (`http://hfg-wall.local:8080/?view=schedule`).
 Dort stehen die **Woche** (an, aus, Tage) und die **Ausnahmen**: von wann bis wann die Wand an bleibt oder aus bleibt
-(Sonderbetrieb, Weihnachten, Ferien). Ändern darf das jeder im WLAN `hfg`, wie die Wand selbst. Gespeichert wird in
+(Sonderbetrieb, Weihnachten, Ferien). Im Kalender wählst du dafür den ersten und letzten Tag und die Uhrzeit an beiden. Ändern darf das jeder im WLAN `hfg`, wie die Wand selbst. Gespeichert wird in
 `walls/schedule.json` auf dem Server (übersteht Deploys, nicht im Repo).
 
 So kommt das auf die iMacs (`src/schedule.ts`, `scripts/windows/plan.ps1`, `imacs.sh program`):

@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import { DAYS, formatDateTime, isSchedule, type Schedule, type ScheduleException } from '../schedule'
+import ScheduleCalendar from './ScheduleCalendar'
 import { PageButton, PageHeader, SaveBar, StatusLine, type Tone } from './ui'
 
 const DAY_LABELS = ['Mo', 'Di', 'Mi', 'Do', 'Fr', 'Sa', 'So']
@@ -123,6 +124,11 @@ export default function ScheduleView() {
             </div>
             <p className="schedule-note">Ein iMac braucht rund 5 Minuten zum Starten: Bei 16:55 läuft die Wand gegen 17:00.</p>
           </div>
+        </section>
+
+        <section className="schedule-section">
+          <h3>Zeitraum wählen</h3>
+          <ScheduleCalendar schedule={draft} onAdd={(exception) => setDraft({ ...draft, exceptions: [...draft.exceptions, exception] })} />
         </section>
 
         <section className="schedule-section">
