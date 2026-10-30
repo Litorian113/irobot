@@ -1,6 +1,7 @@
 import type { HeadConfig, HeadStyle } from './viki/config'
 import type { Vec3 } from './tracking/gaze'
 import { DESIGNS } from './heads/designs'
+import { bannerOf, type Banner } from './banners'
 import { catalogEntry, PROMO_KEY } from './heads/catalog'
 import { cellColumns, gridLayout, type WallLayout } from './layout'
 import type { CreateHead, HeadDesign } from './heads/types'
@@ -10,10 +11,9 @@ import { VISITOR_AFTER_MS } from './analytics'
 /** The middle screen carries the HfG message instead of a head. */
 export const PROMO_SLOT = 4
 /**
- * The head the promo screen shows until someone has stood in front of the wall for
- * PROMO_AFTER_MS; then the HfG message fades in, and out again PROMO_HOLD_MS after they left.
+ * A banner's head (banners.ts) shows until someone has stood in front of the wall for
+ * PROMO_AFTER_MS; then the banner fades in, and out again PROMO_HOLD_MS after they left.
  */
-export const PROMO_STAND_IN = 'main-11'
 export const PROMO_AFTER_MS = VISITOR_AFTER_MS
 export const PROMO_HOLD_MS = 4000
 
@@ -155,7 +155,7 @@ export type WallSet = 'main'
 
 /** One screen of a wall: the promo (with the head standing in for it), a head, or a place still waiting for its head. */
 export type WallScreen =
-  | { kind: 'promo'; standIn: WallHead | null }
+  | { kind: 'promo'; standIn: WallHead | null; banner: Banner | null }
   | { kind: 'head'; head: WallHead }
   | { kind: 'empty'; design: HeadDesign }
 
@@ -176,7 +176,7 @@ function place(layout: WallLayout, screen: (slot: number, key: string | null) =>
 
 /** Built once: the head that stands in for the promo. */
 const PROMO_HEAD: WallHead | null = (() => {
-  const entry = catalogEntry(PROMO_STAND_IN)
+  const entry = catalogEntry(bannerOf(PROMO_KEY)?.standIn)
   const motion = SLOTS[PROMO_SLOT] ?? { stiffness: 5, delay: 0.1 }
   return entry?.create ? { create: entry.create, design: null, stiffness: motion.stiffness, delay: motion.delay } : null
 })()
@@ -188,16 +188,20 @@ const GRID = gridLayout(Array.from({ length: 9 }, () => null))
 export const SCREENS: Record<WallSet, WallRows> = {
   main: place(GRID, (slot) => {
     const head = WALL_HEADS[slot]
-    return head ? { kind: 'head', head } : { kind: 'promo', standIn: PROMO_HEAD }
+    return head ? { kind: 'head', head } : { kind: 'promo', standIn: PROMO_HEAD, banner: bannerOf(PROMO_KEY) }
   }),
 }
 
 /** Screens for a custom wall (keys from the catalog, see heads/catalog.ts). Build once per page. */
 export function screensFromLayout(layout: WallLayout): WallRows {
   return place(layout, (slot, key): WallScreen => {
-    if (key === PROMO_KEY) return { kind: 'promo', standIn: PROMO_HEAD }
-    const entry = catalogEntry(key)
     const motion = SLOTS[slot] ?? { stiffness: 5, delay: 0.1 }
+    const banner = bannerOf(key)
+    if (banner) {
+      const head = catalogEntry(banner.standIn)
+      return { kind: 'promo', banner, standIn: head?.create ? { create: head.create, design: null, stiffness: motion.stiffness, delay: motion.delay } : null }
+    }
+    const entry = catalogEntry(key)
     if (entry?.create) {
       return { kind: 'head', head: { create: entry.create, design: null, stiffness: motion.stiffness, delay: motion.delay } }
     }

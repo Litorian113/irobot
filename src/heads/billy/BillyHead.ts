@@ -3,7 +3,7 @@ import { RoundedBoxGeometry } from 'three/addons/geometries/RoundedBoxGeometry.j
 import { GazeSpring } from '../GazeSpring'
 import { addDarkBackdrop, DARK_BACKDROP } from '../darkBackdrop'
 import type { Expression, HeadView, HeadViewOptions } from '../types'
-import { BALL_VERTEX, CHEEK_FRAGMENT, EYE_FRAGMENT, MASK_FRAGMENT, MASK_VERTEX } from './shaders'
+import { BALL_VERTEX, CHEEK_FRAGMENT, EYE_FRAGMENT, HALO_FRAGMENT, HALO_VERTEX, MASK_FRAGMENT, MASK_VERTEX } from './shaders'
 
 /**
  * B.I.L.L.Y. - the ventriloquist's puppet out of a horror film: a cracked
@@ -153,63 +153,62 @@ function chinGeometry() {
 }
 
 /**
- * Detail on the mask, projected from the front. Red: lumps of old paper for
- * colour and bump. Green: hairline cracks. Blue: rough noise for the torn edges.
+ * Detail on the mask, projected from the front. Red: lumps of old paper for colour and bump, with a little
+ * grain. Green: hairline cracks. Blue: the lumps alone, for the torn edges.
+ * Written straight into an array: painted on a canvas it came out as noise on the screens of the iMacs.
  */
 function detailTexture() {
   const size = 1024
-  // Lumps on a small canvas: scaled up they are soft, at no cost.
-  const small = document.createElement('canvas')
-  small.width = small.height = 256
-  const lumps = small.getContext('2d')!
-  lumps.fillStyle = 'rgb(128,0,128)'
-  lumps.fillRect(0, 0, 256, 256)
-  for (let i = 0; i < 1800; i++) {
-    const r = 0.8 + Math.random() ** 2 * 9
-    const light = Math.random() < 0.5
-    lumps.fillStyle = light ? `rgba(215,0,190,${0.06 + Math.random() * 0.14})` : `rgba(45,0,60,${0.06 + Math.random() * 0.16})`
-    lumps.beginPath()
-    lumps.ellipse(Math.random() * 256, Math.random() * 256, r, r * (0.4 + Math.random()), Math.random() * 3, 0, Math.PI * 2)
-    lumps.fill()
+  const data = new Uint8Array(size * size * 4)
+  // Soft lumps from a coarse grid of random values, two sizes of them.
+  const grid = (cells: number) => Array.from({ length: (cells + 1) * (cells + 1) }, () => Math.random())
+  const lumps = (values: number[], cells: number, x: number, y: number) => {
+    const fx = (x / size) * cells, fy = (y / size) * cells
+    const ix = Math.floor(fx), iy = Math.floor(fy)
+    const sx = (fx - ix) * (fx - ix) * (3 - 2 * (fx - ix)), sy = (fy - iy) * (fy - iy) * (3 - 2 * (fy - iy))
+    const at = (a: number, b: number) => values[(iy + b) * (cells + 1) + ix + a]
+    return (at(0, 0) * (1 - sx) + at(1, 0) * sx) * (1 - sy) + (at(0, 1) * (1 - sx) + at(1, 1) * sx) * sy
   }
-  const canvas = document.createElement('canvas')
-  canvas.width = canvas.height = size
-  const ctx = canvas.getContext('2d')!
-  ctx.imageSmoothingEnabled = true
-  ctx.drawImage(small, 0, 0, size, size)
-  // Fine paper grain over it.
-  for (let i = 0; i < 9000; i++) {
-    ctx.fillStyle = Math.random() < 0.5 ? 'rgba(255,0,255,0.09)' : 'rgba(0,0,0,0.1)'
-    ctx.fillRect(Math.random() * size, Math.random() * size, 1 + Math.random() * 3, 1 + Math.random() * 3)
+  const coarse = grid(24), fine = grid(96)
+  for (let y = 0; y < size; y++) for (let x = 0; x < size; x++) {
+    const paper = 0.5 + (lumps(coarse, 24, x, y) - 0.5) * 0.5 + (lumps(fine, 96, x, y) - 0.5) * 0.28
+    const i = (x + y * size) * 4
+    data[i] = Math.round(255 * Math.min(1, Math.max(0, paper + (Math.random() - 0.5) * 0.05)))
+    data[i + 2] = Math.round(255 * paper)
+    data[i + 3] = 255
   }
   // Cracks wander from a few spots, forking as they go.
-  ctx.globalCompositeOperation = 'lighter'
-  const plan = (x: number, y: number): [number, number] => [(x / 1.7 + 0.5) * size, (0.5 - y / 2.4) * size]
-  const crack = (x: number, y: number, angle: number, length: number, width: number) => {
-    ctx.strokeStyle = `rgb(0,${Math.floor(120 + width * 70)},0)`
-    ctx.lineWidth = width
-    ctx.beginPath()
-    ctx.moveTo(x, y)
+  const plan = (x: number, y: number): [number, number] => [(x / 1.7 + 0.5) * size, (y / 2.4 + 0.5) * size]
+  const mark = (x: number, y: number, width: number) => {
+    const reach = Math.ceil(width + 1)
+    for (let v = -reach; v <= reach; v++) for (let u = -reach; u <= reach; u++) {
+      const px = Math.round(x) + u, py = Math.round(y) + v
+      if (px < 0 || py < 0 || px >= size || py >= size) continue
+      const strength = 1 - Math.min(1, Math.max(0, Math.hypot(px - x, py - y) - width / 2))
+      const i = (px + py * size) * 4 + 1
+      data[i] = Math.max(data[i], Math.round(strength * (120 + width * 70)))
+    }
+  }
+  const crack = (startX: number, startY: number, startAngle: number, length: number, width: number) => {
+    let x = startX, y = startY, angle = startAngle
     for (let i = 0; i < length; i++) {
       angle += (Math.random() - 0.5) * 0.9
-      x += Math.cos(angle) * 9
-      y += Math.sin(angle) * 9
-      ctx.lineTo(x, y)
-      if (Math.random() < 0.09 && width > 0.8) {
-        ctx.stroke()
-        crack(x, y, angle + (Math.random() < 0.5 ? 0.8 : -0.8), length * 0.5, width * 0.7)
-        ctx.strokeStyle = `rgb(0,${Math.floor(120 + width * 70)},0)`
-        ctx.lineWidth = width
-        ctx.beginPath()
-        ctx.moveTo(x, y)
+      for (let step = 0; step < 9; step++) {
+        x += Math.cos(angle)
+        y -= Math.sin(angle)
+        mark(x, y, width)
       }
+      if (Math.random() < 0.09 && width > 0.8) crack(x, y, angle + (Math.random() < 0.5 ? 0.8 : -0.8), length * 0.5, width * 0.7)
     }
-    ctx.stroke()
   }
   const starts: [number, number, number, number][] = [[0.2, -0.05, 1.2, 24], [0.42, 0.46, 2.3, 18], [-0.4, 0.5, 0.6, 14], [-0.3, -0.42, -1.2, 12], [0.05, 0.72, 1.6, 14], [0.33, -0.5, 1.4, 10]]
   for (const [x, y, angle, length] of starts) crack(...plan(x, y), angle, length, 2)
-  const texture = new THREE.CanvasTexture(canvas)
+  const texture = new THREE.DataTexture(data, size, size, THREE.RGBAFormat)
   texture.wrapS = texture.wrapT = THREE.ClampToEdgeWrapping
+  texture.minFilter = THREE.LinearMipmapLinearFilter
+  texture.magFilter = THREE.LinearFilter
+  texture.generateMipmaps = true
+  texture.needsUpdate = true
   return texture
 }
 
@@ -242,7 +241,6 @@ function wingGeometry(side: number) {
 
 export class BillyHead implements HeadView {
   private renderer: THREE.WebGLRenderer
-  private backdrop: THREE.ShaderMaterial
   private scene = new THREE.Scene()
   private camera = new THREE.PerspectiveCamera(FOV, 1, 0.1, 60)
   private head = new THREE.Group()
@@ -254,7 +252,7 @@ export class BillyHead implements HeadView {
   private pupil = { value: 0.3 }
   private key: THREE.DirectionalLight
   private fill: THREE.HemisphereLight
-  private halos: THREE.Sprite[] = []
+  private haloMaterial: THREE.ShaderMaterial
   private gaze: GazeSpring
   private mood = { ...MOODS.neutral }
   private moodTarget = { ...MOODS.neutral }
@@ -288,7 +286,7 @@ export class BillyHead implements HeadView {
     this.camera.position.copy(CAM)
     this.camera.lookAt(LOOK)
 
-    this.backdrop = addDarkBackdrop(this.scene)
+    addDarkBackdrop(this.scene)
 
     this.fill = new THREE.HemisphereLight(0xc8c8d0, 0x050505, 0.5)
     this.key = new THREE.DirectionalLight(0xfff4e8, 2)
@@ -331,24 +329,20 @@ export class BillyHead implements HeadView {
       this.eyes.push(eye)
       this.head.add(eye)
     }
-    // A faint red bloom round the eyes.
-    const haloCanvas = document.createElement('canvas')
-    haloCanvas.width = haloCanvas.height = 64
-    const h = haloCanvas.getContext('2d')!
-    const g = h.createRadialGradient(32, 32, 0, 32, 32, 32)
-    g.addColorStop(0, 'rgba(255,40,20,0.9)')
-    g.addColorStop(0.4, 'rgba(200,10,5,0.25)')
-    g.addColorStop(1, 'rgba(160,0,0,0)')
-    h.fillStyle = g
-    h.fillRect(0, 0, 64, 64)
-    const halo = new THREE.CanvasTexture(haloCanvas)
-    this.textures.push(halo)
+    // A faint red bloom round the eyes: worked out per pixel, no picture to go wrong on the iMacs.
+    this.haloMaterial = new THREE.ShaderMaterial({
+      uniforms: { uStrength: { value: 0.1 } },
+      vertexShader: HALO_VERTEX,
+      fragmentShader: HALO_FRAGMENT,
+      blending: THREE.AdditiveBlending,
+      depthWrite: false,
+      transparent: true,
+    })
+    const haloPlane = new THREE.PlaneGeometry(0.44, 0.44)
     for (const side of [-1, 1]) {
-      const s = new THREE.Sprite(new THREE.SpriteMaterial({ map: halo, blending: THREE.AdditiveBlending, depthWrite: false, transparent: true }))
-      s.position.set(side * EYE.x, EYE.y, EYE.z + 0.12)
-      s.scale.setScalar(0.44)
-      this.halos.push(s)
-      this.head.add(s)
+      const halo = new THREE.Mesh(haloPlane, this.haloMaterial)
+      halo.position.set(side * EYE.x, EYE.y, EYE.z + 0.12)
+      this.head.add(halo)
     }
     this.scene.add(this.head)
 
@@ -450,7 +444,7 @@ export class BillyHead implements HeadView {
     const dark = 1 - light
     this.glow.value = 0.72 + 0.1 * Math.sin(t * 2.3) + 0.45 * dark
     this.pupil.value = this.mood.pupil - 0.1 * dark
-    for (const halo of this.halos) halo.material.opacity = 0.1 + 0.7 * dark
+    this.haloMaterial.uniforms.uStrength.value = 0.1 + 0.7 * dark
 
     // A puppet's head: a nod with each word, a jerk in the laugh.
     const pose = this.gaze.update(dt, t)
@@ -493,12 +487,11 @@ export class BillyHead implements HeadView {
     this.resizeObserver.disconnect()
     document.removeEventListener('visibilitychange', this.onVisibility)
     this.scene.traverse((object) => {
-      if (!(object instanceof THREE.Mesh || object instanceof THREE.Sprite)) return
+      if (!(object instanceof THREE.Mesh)) return
       object.geometry.dispose()
       for (const material of Array.isArray(object.material) ? object.material : [object.material]) material.dispose()
     })
     for (const texture of this.textures) texture.dispose()
-    this.backdrop.dispose()
     this.renderer.dispose()
   }
 }

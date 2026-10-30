@@ -1,3 +1,4 @@
+import { PROMO_BANNERS } from '../banners'
 import { DESIGNS } from './designs'
 import { gridLayout, type WallLayout } from '../layout'
 import type { CreateHead, HeadCategory } from './types'
@@ -8,24 +9,24 @@ export const HEAD_CATEGORIES: { key: HeadCategory; label: string }[] = [
   { key: 'gruselig', label: 'Gruselig' },
   { key: 'bloecke', label: 'Blöcke' },
   { key: 'kunst', label: 'Kunst' },
+  { key: 'werbung', label: 'Werbung' },
 ]
 
-/** Everything that can go on a screen of a custom wall: every built head, and the promo. */
+/** Everything that can go on a screen of a custom wall: every built head, and the HfG banners. */
 export interface CatalogEntry {
-  /** Stable id stored in a saved wall, e.g. `main-3` or `promo`. */
+  /** Stable id stored in a saved wall, e.g. `main-3` or `promo-halloween`. */
   key: string
   name: string
   description: string
-  /** None for the promo: it only shows under "Alle". */
   categories: HeadCategory[]
-  /** null for the promo, which is not a head. */
+  /** null for a banner, which is not a head. */
   create: CreateHead | null
 }
 
 export const PROMO_KEY = 'promo'
 
 export const CATALOG: CatalogEntry[] = [
-  { key: PROMO_KEY, name: 'Werbung', description: 'HfG-Logo und Spruch auf Weiß', categories: [], create: null },
+  ...PROMO_BANNERS.map(({ key, name, description }) => ({ key, name, description, categories: ['werbung'] as HeadCategory[], create: null })),
   ...DESIGNS.filter((d) => d.create).map((d) => ({ key: `main-${d.id}`, name: d.name, description: d.description, categories: d.categories, create: d.create })),
 ]
 

@@ -121,3 +121,22 @@ void main() {
 `
 
 /** Almost pure black: the faintest grimy wall behind him, there only while the light is on. */
+
+export const HALO_VERTEX = /* glsl */ `
+varying vec2 vUv;
+void main() {
+  vUv = uv;
+  gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+}
+`
+
+/** Red that falls away from the middle; added to what is behind it. */
+export const HALO_FRAGMENT = /* glsl */ `
+uniform float uStrength;
+varying vec2 vUv;
+void main() {
+  float d = length(vUv - 0.5) * 2.0;
+  float a = d < 0.4 ? mix(0.9, 0.25, d / 0.4) : 0.25 * (1.0 - smoothstep(0.4, 1.0, d));
+  gl_FragColor = vec4(vec3(1.0, 0.1, 0.05) * a * uStrength, a * uStrength);
+}
+`

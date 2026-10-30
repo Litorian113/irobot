@@ -7,7 +7,7 @@ import { PUMPKIN_FRAGMENT, PUMPKIN_VERTEX } from './shaders'
 /**
  * J.A.C.K. - a gentleman with a jack-o'-lantern for a head: ribbed orange
  * skin, an evil carved face with a candle burning behind it, a black top hat
- * with a rolled brim, coat, white shirt and tie, out in the evening fog. The
+ * with a rolled brim, coat, white shirt and tie. The
  * cut morphs with his mood. A gust nearly blows the candle out now and then;
  * now and then he tips his hat, and light spills from the top of his head.
  * WebGL 1 safe: a painted illusion of the carving, Phong cloth, GLSL ES 1.0.
@@ -222,8 +222,8 @@ export class JackHead implements HeadView {
     // --- the evening --------------------------------------------------------
     this.dusk = addDarkBackdrop(this.scene)
 
-    this.scene.add(new THREE.HemisphereLight(0x9fb0c0, 0x15110e, 1.1))
-    const key = new THREE.DirectionalLight(0xc4d2e0, 1.1)
+    this.scene.add(new THREE.HemisphereLight(0xb4c2d0, 0x2a241e, 1.5))
+    const key = new THREE.DirectionalLight(0xc4d2e0, 1.35)
     key.position.copy(KEY)
     const rim = new THREE.DirectionalLight(0xd8e2ea, 1.6)
     rim.position.set(1.5, 2, -3)

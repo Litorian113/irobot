@@ -1,7 +1,10 @@
 import { useEffect, useRef, useState, type ReactNode } from 'react'
+import { bannerOf, PROMO_BANNERS, type Banner } from '../banners'
+import { catalogEntry } from '../heads/catalog'
 import { DESIGNS } from '../heads/designs'
 import type { HeadDesign } from '../heads/types'
 import { slotLabel } from '../layout'
+import { Message } from '../Promo'
 import { isOffline, PROMO_SLOT, SLOTS } from '../wall'
 import { CategoryFilter, Sidebar, Tile } from './ui'
 import { inCategory, useCategoryFilter } from './useCategoryFilter'
@@ -12,6 +15,10 @@ const NOTICE_MS = 1500
 function initialDesign() {
   const id = Number(new URLSearchParams(window.location.search).get('head'))
   return DESIGNS.some((d) => d.id === id) ? id : DESIGNS[0].id
+}
+
+function initialBanner() {
+  return bannerOf(new URLSearchParams(window.location.search).get('banner'))?.key ?? null
 }
 
 /** One fact about the head in the card below the screen: a value, what it means, and maybe a picture or switch. */
@@ -34,9 +41,10 @@ function Info({ value, label, before, after, as: Tag = 'div' }: {
   )
 }
 
-/** Köpfe: one head at a time, on a 16:9 screen like an iMac's - only one WebGL context runs. */
+/** Köpfe: one head or banner at a time, on a 16:9 screen like an iMac's - only one WebGL context runs. */
 export default function Studio() {
   const [selected, setSelected] = useState(initialDesign)
+  const [selectedBanner, setSelectedBanner] = useState(initialBanner)
   const [category, setCategory] = useCategoryFilter()
   const [webgl1, setWebgl1] = useState(false)
   const [status, setStatus] = useState('lädt …')
@@ -44,21 +52,37 @@ export default function Studio() {
 
   const choose = (id: number) => {
     setSelected(id)
+    setSelectedBanner(null)
     const url = new URL(window.location.href)
     url.searchParams.set('head', String(id))
+    url.searchParams.delete('banner')
     window.history.replaceState(null, '', url)
   }
+
+  const chooseBanner = (key: string) => {
+    setSelectedBanner(key)
+    const url = new URL(window.location.href)
+    url.searchParams.set('banner', key)
+    url.searchParams.delete('head')
+    window.history.replaceState(null, '', url)
+  }
+
+  const banner = bannerOf(selectedBanner)
 
   return (
     <div className="split studio">
       <Sidebar label="Köpfe" filter={<CategoryFilter value={category} onChange={setCategory} />}>
         {DESIGNS.filter((d) => inCategory(d, category)).map((d) => (
-          <Tile key={d.id} name={d.name} snapshot={d.create ? `main-${d.id}` : null} active={d.id === selected} onClick={() => choose(d.id)} />
+          <Tile key={d.id} name={d.name} snapshot={d.create ? `main-${d.id}` : null} active={!banner && d.id === selected} onClick={() => choose(d.id)} />
+        ))}
+        {inCategory({ categories: ['werbung'] }, category) && PROMO_BANNERS.map((b) => (
+          <Tile key={b.key} name={b.name} snapshot={b.key} active={b.key === selectedBanner} onClick={() => chooseBanner(b.key)} />
         ))}
       </Sidebar>
 
       {/* One centred column, as wide as the window's height allows: the name, the screen, what to know about it. */}
       <main className="page">
+        {banner ? <BannerDetail banner={banner} /> : (
         <div className="studio-detail">
           <h2 className="studio-title">{design.name}</h2>
           <div className="studio-screen">
@@ -83,7 +107,33 @@ export default function Studio() {
           </div>
           <p className="page-hint">Maus oder Finger über den Bildschirm: der Kopf schaut zu dir. Sonst schaut er umher.</p>
         </div>
+        )}
       </main>
+    </div>
+  )
+}
+
+/** A banner: as the wall shows it, with or without someone in front of it. */
+function BannerDetail({ banner }: { banner: Banner }) {
+  const [present, setPresent] = useState(true)
+  return (
+    <div className="studio-detail">
+      <h2 className="studio-title">{banner.name}</h2>
+      <div className="studio-screen">
+        <Message key={`${banner.key}-${present}`} banner={banner} present={present} />
+      </div>
+      <p className="studio-desc">{banner.description}</p>
+      <div className="studio-info">
+        <Info value={catalogEntry(banner.standIn)?.name ?? '–'} label="dieser Kopf läuft, bis jemand stehen bleibt" />
+        <Info value={`${banner.seen.length} ${banner.seen.length === 1 ? 'Spruch' : 'Sprüche'}`} label="wechseln, solange jemand davor steht" />
+        <Info
+          as="label"
+          value="Jemand steht davor"
+          label="sonst der Text ohne Publikum"
+          after={<input type="checkbox" role="switch" className="switch" checked={present} onChange={(e) => setPresent(e.target.checked)} />}
+        />
+      </div>
+      <p className="page-hint">Aktivieren: in Gestalten auf einen Bildschirm ziehen und speichern.</p>
     </div>
   )
 }

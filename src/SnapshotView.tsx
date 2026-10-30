@@ -1,6 +1,7 @@
 import { useEffect, useRef } from 'react'
 import Promo from './Promo'
-import { CATALOG, catalogEntry, PROMO_KEY } from './heads/catalog'
+import { bannerOf } from './banners'
+import { CATALOG, catalogEntry } from './heads/catalog'
 
 /**
  * `?snapshot=<key>`: one head, filling a 16:9 window, slightly turned - what
@@ -8,6 +9,7 @@ import { CATALOG, catalogEntry, PROMO_KEY } from './heads/catalog'
  */
 export default function SnapshotView({ entryKey }: { entryKey: string }) {
   const canvasRef = useRef<HTMLCanvasElement>(null)
+  const banner = bannerOf(entryKey)
 
   // For the script: which heads there are to photograph.
   useEffect(() => {
@@ -16,8 +18,8 @@ export default function SnapshotView({ entryKey }: { entryKey: string }) {
 
   useEffect(() => {
     const debugWindow = window as unknown as { __snapshotHead?: unknown }
-    if (entryKey === PROMO_KEY) {
-      // The promo is plain HTML: ready at once.
+    if (banner) {
+      // A banner is plain HTML: ready at once.
       debugWindow.__snapshotHead = { debug: () => ({ headLoaded: true }) }
       return () => { delete debugWindow.__snapshotHead }
     }
@@ -31,11 +33,11 @@ export default function SnapshotView({ entryKey }: { entryKey: string }) {
       delete debugWindow.__snapshotHead
       face.dispose()
     }
-  }, [entryKey])
+  }, [entryKey, banner])
 
   return (
     <main className="single">
-      {entryKey === PROMO_KEY ? <Promo /> : <div className="cell"><canvas ref={canvasRef} /></div>}
+      {banner ? <Promo banner={banner} /> : <div className="cell"><canvas ref={canvasRef} /></div>}
     </main>
   )
 }

@@ -10,7 +10,7 @@ import { SETTINGS, SLOT_SHIFT, type PlacedScreen, type WallRows } from './wall'
 
 function Screen({ placed, position, style }: { placed: PlacedScreen; position: Vec3; style?: CSSProperties }) {
   const { slot, screen } = placed
-  if (screen.kind === 'promo') return <Promo slot={slot} standIn={screen.standIn} position={position} style={style} />
+  if (screen.kind === 'promo') return <Promo slot={slot} standIn={screen.standIn} banner={screen.banner} position={position} style={style} />
   if (screen.kind === 'head') return <HeadCell slot={slot} head={screen.head} position={position} style={style} />
   return (
     <div className="cell cell-empty" style={style}>

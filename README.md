@@ -115,6 +115,15 @@ Protokoll: `logs\imacs.log`. Das Admin-Passwort der iMacs liegt dafür auf dem S
 
 ---
 
+## Werbung auf dem mittleren Bildschirm
+
+Die HfG-Banner stehen in **Gestalten** in der Kategorie **Werbung**: Banner auf einen Bildschirm ziehen oder dort auswählen,
+speichern, fertig. Jedes Banner zeigt erst seinen Kopf und blendet sich ein, wenn jemand 8 Sekunden stehen bleibt.
+Banner und Sprüche stehen in `src/banners.ts`: `Werbung` (Weiß, vor F.L.U.X.) und `Werbung Halloween` (dunkel, vor J.A.C.K.,
+wechselnde Sprüche).
+
+---
+
 ## Analytics
 
 Oben rechts in der Kopfleiste (am Handy in der Leiste unten) steht, wie viele vorbeigelaufen und wie viele
@@ -195,7 +204,7 @@ Im Tab Köpfe gibt es dafür „WebGL 1 testen".
 
 ### Einen neuen Kopf bauen
 
-Gruselige Köpfe (Kategorie `gruselig`) nehmen alle denselben dunklen Hintergrund: `addDarkBackdrop` aus `src/heads/darkBackdrop.ts`.
+Gruselige Köpfe (Kategorie `gruselig`) nehmen denselben dunklen Hintergrund: `addDarkBackdrop` aus `src/heads/darkBackdrop.ts`.
 
 Ein Eintrag in `src/heads/designs.ts`: Name, Beschreibung, Kategorien für den Filter über den Listen
 (`categories`, ein Kopf darf in mehreren stehen), Platz (`slot`, oder `null` für „nur in der Auswahl") und eine `create`-Funktion, die ein `HeadView` liefert (`src/heads/types.ts`: `setLook`,

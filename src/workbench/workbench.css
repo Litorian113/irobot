@@ -581,6 +581,12 @@
   box-shadow: 0 20px 50px rgba(0, 0, 0, 0.5);
 }
 
+/* A banner fills the screen and sizes its type by it. */
+.studio-screen > .cell {
+  position: absolute;
+  inset: 0;
+}
+
 .studio-screen canvas {
   position: absolute;
   inset: 0;
