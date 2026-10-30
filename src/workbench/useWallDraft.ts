@@ -37,6 +37,16 @@ export function useWallDraft() {
     /** Only a wall that was saved once can go back to it. */
     canDiscard: saved !== null,
     keyOf: (slot: number) => (layout ? keyAt(layout, slot) : null),
+    bannerOf: (slot: number) => layout?.flat().find((cell) => cell.slot === slot)?.banner ?? null,
+    /** A banner goes over the screen's head; a screen without a head gets the one that goes with the banner. */
+    setBanner: (slot: number, banner: string, defaultHead: string) =>
+      update((rows) => rows.map((row) => row.map((cell) => (cell.slot === slot ? { ...cell, key: cell.key ?? defaultHead, banner } : cell)))),
+    clearBanner: (slot: number) =>
+      update((rows) => rows.map((row) => row.map((cell) => {
+        if (cell.slot !== slot) return cell
+        const { banner: _gone, ...rest } = cell
+        return rest
+      }))),
     assign: (slot: number, key: string | null) =>
       update((rows) => rows.map((row) => row.map((cell) => (cell.slot === slot ? { ...cell, key } : cell)))),
     swap: (a: number, b: number) => update((rows) => {

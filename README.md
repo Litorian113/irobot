@@ -117,10 +117,10 @@ Protokoll: `logs\imacs.log`. Das Admin-Passwort der iMacs liegt dafür auf dem S
 
 ## Werbung auf dem mittleren Bildschirm
 
-Die HfG-Banner stehen in **Gestalten** in der Kategorie **Werbung**: Banner auf einen Bildschirm ziehen oder dort auswählen,
-speichern, fertig. Jedes Banner zeigt erst seinen Kopf und blendet sich ein, wenn jemand 8 Sekunden stehen bleibt.
-Banner und Sprüche stehen in `src/banners.ts`: `Werbung` (Weiß, vor F.L.U.X.) und `Werbung Halloween` (dunkel, vor J.A.C.K.,
-wechselnde Sprüche).
+Ein HfG-Banner ist ein Zusatz zu einem Bildschirm und ersetzt seinen Kopf nicht: Der Kopf läuft, und das Banner blendet
+sich über ihm ein, wenn jemand 8 Sekunden stehen bleibt. In **Gestalten** aus der Kategorie **Werbung** auf den Bildschirm
+ziehen oder dort auswählen, dann speichern; das × am Banner nimmt es wieder weg. In **Köpfe** lassen sich die Banner ansehen.
+Banner und Sprüche stehen in `src/banners.ts`: `Werbung` (Weiß) und `Werbung Halloween` (dunkel, wechselnde Sprüche).
 
 ---
 

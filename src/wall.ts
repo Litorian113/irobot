@@ -168,15 +168,15 @@ export interface PlacedScreen {
 
 export type WallRows = PlacedScreen[][]
 
-/** Rows of screens for a layout; `screen` says what each slot shows. */
-function place(layout: WallLayout, screen: (slot: number, key: string | null) => WallScreen): WallRows {
+/** Rows of screens for a layout; `screen` says what each cell shows. */
+function place(layout: WallLayout, screen: (cell: WallLayout[number][number]) => WallScreen): WallRows {
   const columns = cellColumns(layout)
-  return layout.map((row, r) => row.map((cell, i) => ({ slot: cell.slot, column: columns[r][i], screen: screen(cell.slot, cell.key) })))
+  return layout.map((row, r) => row.map((cell, i) => ({ slot: cell.slot, column: columns[r][i], screen: screen(cell) })))
 }
 
 /** Built once: the head that stands in for the promo. */
 const PROMO_HEAD: WallHead | null = (() => {
-  const entry = catalogEntry(bannerOf(PROMO_KEY)?.standIn)
+  const entry = catalogEntry(bannerOf(PROMO_KEY)?.defaultHead)
   const motion = SLOTS[PROMO_SLOT] ?? { stiffness: 5, delay: 0.1 }
   return entry?.create ? { create: entry.create, design: null, stiffness: motion.stiffness, delay: motion.delay } : null
 })()
@@ -186,7 +186,7 @@ const GRID = gridLayout(Array.from({ length: 9 }, () => null))
 
 /** Built once per page, like WALL_HEADS. */
 export const SCREENS: Record<WallSet, WallRows> = {
-  main: place(GRID, (slot) => {
+  main: place(GRID, ({ slot }) => {
     const head = WALL_HEADS[slot]
     return head ? { kind: 'head', head } : { kind: 'promo', standIn: PROMO_HEAD, banner: bannerOf(PROMO_KEY) }
   }),
@@ -194,17 +194,13 @@ export const SCREENS: Record<WallSet, WallRows> = {
 
 /** Screens for a custom wall (keys from the catalog, see heads/catalog.ts). Build once per page. */
 export function screensFromLayout(layout: WallLayout): WallRows {
-  return place(layout, (slot, key): WallScreen => {
+  return place(layout, ({ slot, key, banner: bannerKey }): WallScreen => {
     const motion = SLOTS[slot] ?? { stiffness: 5, delay: 0.1 }
-    const banner = bannerOf(key)
-    if (banner) {
-      const head = catalogEntry(banner.standIn)
-      return { kind: 'promo', banner, standIn: head?.create ? { create: head.create, design: null, stiffness: motion.stiffness, delay: motion.delay } : null }
-    }
     const entry = catalogEntry(key)
-    if (entry?.create) {
-      return { kind: 'head', head: { create: entry.create, design: null, stiffness: motion.stiffness, delay: motion.delay } }
-    }
-    return { kind: 'empty', design: { id: slot + 1, name: 'Leer', categories: [], description: '', slot, create: null } }
+    const head = entry?.create ? { create: entry.create, design: null, stiffness: motion.stiffness, delay: motion.delay } : null
+    const banner = bannerOf(bannerKey)
+    if (banner) return { kind: 'promo', standIn: head, banner }
+    if (head) return { kind: 'head', head }
+    return { kind: 'empty', design: { id: slot + 1, name: 'Leer', description: '', categories: [], slot, create: null } }
   })
 }

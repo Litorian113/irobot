@@ -4,10 +4,11 @@
  * Slots 0-8 are the places of the original 3x3 shelf; added screens get 9, 10, ...
  */
 
-/** One screen of a wall and what it shows: a catalog key (heads/catalog.ts) or nothing yet. */
+/** One screen of a wall and what it shows: a head (heads/catalog.ts) or nothing yet, and maybe a banner over it (banners.ts). */
 export interface WallCell {
   slot: number
   key: string | null
+  banner?: string
 }
 
 export type WallLayout = WallCell[][]
@@ -68,9 +69,10 @@ export function isLayout(value: unknown): value is WallLayout {
   const seen = new Set<number>()
   return value.every((row) => Array.isArray(row) && row.length <= MAX_PER_ROW && row.every((cell: unknown) => {
     if (!cell || typeof cell !== 'object') return false
-    const { slot, key } = cell as { slot?: unknown; key?: unknown }
+    const { slot, key, banner } = cell as { slot?: unknown; key?: unknown; banner?: unknown }
     if (typeof slot !== 'number' || !Number.isInteger(slot) || slot < 0 || slot > MAX_SLOT || seen.has(slot)) return false
     seen.add(slot)
+    if (banner !== undefined && (typeof banner !== 'string' || !KEY.test(banner))) return false
     return key === null || (typeof key === 'string' && KEY.test(key))
   }))
 }

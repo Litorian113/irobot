@@ -1045,6 +1045,40 @@ label.studio-info-item {
   transition: cx 0.15s linear, cy 0.15s linear;
 }
 
+/* A banner lying over a screen's head. */
+.shelf-banner {
+  position: absolute;
+  left: 6px;
+  bottom: 6px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  max-width: calc(100% - 12px);
+  padding: 3px 4px 3px 9px;
+  border-radius: 999px;
+  background: rgba(10, 132, 255, 0.92);
+  color: #fff;
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.shelf-banner > span:first-child {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.shelf-banner-clear {
+  flex: none;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background: rgba(0, 0, 0, 0.25);
+  font-size: 13px;
+  line-height: 18px;
+  text-align: center;
+}
+
 /* --------------------------------------------------------------- zeitplan */
 
 .schedule-section {

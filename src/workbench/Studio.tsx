@@ -1,6 +1,5 @@
 import { useEffect, useRef, useState, type ReactNode } from 'react'
 import { bannerOf, PROMO_BANNERS, type Banner } from '../banners'
-import { catalogEntry } from '../heads/catalog'
 import { DESIGNS } from '../heads/designs'
 import type { HeadDesign } from '../heads/types'
 import { slotLabel } from '../layout'
@@ -124,7 +123,7 @@ function BannerDetail({ banner }: { banner: Banner }) {
       </div>
       <p className="studio-desc">{banner.description}</p>
       <div className="studio-info">
-        <Info value={catalogEntry(banner.standIn)?.name ?? '–'} label="dieser Kopf läuft, bis jemand stehen bleibt" />
+        <Info value="Über dem Kopf" label="der Kopf des Bildschirms läuft, bis jemand stehen bleibt" />
         <Info value={`${banner.seen.length} ${banner.seen.length === 1 ? 'Spruch' : 'Sprüche'}`} label="wechseln, solange jemand davor steht" />
         <Info
           as="label"
@@ -133,7 +132,7 @@ function BannerDetail({ banner }: { banner: Banner }) {
           after={<input type="checkbox" role="switch" className="switch" checked={present} onChange={(e) => setPresent(e.target.checked)} />}
         />
       </div>
-      <p className="page-hint">Aktivieren: in Gestalten auf einen Bildschirm ziehen und speichern.</p>
+      <p className="page-hint">Aktivieren: in Gestalten auf einen Bildschirm ziehen und speichern. Sein Kopf bleibt.</p>
     </div>
   )
 }

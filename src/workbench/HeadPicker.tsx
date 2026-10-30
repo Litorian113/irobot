@@ -10,9 +10,10 @@ import { inCategory } from './useCategoryFilter'
 const DISMISS_PX = 110
 
 /** Choose the head of one screen: a form sheet on a tablet or desktop, a sheet from the bottom on a phone. */
-export default function HeadPicker({ slot, current, category, onCategory, onPick, onClose }: {
+export default function HeadPicker({ slot, current, currentBanner, category, onCategory, onPick, onClose }: {
   slot: number
   current: string | null
+  currentBanner: string | null
   category: HeadCategory | null
   onCategory: (category: HeadCategory | null) => void
   onPick: (key: string | null) => void
@@ -67,7 +68,7 @@ export default function HeadPicker({ slot, current, category, onCategory, onPick
               name={entry.name}
               snapshot={entry.key}
               title={entry.description}
-              active={entry.key === current}
+              active={entry.key === current || entry.key === currentBanner}
               onClick={() => onPick(entry.key)}
             />
           ))}

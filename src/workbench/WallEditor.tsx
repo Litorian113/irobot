@@ -1,4 +1,5 @@
 import { useState, type CSSProperties, type DragEvent } from 'react'
+import { bannerOf } from '../banners'
 import { CATALOG, catalogEntry } from '../heads/catalog'
 import { cellColumns, MAX_PER_ROW, MAX_ROWS, slotLabel, type WallCell } from '../layout'
 import HeadPicker from './HeadPicker'
@@ -12,7 +13,7 @@ const HEAD = 'application/x-hfg-head'
 const SLOT = 'application/x-hfg-slot'
 
 /** One screen of the shelf: its picture, place and head; in edit mode a red minus removes it. */
-function ShelfCell({ cell, style, editing, selected, dropTarget, onClick, onClear, onRemove, onDropTarget, onDrop }: {
+function ShelfCell({ cell, style, editing, selected, dropTarget, onClick, onClear, onClearBanner, onRemove, onDropTarget, onDrop }: {
   cell: WallCell
   /** Where it sits in the grid of the shelf. */
   style: CSSProperties
@@ -21,11 +22,13 @@ function ShelfCell({ cell, style, editing, selected, dropTarget, onClick, onClea
   dropTarget: boolean
   onClick: () => void
   onClear: () => void
+  onClearBanner: () => void
   onRemove: () => void
   onDropTarget: (on: boolean) => void
   onDrop: (event: DragEvent) => void
 }) {
   const entry = catalogEntry(cell.key)
+  const banner = bannerOf(cell.banner)
   return (
     <button
       type="button"
@@ -43,10 +46,24 @@ function ShelfCell({ cell, style, editing, selected, dropTarget, onClick, onClea
       }}
       onDragLeave={() => onDropTarget(false)}
       onDrop={onDrop}
-      aria-label={`Platz ${cell.slot}, ${slotLabel(cell.slot)}: ${entry?.name ?? 'leer'}`}
+      aria-label={`Platz ${cell.slot}, ${slotLabel(cell.slot)}: ${entry?.name ?? 'leer'}${banner ? `, darüber ${banner.name}` : ''}`}
     >
       <span className="shelf-screen">
         {entry ? <Thumb snapshot={entry.key} name={entry.name} /> : <span className="shelf-empty">{editing ? 'leer' : '+ Kopf'}</span>}
+        {banner && (
+          <span className="shelf-banner" title="Blendet sich ein, wenn jemand davor stehen bleibt">
+            <span>{banner.name}</span>
+            <span
+              className="shelf-banner-clear"
+              role="button"
+              aria-label={`${banner.name} entfernen`}
+              onClick={(event) => {
+                event.stopPropagation()
+                onClearBanner()
+              }}
+            >×</span>
+          </span>
+        )}
       </span>
       <span className="shelf-label">
         <span className="shelf-num">{cell.slot}</span>
@@ -108,6 +125,13 @@ export default function WallEditor({ onShowLive }: { onShowLive: () => void }) {
     setSelected(null)
   }
 
+  /** A head fills the screen; a banner only goes over its head. */
+  const put = (slot: number, key: string | null) => {
+    const banner = bannerOf(key)
+    if (banner) draft.setBanner(slot, banner.key, banner.defaultHead)
+    else draft.assign(slot, key)
+  }
+
   const onDrop = (slot: number, event: DragEvent) => {
     event.preventDefault()
     setDropTarget(null)
@@ -115,7 +139,7 @@ export default function WallEditor({ onShowLive }: { onShowLive: () => void }) {
     if (from !== '') draft.swap(Number(from), slot)
     else {
       const key = event.dataTransfer.getData(HEAD)
-      if (catalogEntry(key)) draft.assign(slot, key)
+      if (catalogEntry(key)) put(slot, key)
     }
   }
 
@@ -163,6 +187,7 @@ export default function WallEditor({ onShowLive }: { onShowLive: () => void }) {
                   dropTarget={dropTarget === cell.slot}
                   onClick={() => onCellClick(cell.slot)}
                   onClear={() => draft.assign(cell.slot, null)}
+                  onClearBanner={() => draft.clearBanner(cell.slot)}
                   onRemove={() => {
                     draft.removeScreen(cell.slot)
                     setSelected((s) => (s === cell.slot ? null : s))
@@ -193,7 +218,7 @@ export default function WallEditor({ onShowLive }: { onShowLive: () => void }) {
             <>Zwei Bildschirme nacheinander antippen, um sie zu tauschen. „+“ fügt einer Reihe einen Bildschirm hinzu, das rote Minus entfernt ihn. </>
           ) : (
             <>
-              <span className="hint-desk">Klicken zum Auswählen, Köpfe aus der Liste oder Bildschirme untereinander ziehen. </span>
+              <span className="hint-desk">Klicken zum Auswählen, Köpfe aus der Liste oder Bildschirme untereinander ziehen. Werbung legt sich über den Kopf und blendet sich ein, wenn jemand stehen bleibt. </span>
               <span className="hint-touch">Einen Bildschirm antippen, um seinen Kopf zu wählen. </span>
             </>
           )}
@@ -207,10 +232,11 @@ export default function WallEditor({ onShowLive }: { onShowLive: () => void }) {
         <HeadPicker
           slot={picker}
           current={draft.keyOf(picker)}
+          currentBanner={draft.bannerOf(picker)}
           category={category}
           onCategory={setCategory}
           onPick={(key) => {
-            draft.assign(picker, key)
+            put(picker, key)
             setPicker(null)
           }}
           onClose={() => setPicker(null)}

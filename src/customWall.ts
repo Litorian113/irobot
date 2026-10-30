@@ -1,3 +1,4 @@
+import { bannersAsAddOns } from './banners'
 import { DEFAULT_WALL } from './heads/catalog'
 import { gridLayout, isLayout, isLegacyKeys, type WallLayout } from './layout'
 
@@ -8,8 +9,8 @@ export async function loadCustomWall(): Promise<{ layout: WallLayout; saved: boo
   const response = await fetch(API, { cache: 'no-store' })
   if (!response.ok) throw new Error(`Server antwortet mit ${response.status}`)
   const { layout, keys } = (await response.json()) as { layout?: unknown; keys?: unknown }
-  if (isLayout(layout)) return { layout, saved: true }
-  if (isLegacyKeys(keys)) return { layout: gridLayout(keys), saved: true }
+  if (isLayout(layout)) return { layout: bannersAsAddOns(layout), saved: true }
+  if (isLegacyKeys(keys)) return { layout: bannersAsAddOns(gridLayout(keys)), saved: true }
   return { layout: structuredClone(DEFAULT_WALL), saved: false }
 }
 

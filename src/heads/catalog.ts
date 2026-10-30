@@ -1,4 +1,4 @@
-import { PROMO_BANNERS } from '../banners'
+import { bannersAsAddOns, PROMO_BANNERS } from '../banners'
 import { DESIGNS } from './designs'
 import { gridLayout, type WallLayout } from '../layout'
 import type { CreateHead, HeadCategory } from './types'
@@ -39,9 +39,9 @@ export function snapshotUrl(key: string) {
   return `${import.meta.env.BASE_URL}snapshots/${key}.jpg`
 }
 
-/** Starting point for a custom wall: the main wall as it is. */
-export const DEFAULT_WALL: WallLayout = gridLayout(Array.from({ length: 9 }, (_, slot) => {
+/** Starting point for a custom wall: the main wall as it is, the white banner over the middle screen's head. */
+export const DEFAULT_WALL: WallLayout = bannersAsAddOns(gridLayout(Array.from({ length: 9 }, (_, slot) => {
   if (slot === 4) return PROMO_KEY
   const design = DESIGNS.find((d) => d.slot === slot && d.create)
   return design ? `main-${design.id}` : null
-}))
+})))
