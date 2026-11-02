@@ -9,7 +9,7 @@
 #   npm run imacs -- status          läuft der Browser, seit wann ist der iMac an
 #   npm run imacs -- reload          Browser auf allen neu starten: die Seite lädt neu
 #   npm run imacs -- setup           HfG-Koepfe-Setup auf allen neu ausrollen, jeder behält seinen Platz (Admin-Passwort)
-#   npm run imacs -- kiosk           WLAN aus, keine WLAN-Anmeldefenster, kein Tastatur-/Maus-Assistent (Admin-Passwort)
+#   npm run imacs -- kiosk           WLAN aus, keine WLAN-Anmeldefenster, kein Tastatur-/Maus-Assistent, "Nicht stören" (Admin-Passwort)
 #   npm run imacs -- schedule        Mo-Fr 16:55 an, 21:30 aus, prüft die automatische Anmeldung (Admin-Passwort)
 #                                    (eigene Zeiten und Tage: schedule 16:55 21:30 MTWRF, Tage wie bei pmset: MTWRFSU)
 #   npm run imacs -- program ...     was der Server alle paar Minuten aus dem Zeitplan einstellt (scripts/windows/plan.ps1)
@@ -105,6 +105,16 @@ defaults write /Library/Preferences/com.apple.Bluetooth BluetoothAutoSeekKeyboar
 defaults write /Library/Preferences/com.apple.Bluetooth BluetoothAutoSeekPointingDevice -bool false
 pkill -f "Bluetooth Setup Assistant" 2>/dev/null
 echo "Anmeldefenster und Bluetooth-Assistent aus"
+'
+
+# Für den angemeldeten Benutzer: "Nicht stören" rund um die Uhr. Ohne Internet erreichen die iMacs keinen
+# Zeitserver und melden "Die Systemuhr ist inkorrekt", mitten über der Wand.
+QUIET_SCRIPT='
+p=com.apple.notificationcenterui
+defaults -currentHost write $p dndStart -float 0
+defaults -currentHost write $p dndEnd -float 1440
+killall NotificationCenter 2>/dev/null
+echo "Nicht stören: ganztags"
 '
 
 # Jeden Tag selbst an und aus: ein ausgeschalteter iMac lässt sich übers Netz nicht wecken.
@@ -234,6 +244,7 @@ if launchctl print "gui/$u/de.hfg-gmuend.koepfe" >/dev/null 2>&1; then echo "Sta
   kiosk)
     USER_NAME="$(imac_user)"
     on_all_as_admin "$KIOSK_SCRIPT"
+    on_all "$QUIET_SCRIPT"
     ;;
   *)
     sed -n '2,13p' "$0" | sed 's/^# \{0,1\}//'
