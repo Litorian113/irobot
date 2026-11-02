@@ -236,7 +236,7 @@ function tangleGeometry() {
 }
 
 /** Box blur, in place, `radius` cells wide: soft edges from the coarse grid, and the body's thickness. */
-function blur(values: Float32Array, radius: number) {
+export function blur(values: Float32Array, radius: number) {
   const out = new Float32Array(values.length)
   for (const horizontal of [true, false]) {
     for (let y = 0; y < SHAPE_H; y++) for (let x = 0; x < SHAPE_W; x++) {

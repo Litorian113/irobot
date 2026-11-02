@@ -15,7 +15,7 @@ export const PATTERNS: { key: PatternKey; name: string; description: string }[] 
   { key: 'falte', name: 'Falte', description: 'Ein Feld aus Linien mit einer Falte, die der Person vor der Wand folgt' },
   { key: 'silhouette', name: 'Silhouette', description: 'Die Menschen vor der Wand, live als Linien quer über ihre Körper auf Weiß, wie ein Spiegel' },
   { key: 'gewirr', name: 'Gewirr', description: 'Die Menschen schwarz auf Weiß, aus ihnen laufen feine Bleistiftlinien in alle Richtungen und verblassen' },
-  { key: 'kritzel', name: 'Kritzel', description: 'Eine Bleistiftlinie kritzelt die Menschen vor der Wand, je länger sie stehen, desto dichter; wer bleibt, sieht das Gekritzel zittern, auseinanderfliegen und zu HfG werden' },
+  { key: 'kritzel', name: 'Kritzel', description: 'Die Menschen vor der Wand in Bleistift: erst eine schnelle Skizze, dann Schlaufen und Kreuzschraffur, je länger sie stehen, desto dichter; wer bleibt, sieht das Gekritzel immer mehr wabern, auseinanderfliegen und zu HfG werden' },
   { key: 'figur', name: 'Figur', description: 'Eine gezeichnete 3D-Figur für jede Person vor der Wand, die steht und sich bewegt wie sie' },
   { key: 'schraffur', name: 'Schraffur', description: 'Die Menschen vor der Wand auf Schwarz, in feinen weißen Strichen schraffiert, mit etwas Boden unter den Füßen' },
 ]
