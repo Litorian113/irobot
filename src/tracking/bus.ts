@@ -12,6 +12,8 @@ export interface GazeMessage {
   person: Vec3 | null
   /** How many people are in view. */
   count: number
+  /** Their outline, packed (silhouette.ts); only with a segmentation model. */
+  shape?: string
 }
 
 type Listener = (message: GazeMessage) => void
@@ -22,6 +24,16 @@ const notify = (message: GazeMessage) => { for (const listener of listeners) lis
 /** The server says a custom wall was saved (see vite.config.ts). */
 type WallListener = (wall: string) => void
 const wallListeners = new Set<WallListener>()
+
+/**
+ * The server's clock minus this one, from its heartbeat: the iMacs' clocks drift apart by seconds,
+ * a pattern over the whole wall must not.
+ */
+let clockOffset = 0
+let clockKnown = false
+
+/** Milliseconds on the server's clock. */
+export const serverNow = () => Date.now() + clockOffset
 
 let socket: WebSocket | null = null
 /** When the relay was last heard from; it sends a heartbeat every 5 s (vite.config.ts). */
@@ -38,8 +50,14 @@ function connect() {
   ws.onmessage = (event) => {
     heard = Date.now()
     try {
-      const data = JSON.parse(String(event.data)) as GazeMessage | { kind: 'wall-saved' | 'tick'; wall?: string }
+      const data = JSON.parse(String(event.data)) as GazeMessage | { kind: 'wall-saved' | 'tick'; wall?: string; at?: number }
       if ('kind' in data) {
+        if (data.kind === 'tick' && typeof data.at === 'number') {
+          // Smoothed, so one late message does not make the pattern jump.
+          const offset = data.at - Date.now()
+          clockOffset = clockKnown ? clockOffset * 0.7 + offset * 0.3 : offset
+          clockKnown = true
+        }
         if (data.kind === 'wall-saved') for (const listener of wallListeners) listener(data.wall ?? '')
         return
       }

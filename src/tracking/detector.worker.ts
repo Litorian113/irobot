@@ -1,15 +1,18 @@
 /// <reference lib="webworker" />
 import * as ort from 'onnxruntime-web/webgpu'
 import { iou, type Box } from './gaze'
+import { SHAPE_H, SHAPE_W } from './silhouette'
 
 /**
  * YOLO person detection, off the main thread. A frame arrives as an ImageBitmap,
  * is letterboxed into the model input, and is closed right after inference:
- * nothing is kept, only the person boxes leave this worker.
+ * nothing is kept, only the person boxes leave this worker - and, with a segmentation model, a
+ * coarse outline of the people (silhouette.ts), for the Silhouette pattern.
  */
 
 export type DetectorRequest =
-  | { type: 'init'; modelUrl: string; size: number }
+  /** The first of `modelUrls` that loads is used: the segmentation model if it is there. */
+  | { type: 'init'; modelUrls: string[]; size: number }
   /**
    * `rotate`: the camera hangs upside down; the frame is turned upright before detection.
    * `enhance`: stretch contrast and lift a dark frame before detection.
@@ -17,9 +20,9 @@ export type DetectorRequest =
   | { type: 'frame'; bitmap: ImageBitmap; rotate?: boolean; enhance?: boolean }
 
 export type DetectorResponse =
-  | { type: 'ready'; provider: string }
+  | { type: 'ready'; provider: string; outlines: boolean }
   /** `light`: how the frame was lifted (contrast gain and gamma), for the preview panel. */
-  | { type: 'result'; boxes: Box[]; ms: number; light: { gain: number; gamma: number } | null }
+  | { type: 'result'; boxes: Box[]; ms: number; light: { gain: number; gamma: number } | null; shape: Uint8Array | null }
   | { type: 'error'; message: string }
 
 // ONNX Runtime would start its CPU threads as extra workers from *this* bundled
@@ -33,6 +36,10 @@ const START_TIMEOUT_MS = 20000
 /** Boxes this sure go out; the tracker asks more of a person it is not following yet. */
 const SCORE = 0.25
 const NMS_IOU = 0.45
+/** People this sure get an outline. */
+const OUTLINE_SCORE = 0.4
+/** Mask coefficients per detection in a YOLO segmentation model. */
+const MASK_COEFFS = 32
 /** Auto exposure: the darkest and brightest percent of the frame become black and white. */
 const CLIP = 0.01
 /** Never amplify contrast more than this (noise), never lift harder than this gamma. */
@@ -55,19 +62,28 @@ const histogram = new Uint32Array(256)
 
 const post = (message: DetectorResponse) => self.postMessage(message)
 
-async function init(modelUrl: string, inputSize: number) {
+async function init(modelUrls: string[], inputSize: number) {
   size = inputSize
   canvas = new OffscreenCanvas(size, size)
   ctx = canvas.getContext('2d', { willReadFrequently: true })
   input = new Float32Array(3 * size * size)
-  const model = new Uint8Array(await (await fetch(modelUrl)).arrayBuffer())
+  let model: Uint8Array | null = null
+  for (const url of modelUrls) {
+    const response = await fetch(url).catch(() => null)
+    // A missing file comes back from the dev server as its HTML page: not a model.
+    if (response?.ok && !response.headers.get('content-type')?.includes('text/html')) {
+      model = new Uint8Array(await response.arrayBuffer())
+      break
+    }
+  }
+  if (!model) throw new Error('Kein Erkennungsmodell gefunden')
   // WebGPU where the browser has it, otherwise WebAssembly on the CPU.
   const providers = 'gpu' in navigator ? ['webgpu', 'wasm'] : ['wasm']
   let lastError: unknown = null
   for (const provider of providers) {
     try {
       session = await withTimeout(start(model, provider), `${provider} did not start`)
-      post({ type: 'ready', provider })
+      post({ type: 'ready', provider, outlines: session.outputNames.length > 1 })
       return
     } catch (error) {
       lastError = error
@@ -165,10 +181,81 @@ async function detect(bitmap: ImageBitmap, rotate = false, enhance = true) {
   }
   ctx.fillRect(0, 0, size, size) // do not leave the last frame lying around
   const output = await session.run({ [session.inputNames[0]]: new ort.Tensor('float32', input, [1, 3, size, size]) })
-  const tensor = output[session.outputNames[0]]
-  const boxes = decode(tensor.data as Float32Array, tensor.dims as number[], { scale, dx, dy, W, H })
-  tensor.dispose()
-  post({ type: 'result', boxes, ms: performance.now() - started, light })
+  const tensors = session.outputNames.map((name) => output[name])
+  const frame = { scale, dx, dy, W, H }
+  const protos = tensors.find((t) => t.dims.length === 4)
+  const head = tensors.find((t) => t.dims.length === 3) ?? tensors[0]
+  let boxes: Box[]
+  let shape: Uint8Array | null = null
+  if (protos) {
+    const people = decodeSegmentation(head.data as Float32Array, head.dims as number[])
+    boxes = people.map((p) => toFrame(p, frame))
+    shape = outline(people.filter((p) => p.score >= OUTLINE_SCORE), protos.data as Float32Array, protos.dims as number[], frame)
+  } else {
+    boxes = decode(head.data as Float32Array, head.dims as number[], frame)
+  }
+  for (const tensor of tensors) tensor.dispose()
+  post({ type: 'result', boxes, ms: performance.now() - started, light, shape })
+}
+
+/** A person found by a segmentation model, still in input pixels, with its mask coefficients. */
+interface Person { x1: number; y1: number; x2: number; y2: number; score: number; coeffs: Float32Array }
+type Frame = { scale: number; dx: number; dy: number; W: number; H: number }
+
+function toFrame(p: Person, frame: Frame): Box {
+  const toX = (x: number) => Math.min(1, Math.max(0, (x - frame.dx) / frame.scale / frame.W))
+  const toY = (y: number) => Math.min(1, Math.max(0, (y - frame.dy) / frame.scale / frame.H))
+  return { x1: toX(p.x1), y1: toY(p.y1), x2: toX(p.x2), y2: toY(p.y2), score: p.score }
+}
+
+/**
+ * Both ways a YOLO segmentation model can be exported: end to end [1, N, 6 + 32] (x1, y1, x2, y2,
+ * score, class, coefficients; already without duplicates), or raw [1, 4 + classes + 32, anchors].
+ */
+function decodeSegmentation(data: Float32Array, dims: number[]): Person[] {
+  const [, a, b] = dims
+  if (b === 6 + MASK_COEFFS) {
+    const found: Person[] = []
+    for (let i = 0; i < a; i++) {
+      const row = i * b
+      if (data[row + 4] < SCORE || Math.round(data[row + 5]) !== PERSON) continue
+      found.push({ x1: data[row], y1: data[row + 1], x2: data[row + 2], y2: data[row + 3], score: data[row + 4], coeffs: data.slice(row + 6, row + 6 + MASK_COEFFS) })
+    }
+    return found
+  }
+  const channels = a, anchors = b
+  const found: Person[] = []
+  for (let i = 0; i < anchors; i++) {
+    const score = data[(4 + PERSON) * anchors + i]
+    if (score < SCORE) continue
+    const cx = data[i], cy = data[anchors + i], w = data[2 * anchors + i], h = data[3 * anchors + i]
+    const coeffs = new Float32Array(MASK_COEFFS)
+    for (let k = 0; k < MASK_COEFFS; k++) coeffs[k] = data[(channels - MASK_COEFFS + k) * anchors + i]
+    found.push({ x1: cx - w / 2, y1: cy - h / 2, x2: cx + w / 2, y2: cy + h / 2, score, coeffs })
+  }
+  found.sort((p, q) => q.score - p.score)
+  const kept: Person[] = []
+  for (const p of found) if (kept.every((k) => iou(k, p) < NMS_IOU)) kept.push(p)
+  return kept
+}
+
+/** The people's masks, in a coarse grid over the upright camera picture: one cell, person or not. */
+function outline(people: Person[], protos: Float32Array, dims: number[], frame: Frame) {
+  const cells = new Uint8Array(SHAPE_W * SHAPE_H)
+  const [, k, ph, pw] = dims
+  for (const p of people) {
+    for (let gy = 0; gy < SHAPE_H; gy++) for (let gx = 0; gx < SHAPE_W; gx++) {
+      const ix = ((gx + 0.5) / SHAPE_W) * frame.W * frame.scale + frame.dx
+      const iy = ((gy + 0.5) / SHAPE_H) * frame.H * frame.scale + frame.dy
+      if (ix < p.x1 || ix > p.x2 || iy < p.y1 || iy > p.y2) continue
+      const px = Math.min(pw - 1, Math.floor((ix / size) * pw))
+      const py = Math.min(ph - 1, Math.floor((iy / size) * ph))
+      let sum = 0
+      for (let c = 0; c < k; c++) sum += p.coeffs[c] * protos[(c * ph + py) * pw + px]
+      if (sum > 0) cells[gy * SHAPE_W + gx] = 1
+    }
+  }
+  return cells
 }
 
 /** YOLO head output [1, 4 + classes, anchors]: cx, cy, w, h in input pixels, then class scores. */
@@ -197,6 +284,6 @@ function nms(boxes: Box[]): Box[] {
 
 self.onmessage = (event: MessageEvent<DetectorRequest>) => {
   const message = event.data
-  const run = message.type === 'init' ? init(message.modelUrl, message.size) : detect(message.bitmap, message.rotate, message.enhance)
+  const run = message.type === 'init' ? init(message.modelUrls, message.size) : detect(message.bitmap, message.rotate, message.enhance)
   run.catch((error: unknown) => post({ type: 'error', message: error instanceof Error ? error.message : String(error) }))
 }

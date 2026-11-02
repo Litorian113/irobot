@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import AnalyticsView from './AnalyticsView'
+import FullWallView from './FullWallView'
 import LiveView from './LiveView'
 import ScheduleView from './ScheduleView'
 import Studio from './Studio'
@@ -57,10 +58,11 @@ export default function Workbench() {
         view={view}
         onChoose={choose}
         sidebarClosed={sidebarClosed}
-        onToggleSidebar={view === 'heads' || view === 'custom' ? toggleSidebar : undefined}
+        onToggleSidebar={view === 'heads' || view === 'custom' || view === 'fullwall' ? toggleSidebar : undefined}
       />
       <div className="app-content">
         {view === 'heads' && <Studio />}
+        {view === 'fullwall' && <FullWallView />}
         {view === 'custom' && <WallEditor onShowLive={() => choose('live')} />}
         {view === 'live' && <LiveView onEdit={() => choose('custom')} />}
         {view === 'analytics' && <AnalyticsView />}

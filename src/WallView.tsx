@@ -3,6 +3,7 @@ import HeadCell from './HeadCell'
 import Promo from './Promo'
 import TrackerPanel from './TrackerPanel'
 import { publish } from './tracking/bus'
+import { packShape } from './tracking/silhouette'
 import { PersonTracker, type TrackerState } from './tracking/PersonTracker'
 import { slotLabel } from './layout'
 import { screenPosition, type Vec3 } from './tracking/gaze'
@@ -54,7 +55,7 @@ export default function WallView({ slot, rows, watch = false }: { slot: number |
       cameraName: SETTINGS.cameraName,
       onUpdate: (state) => {
         setTrackerState(state)
-        publish({ present: state.present, person: state.person, count: state.boxes.length })
+        publish({ present: state.present, person: state.person, count: state.boxes.length, ...(state.shape ? { shape: packShape(state.shape) } : {}) })
       },
     })
     void instance.start()

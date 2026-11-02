@@ -1,5 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import WallView from '../WallView'
+import FullWallStage from '../fullwall/FullWallStage'
+import { loadFullWall, type FullWall } from '../fullwall/state'
 import { loadCustomWall } from '../customWall'
 import type { WallLayout } from '../layout'
 import { onWallSaved } from '../tracking/bus'
@@ -23,6 +25,7 @@ export default function LiveView({ onEdit }: { onEdit: () => void }) {
   const [saved, setSaved] = useState(false)
   const [version, setVersion] = useState(0)
   const [error, setError] = useState<string | null>(null)
+  const [full, setFull] = useState<FullWall | null>(null)
 
   useEffect(() => {
     const load = () => loadCustomWall().then(
@@ -33,8 +36,14 @@ export default function LiveView({ onEdit }: { onEdit: () => void }) {
       },
       (e: unknown) => setError(String(e)),
     )
+    const loadFull = () => loadFullWall().then(setFull, () => setFull(null))
     void load()
-    return onWallSaved((wall) => { if (wall === 'custom') void load() })
+    void loadFull()
+    return onWallSaved((wall) => {
+      if (wall !== 'custom') return
+      void load()
+      void loadFull()
+    })
   }, [])
 
   const rows = useMemo(() => (layout ? screensFromLayout(layout) : null), [layout])
@@ -52,9 +61,13 @@ export default function LiveView({ onEdit }: { onEdit: () => void }) {
 
         <p className="section-title">Wand</p>
         <div className="card">
-          <div className="live-stage" style={{ aspectRatio: rows ? `${columns * 16} / ${rows.length * 9}` : '16 / 9' }}>
-            {rows && <WallView key={version} slot={null} rows={rows} watch />}
-          </div>
+          {full && full.mode !== 'off'
+            ? <FullWallStage state={full} live />
+            : (
+              <div className="live-stage" style={{ aspectRatio: rows ? `${columns * 16} / ${rows.length * 9}` : '16 / 9' }}>
+                {rows && <WallView key={version} slot={null} rows={rows} watch />}
+              </div>
+            )}
         </div>
 
         <CameraCard screens={rows ? shelfPositions(rows) : []} />

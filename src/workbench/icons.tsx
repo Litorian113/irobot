@@ -71,3 +71,10 @@ export const CalendarIcon = ({ className }: { className?: string }) => (
     <path d="M3.5 10h17M8 3v4M16 3v4" />
   </Icon>
 )
+
+export const FullWallIcon = ({ className }: { className?: string }) => (
+  <Icon className={className}>
+    <rect x="3" y="4" width="18" height="16" rx="2.4" />
+    <path d="M9 4v16M15 4v16M3 9.3h18M3 14.7h18" strokeWidth="1.2" />
+  </Icon>
+)

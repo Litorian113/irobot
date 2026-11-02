@@ -115,6 +115,30 @@ Protokoll: `logs\imacs.log`. Das Admin-Passwort der iMacs liegt dafür auf dem S
 
 ---
 
+## Ganze Wand
+
+Tab **Ganze Wand**: alle Bildschirme als ein Bild. Ein **Muster** (`Fäden`, `Falte`, reagieren auf die Person davor;
+`Silhouette` zeichnet die Menschen davor live als Linien auf Weiß nach) oder
+**ein Kopf** über das ganze Regal. Gerechnet wird in echten Metern (`src/fullwall/geometry.ts`: Bildschirm 0,518 × 0,324 m,
+Abstände aus `SETTINGS.shelf`), das Bild läuft also hinter Rahmen und Lücken weiter, auch über die zwei Plätze ohne
+Bildschirm. „Auf die Wand“ zeigt es auf allen iMacs statt der Wand aus Gestalten, „Aus“ gibt die zurück
+(`walls/full-wall.json`). Die Muster laufen auf der Uhr des Servers, damit alle Bildschirme im Takt bleiben.
+Ein Kopf zeigt auf jedem iMac seinen Ausschnitt; was ein Kopf zufällig tut (Blinzeln, Explodieren), tut er
+auf jedem Bildschirm zu einer eigenen Zeit.
+
+**Silhouette** braucht das Segmentierungsmodell `public/models/yolo26n-seg-320.onnx` (sonst bleibt die Wand weiß;
+die Köpfe laufen mit dem bisherigen Modell weiter). Einmal erzeugen, im Repo-Ordner:
+
+```
+uvx --python 3.11 --with onnx --with onnxslim --from "ultralytics==8.4.*" yolo export model=yolo26n-seg.pt format=onnx imgsz=320 opset=17
+mv yolo26n-seg.onnx public/models/yolo26n-seg-320.onnx
+```
+
+Die Kamera nimmt es dann von selbst. Über das Netz geht dabei nur ein grobes Raster der Umrisse (64 × 36 Felder,
+`src/tracking/silhouette.ts`), kein Bild; gespeichert wird nichts.
+
+---
+
 ## Werbung auf dem mittleren Bildschirm
 
 Ein HfG-Banner ist ein Zusatz zu einem Bildschirm und ersetzt seinen Kopf nicht: Der Kopf läuft, und das Banner blendet

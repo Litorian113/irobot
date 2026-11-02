@@ -9,6 +9,7 @@ import { defineConfig, loadEnv, type Plugin } from 'vite'
 import { WebSocket, WebSocketServer } from 'ws'
 import { PeopleCounter, VISITOR_AFTER_MS, dayKey, type Stats } from './src/analytics.ts'
 import { isLayout } from './src/layout.ts'
+import { FULL_WALL_OFF, isFullWall } from './src/fullwall/state.ts'
 import { DEFAULT_SCHEDULE, changes, imacsProgram, isOn, isSchedule, type Schedule } from './src/schedule.ts'
 
 /** The middle screen (see src/wall.ts): the promo, with the camera above it. */
@@ -60,6 +61,52 @@ function customWallApi(broadcast: (message: unknown) => void) {
         .then(() => {
           broadcast({ kind: 'wall-saved', wall: 'custom' })
           send(200, { layout })
+        })
+        .catch((error: unknown) => send(500, { error: String(error) }))
+    })
+  }
+}
+
+/** The whole wall as one picture (Ganze Wand): off, a pattern, or one head over all screens. */
+const FULL_WALL_FILE = 'walls/full-wall.json'
+
+/** GET the state, PUT a new one: every screen reloads to show it. */
+function fullWallApi(broadcast: (message: unknown) => void) {
+  return (request: IncomingMessage, response: ServerResponse) => {
+    const send = (status: number, body: unknown) => {
+      response.statusCode = status
+      response.setHeader('Content-Type', 'application/json')
+      response.setHeader('Cache-Control', 'no-store')
+      response.end(JSON.stringify(body))
+    }
+    if (request.method === 'GET') {
+      readFile(FULL_WALL_FILE, 'utf8')
+        .then((text) => {
+          const saved = JSON.parse(text) as unknown
+          send(200, isFullWall(saved) ? saved : FULL_WALL_OFF)
+        })
+        .catch(() => send(200, FULL_WALL_OFF))
+      return
+    }
+    if (request.method !== 'PUT') return send(405, { error: 'GET or PUT' })
+    let body = ''
+    request.on('data', (chunk: Buffer) => {
+      body += chunk
+      if (body.length > 4096) request.destroy()
+    })
+    request.on('end', () => {
+      let state: unknown
+      try {
+        state = JSON.parse(body)
+      } catch {
+        return send(400, { error: 'invalid JSON' })
+      }
+      if (!isFullWall(state)) return send(400, { error: 'expected off, a pattern or a head' })
+      mkdir(dirname(FULL_WALL_FILE), { recursive: true })
+        .then(() => writeFile(FULL_WALL_FILE, JSON.stringify(state) + '\n'))
+        .then(() => {
+          broadcast({ kind: 'wall-saved', wall: 'custom' })
+          send(200, state)
         })
         .catch((error: unknown) => send(500, { error: String(error) }))
     })
@@ -252,9 +299,11 @@ function gazeRelay(): Plugin {
   }
   // A heartbeat: screens only listen, so without it they never notice a connection that died
   // with a server reboot, and wait on it forever (src/tracking/bus.ts reconnects when it stops).
-  setInterval(() => broadcast({ kind: 'tick' }), HEARTBEAT_MS).unref()
+  // It also carries the server's time: patterns over the whole wall move in step on every screen.
+  setInterval(() => broadcast({ kind: 'tick', at: Date.now() }), HEARTBEAT_MS).unref()
   const api = customWallApi(broadcast)
   const schedule = scheduleApi()
+  const fullWall = fullWallApi(broadcast)
   const attach = (httpServer: Server | null, label: string) => {
     httpServer?.on('upgrade', (request, socket, head) => {
       if (!request.url?.startsWith('/gaze')) return // Vite's own live-reload socket
@@ -271,6 +320,7 @@ function gazeRelay(): Plugin {
       server.middlewares.use('/api/custom-wall', api)
       server.middlewares.use('/api/analytics', analytics.api)
       server.middlewares.use('/api/schedule', schedule)
+      server.middlewares.use('/api/full-wall', fullWall)
       server.middlewares.use('/api/log', screenLogApi())
       attach(server.httpServer as Server | null, 'dev')
     },
@@ -278,6 +328,7 @@ function gazeRelay(): Plugin {
       server.middlewares.use('/api/custom-wall', api)
       server.middlewares.use('/api/analytics', analytics.api)
       server.middlewares.use('/api/schedule', schedule)
+      server.middlewares.use('/api/full-wall', fullWall)
       server.middlewares.use('/api/log', screenLogApi())
       attach(server.httpServer as Server, 'wall')
     },

@@ -18,6 +18,8 @@ export interface TrackerState {
   /** Smoothed face position of the person being watched, wall metres. */
   person: Vec3 | null
   present: boolean
+  /** The people's outline (silhouette.ts), when the model can tell one; null otherwise. */
+  shape: Uint8Array | null
 }
 
 export interface TrackerOptions {
@@ -36,7 +38,8 @@ export interface TrackerOptions {
   onUpdate: (state: TrackerState) => void
 }
 
-const MODEL_URL = `${import.meta.env.BASE_URL}models/yolo26n-320.onnx`
+/** With outlines when the segmentation model is there (Silhouette pattern), otherwise boxes only. */
+const MODEL_URLS = [`${import.meta.env.BASE_URL}models/yolo26n-seg-320.onnx`, `${import.meta.env.BASE_URL}models/yolo26n-320.onnx`]
 const MODEL_SIZE = 320
 /** Wait this long before opening the camera again after it failed or went away. */
 const CAMERA_RETRY_MS = 5000
@@ -68,7 +71,7 @@ export class PersonTracker {
   private lastSent = 0
   private lastSeen = 0
   private opts: TrackerOptions
-  private state: TrackerState = { status: 'starting', rotated: false, inferenceMs: 0, light: null, boxes: [], target: null, person: null, present: false }
+  private state: TrackerState = { status: 'starting', rotated: false, inferenceMs: 0, light: null, boxes: [], target: null, person: null, present: false, shape: null }
 
   constructor(opts: TrackerOptions) {
     this.opts = opts
@@ -80,7 +83,7 @@ export class PersonTracker {
     this.worker = new Worker(new URL('./detector.worker.ts', import.meta.url), { type: 'module' })
     this.worker.onmessage = (event: MessageEvent<DetectorResponse>) => this.onWorker(event.data)
     this.worker.onerror = (event) => this.fail(event.message || 'Detector worker failed')
-    this.send({ type: 'init', modelUrl: new URL(MODEL_URL, location.href).href, size: MODEL_SIZE })
+    this.send({ type: 'init', modelUrls: MODEL_URLS.map((url) => new URL(url, location.href).href), size: MODEL_SIZE })
     await this.openCamera()
   }
 
@@ -163,7 +166,7 @@ export class PersonTracker {
       return
     }
     this.busy = false
-    this.track(message.boxes, message.ms, message.light)
+    this.track(message.boxes, message.ms, message.light, message.shape)
     this.schedule()
   }
 
@@ -187,7 +190,7 @@ export class PersonTracker {
     }
   }
 
-  private track(found: Box[], ms: number, light: TrackerState['light']) {
+  private track(found: Box[], ms: number, light: TrackerState['light'], shape: Uint8Array | null) {
     const now = performance.now()
     // Hysteresis: someone already followed is kept on weaker evidence than it takes to pick up someone new.
     const previous = this.state.present ? this.state.target : null
@@ -209,6 +212,6 @@ export class PersonTracker {
       this.lastSeen = now
     }
     const present = Boolean(target) || now - this.lastSeen < LINGER_MS
-    this.update({ boxes, target: target ?? (present ? this.state.target : null), person: present ? person : null, present, inferenceMs: ms, light })
+    this.update({ boxes, target: target ?? (present ? this.state.target : null), person: present ? person : null, present, inferenceMs: ms, light, shape: found.length ? shape : null })
   }
 }

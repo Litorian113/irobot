@@ -2,6 +2,10 @@ import { useEffect, useRef } from 'react'
 import Promo from './Promo'
 import { bannerOf } from './banners'
 import { CATALOG, catalogEntry } from './heads/catalog'
+import { createPattern, PATTERNS } from './fullwall/pattern'
+import { createSilhouette } from './fullwall/silhouette'
+import { syntheticShape } from './tracking/silhouette'
+import { wallRect } from './fullwall/geometry'
 
 /**
  * `?snapshot=<key>`: one head, filling a 16:9 window, slightly turned - what
@@ -13,7 +17,7 @@ export default function SnapshotView({ entryKey }: { entryKey: string }) {
 
   // For the script: which heads there are to photograph.
   useEffect(() => {
-    ;(window as unknown as { __catalogKeys?: string[] }).__catalogKeys = CATALOG.map((e) => e.key)
+    ;(window as unknown as { __catalogKeys?: string[] }).__catalogKeys = [...CATALOG.map((e) => e.key), ...PATTERNS.map((p) => `pattern-${p.key}`)]
   }, [])
 
   useEffect(() => {
@@ -22,6 +26,26 @@ export default function SnapshotView({ entryKey }: { entryKey: string }) {
       // A banner is plain HTML: ready at once.
       debugWindow.__snapshotHead = { debug: () => ({ headLoaded: true }) }
       return () => { delete debugWindow.__snapshotHead }
+    }
+    const pattern = PATTERNS.find((p) => `pattern-${p.key}` === entryKey)
+    if (pattern && canvasRef.current) {
+      // The middle of the wall, 16:9 like the other pictures.
+      const wall = wallRect()
+      const h = (wall.y1 - wall.y0) * 0.62
+      const view = { x0: -h * 8 / 9, x1: h * 8 / 9, y0: -h / 2, y1: h / 2 }
+      let drawn
+      if (pattern.key === 'silhouette') {
+        const silhouette = createSilhouette(canvasRef.current, view, { now: () => 40_000, maxPixelRatio: 1 })
+        silhouette.setShape(syntheticShape(0.5, 0.22, 0.85))
+        drawn = silhouette
+      } else {
+        drawn = createPattern(canvasRef.current, pattern.key, view, { now: () => 40_000, maxPixelRatio: 1 })
+      }
+      debugWindow.__snapshotHead = drawn
+      return () => {
+        delete debugWindow.__snapshotHead
+        drawn.dispose()
+      }
     }
     const entry = catalogEntry(entryKey)
     if (!canvasRef.current || !entry?.create) return
