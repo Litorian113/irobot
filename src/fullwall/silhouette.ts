@@ -10,9 +10,11 @@ import type { PatternView } from './pattern'
  * white, like a mirror: the lines bow with the body, thicker parts more. The camera picture is laid
  * over the whole wall, its height to the wall's, mirrored. Only a coarse outline arrives
  * (tracking/silhouette.ts); it is smoothed here, so the people seem to flow rather than flicker.
- * Schraffur: the same people on black, hatched in fine white strokes of uneven length that fray at
- * the edges and redraw a few times a second, lit from one side, with a few strokes of floor under
- * their feet.
+ * Schraffur: the same people on black, hatched in fine strokes of uneven length that fray at the
+ * edges and redraw a few times a second, lit from one side, with a few strokes of floor under their
+ * feet. Each person has their own colour from one spectrum (cyan, blue, violet, pink); who stays a few
+ * seconds gets an aura: the strokes start to flow and grow, light streams off the body, the colour
+ * wanders through the spectrum.
  * WebGL 1 safe: one quad, a 64 x 36 texture, GLSL ES 1.0 without derivatives.
  */
 
@@ -27,6 +29,13 @@ const WIDTH = 0.0034
 const BOW = 0.05
 /** How fast the shown outline follows a new one (per second): fast enough to follow, slow enough to flow. */
 const FOLLOW = 7
+/** Someone standing this long (ms) starts to glow; fully by AURA_FULL. */
+const AURA_AFTER = 3500
+const AURA_FULL = 7000
+/** A person not seen for this long is gone: their aura starts again when they come back. */
+const FORGET_MS = 1500
+/** Where in the spectrum a person sits: spread out, so two people side by side differ. */
+const hueOf = (person: number) => (person * 0.381966 + 0.13) % 1
 
 const VERTEX = /* glsl */ `
 varying vec2 vWall;
@@ -68,8 +77,19 @@ varying vec2 vWall;
 
 float hash(vec2 p) { return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453); }
 
+// One spectrum for everyone: cyan, blue, violet, pink, and round again.
+vec3 spectrum(float h) {
+  h = fract(h) * 4.0;
+  vec3 a = vec3(0.37, 0.91, 1.0), b = vec3(0.44, 0.55, 1.0), c = vec3(0.77, 0.42, 1.0), d = vec3(1.0, 0.44, 0.71);
+  if (h < 1.0) return mix(a, b, h);
+  if (h < 2.0) return mix(b, c, h - 1.0);
+  if (h < 3.0) return mix(c, d, h - 2.0);
+  return mix(d, a, h - 3.0);
+}
+
 void main() {
   vec2 uv = vec2(0.5 - (vWall.x - uFrame.x) / uFrame.z, 0.5 - (vWall.y - uFrame.y) / uFrame.w);
+  vec3 tint = vec3(1.0);
   // Redrawn by hand a few times a second.
   float frame = floor(uTime * 7.0);
   float spacing = 0.0062;
@@ -81,13 +101,17 @@ void main() {
     // Light from the left of the picture: brighter where the body rises towards it.
     float gx = texture2D(uShape, uv + vec2(1.0 / 64.0, 0.0)).g - texture2D(uShape, uv - vec2(1.0 / 64.0, 0.0)).g;
     light = clamp(0.55 + gx * 5.0 + shape.g * 0.25, 0.25, 1.0);
+    float aura = shape.b;
+    tint = spectrum(shape.a + uTime * 0.05 * aura);
     float y = vWall.y + 0.03 * shape.g;
     float row = floor(y / spacing);
     // Long strokes of uneven length along the row, with gaps; each leans a little on its own.
-    float along = vWall.x / 0.11 + hash(vec2(row, 3.0 + frame)) * 13.0;
+    // In the aura they flow along their rows, every other row the other way, and grow longer.
+    float flow = uTime * (0.5 + 0.7 * hash(vec2(row, 5.0))) * aura * (mod(row, 2.0) * 2.0 - 1.0);
+    float along = vWall.x / 0.11 + hash(vec2(row, 3.0 + frame)) * 13.0 + flow;
     float stroke = floor(along);
     float t = fract(along);
-    float on = step(t, mix(0.45, 0.98, hash(vec2(row * 1.7, stroke + frame))));
+    float on = step(t, mix(0.45, 0.98, hash(vec2(row * 1.7, stroke + frame))) + 0.2 * aura);
     float lean = (hash(vec2(row * 3.1, stroke + frame)) - 0.5) * spacing * 1.6;
     float across = abs(fract((y + (t - 0.5) * lean) / spacing) - 0.5) * spacing;
     // Frayed edges: some strokes reach past the outline, some stop short.
@@ -95,7 +119,11 @@ void main() {
     float body = smoothstep(0.42, 0.58, shape.r + edge);
     float width = 0.0009 * (0.7 + 0.7 * hash(vec2(row, stroke)));
     light *= 0.55 + 0.45 * hash(vec2(row * 7.0, stroke + frame));
-    ink = (1.0 - smoothstep(width * 0.5, width * 0.5 + uPixel, across)) * on * body;
+    light *= 1.0 + 0.35 * aura * sin(uTime * 3.0 + row * 0.35);
+    // Light streaming off the body: sparse strokes in the aura around it.
+    float halo = (1.0 - body) * smoothstep(0.08, 0.45, aura) * step(0.72, hash(vec2(row * 2.3, stroke + frame)));
+    float mark = 1.0 - smoothstep(width * 0.5, width * 0.5 + uPixel, across);
+    ink = mark * on * max(body, halo * 0.7);
 
     // A little floor under the feet: flat strokes, densest under them, fading out sideways.
     if (uFloor.y > 0.0) {
@@ -111,7 +139,7 @@ void main() {
     }
   }
   if (ink <= 0.01) discard;
-  gl_FragColor = vec4(vec3(0.93 * light + 0.07), ink);
+  gl_FragColor = vec4(mix(vec3(1.0), tint, 0.8) * (0.93 * light + 0.07), ink);
 }
 `
 
@@ -199,6 +227,10 @@ export function createSilhouette(canvas: HTMLCanvasElement, view: Rect, options:
 
   const target = new Float32Array(SHAPE_W * SHAPE_H)
   const shown = new Float32Array(SHAPE_W * SHAPE_H)
+  /** Who each cell last belonged to, their place in the spectrum, and how long each person has been there. */
+  const labels = new Uint8Array(SHAPE_W * SHAPE_H)
+  const hue = new Float32Array(SHAPE_W * SHAPE_H)
+  const stay = new Map<number, { since: number; seen: number }>()
   let raf = 0, last = performance.now(), frames = 0, since = last, renderedFps = 0, disposed = false
   const fps = options.fps ?? 30
 
@@ -221,10 +253,19 @@ export function createSilhouette(canvas: HTMLCanvasElement, view: Rect, options:
     for (let i = 0; i < shown.length; i++) shown[i] += (target[i] - shown[i]) * k
     const edge = blur(Float32Array.from(shown), 1)
     const depth = blur(Float32Array.from(shown), 4)
+    // The aura of each person, by how long they have stood there, spread a little past their outline.
+    for (const [person, s] of stay) if (now - s.seen > FORGET_MS) stay.delete(person)
+    const glow = new Float32Array(shown.length)
+    for (let i = 0; i < shown.length; i++) {
+      const s = labels[i] ? stay.get(labels[i]) : undefined
+      if (s) glow[i] = shown[i] * Math.min(1, Math.max(0, (now - s.since - AURA_AFTER) / (AURA_FULL - AURA_AFTER)))
+    }
+    const aura = blur(glow, 5)
     for (let i = 0; i < shown.length; i++) {
       data[i * 4] = Math.round(edge[i] * 255)
       data[i * 4 + 1] = Math.round(Math.min(1, depth[i] * 1.25) * 255)
-      data[i * 4 + 3] = 255
+      data[i * 4 + 2] = Math.round(Math.min(1, Math.max(glow[i], aura[i] * 1.6)) * 255)
+      data[i * 4 + 3] = Math.round(hue[i] * 255)
     }
     texture.needsUpdate = true
     if (hatched) placeFloor(edge, material.uniforms.uFloor.value as THREE.Vector3)
@@ -241,11 +282,23 @@ export function createSilhouette(canvas: HTMLCanvasElement, view: Rect, options:
 
   return {
     setShape(cells) {
-      if (cells) for (let i = 0; i < target.length; i++) target[i] = cells[i]
-      else target.fill(0)
+      if (!cells) {
+        target.fill(0)
+        return
+      }
+      const now = performance.now()
+      for (let i = 0; i < target.length; i++) {
+        target[i] = cells[i] ? 1 : 0
+        if (!cells[i]) continue
+        labels[i] = cells[i]
+        hue[i] = hueOf(cells[i])
+        const s = stay.get(cells[i])
+        if (s) s.seen = now
+        else stay.set(cells[i], { since: now, seen: now })
+      }
     },
     setPerson() {},
-    debug: () => ({ webgl: renderer.capabilities.isWebGL2 ? 2 : 1, renderedFps, headLoaded: true, pattern: options.style ?? 'silhouette', cells: target.reduce((a, b) => a + b, 0) }),
+    debug: () => ({ webgl: renderer.capabilities.isWebGL2 ? 2 : 1, renderedFps, headLoaded: true, pattern: options.style ?? 'silhouette', cells: target.reduce((a, b) => a + b, 0), people: stay.size }),
     dispose() {
       disposed = true
       cancelAnimationFrame(raf)

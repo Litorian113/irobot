@@ -118,7 +118,7 @@ Protokoll: `logs\imacs.log`. Das Admin-Passwort der iMacs liegt dafür auf dem S
 ## Ganze Wand
 
 Tab **Ganze Wand**: alle Bildschirme als ein Bild. Ein **Muster** (`Fäden`, `Falte`, reagieren auf die Person davor;
-`Silhouette` zeichnet die Menschen davor live als Linien auf Weiß nach, `Schraffur` in feinen weißen Strichen auf Schwarz) oder
+`Silhouette` zeichnet die Menschen davor live als Linien auf Weiß nach, `Schraffur` in feinen Strichen auf Schwarz, jede Person in ihrer Farbe aus einem Spektrum, wer ein paar Sekunden bleibt, bekommt eine fließende Aura) oder
 **ein Kopf** über das ganze Regal. Gerechnet wird in echten Metern (`src/fullwall/geometry.ts`: Bildschirm 0,518 × 0,324 m,
 Abstände aus `SETTINGS.shelf`), das Bild läuft also hinter Rahmen und Lücken weiter, auch über die zwei Plätze ohne
 Bildschirm. „Auf die Wand“ zeigt es auf allen iMacs statt der Wand aus Gestalten, „Aus“ gibt die zurück
@@ -134,7 +134,7 @@ uvx --python 3.11 --with onnx --with onnxslim --from "ultralytics==8.4.*" yolo e
 mv yolo26n-seg.onnx public/models/yolo26n-seg-320.onnx
 ```
 
-Die Kamera nimmt es dann von selbst. Über das Netz geht dabei nur ein grobes Raster der Umrisse (64 × 36 Felder,
+Die Kamera nimmt es dann von selbst. Über das Netz geht dabei nur ein grobes Raster der Umrisse (64 × 36 Felder, je Feld eine Nummer 1–15 für die Person, solange die Kamera ihr folgt,
 `src/tracking/silhouette.ts`), kein Bild; gespeichert wird nichts.
 
 ---

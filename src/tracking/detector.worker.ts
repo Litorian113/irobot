@@ -239,11 +239,32 @@ function decodeSegmentation(data: Float32Array, dims: number[]): Person[] {
   return kept
 }
 
-/** The people's masks, in a coarse grid over the upright camera picture: one cell, person or not. */
-function outline(people: Person[], protos: Float32Array, dims: number[], frame: Frame) {
+/** People seen in the last frame with the number they were given, to keep it while they stay. */
+let followed: { box: Person; id: number }[] = []
+let nextId = 1
+/** Overlap with last frame's box that counts as the same person. */
+const SAME_PERSON_IOU = 0.3
+
+/** A lasting number (1-15) for each person: the one they had in the last frame, or a new one. */
+function numberPeople(people: Person[]) {
+  const free = [...followed]
+  const numbered = people.map((box) => {
+    let best = -1, bestIou = SAME_PERSON_IOU
+    free.forEach((f, i) => { const o = iou(f.box, box); if (o > bestIou) { bestIou = o; best = i } })
+    const id = best >= 0 ? free.splice(best, 1)[0].id : nextId
+    if (best < 0) nextId = (nextId % 15) + 1
+    return { box, id }
+  })
+  followed = numbered
+  return numbered
+}
+
+/** The people's masks, in a coarse grid over the upright camera picture: per cell who is there (0: nobody). */
+function outline(found: Person[], protos: Float32Array, dims: number[], frame: Frame) {
+  const people = numberPeople(found)
   const cells = new Uint8Array(SHAPE_W * SHAPE_H)
   const [, k, ph, pw] = dims
-  for (const p of people) {
+  for (const { box: p, id } of people) {
     for (let gy = 0; gy < SHAPE_H; gy++) for (let gx = 0; gx < SHAPE_W; gx++) {
       const ix = ((gx + 0.5) / SHAPE_W) * frame.W * frame.scale + frame.dx
       const iy = ((gy + 0.5) / SHAPE_H) * frame.H * frame.scale + frame.dy
@@ -252,7 +273,7 @@ function outline(people: Person[], protos: Float32Array, dims: number[], frame: 
       const py = Math.min(ph - 1, Math.floor((iy / size) * ph))
       let sum = 0
       for (let c = 0; c < k; c++) sum += p.coeffs[c] * protos[(c * ph + py) * pw + px]
-      if (sum > 0) cells[gy * SHAPE_W + gx] = 1
+      if (sum > 0) cells[gy * SHAPE_W + gx] = id
     }
   }
   return cells

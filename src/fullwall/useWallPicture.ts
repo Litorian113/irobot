@@ -49,7 +49,8 @@ function shapeAt(person: { x: number; y: number }) {
   const frameH = height(wall), frameW = frameH * 16 / 9
   const u = 0.5 - (person.x - (wall.x0 + wall.x1) / 2) / frameW
   const v = 0.5 - (person.y - (wall.y0 + wall.y1) / 2) / frameH
-  return syntheticShape(u, v, 0.78)
+  // A second person further back, so that two colours can be seen side by side.
+  return syntheticShape(u > 0.5 ? u - 0.22 : u + 0.22, v + 0.08, 0.55, 2, syntheticShape(u, v, 0.78, 1))
 }
 /**
  * One head or pattern in `canvas`, steered by `person`; the head looks from the wall's middle.

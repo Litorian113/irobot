@@ -36,7 +36,7 @@ export default function SnapshotView({ entryKey }: { entryKey: string }) {
       let drawn
       if (pattern.key === 'silhouette' || pattern.key === 'schraffur') {
         const silhouette = createSilhouette(canvasRef.current, view, { now: () => 40_000, maxPixelRatio: 1, style: pattern.key })
-        silhouette.setShape(syntheticShape(0.5, 0.22, 0.85))
+        silhouette.setShape(syntheticShape(0.62, 0.3, 0.6, 2, syntheticShape(0.42, 0.22, 0.85, 1)))
         drawn = silhouette
       } else {
         drawn = createPattern(canvasRef.current, pattern.key, view, { now: () => 40_000, maxPixelRatio: 1 })
