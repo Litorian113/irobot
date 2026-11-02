@@ -51,7 +51,7 @@ function shapeAt(person: { x: number; y: number }) {
   const u = 0.5 - (person.x - (wall.x0 + wall.x1) / 2) / frameW
   const v = 0.5 - (person.y - (wall.y0 + wall.y1) / 2) / frameH
   // A second person further back, so that two colours can be seen side by side.
-  return syntheticShape(u > 0.5 ? u - 0.22 : u + 0.22, v + 0.08, 0.55, 2, syntheticShape(u, v, 0.78, 1))
+  return syntheticShape(u > 0.5 ? u - 0.2 : u + 0.2, v + 0.06, 0.42, 2, syntheticShape(u, v, 0.58, 1))
 }
 /** For the preview: a made-up person standing with their face at the pointer. */
 function poseAt(person: { x: number; y: number }): PoseInput[] {
@@ -87,7 +87,7 @@ export function useWallPicture(canvas: React.RefObject<HTMLCanvasElement | null>
       const kind = state.mode === 'pattern' ? state.pattern : null
       if (kind === 'figur') {
         figures = createFigures(element, { x0, y0, x1, y1 }, { now: serverNow, fps: options.fps, maxPixelRatio: options.maxPixelRatio })
-      } else if (kind === 'silhouette' || kind === 'schraffur') {
+      } else if (kind === 'silhouette' || kind === 'schraffur' || kind === 'gewirr') {
         silhouette = createSilhouette(element, { x0, y0, x1, y1 }, { now: serverNow, fps: options.fps, maxPixelRatio: options.maxPixelRatio, style: kind })
       } else if (kind) {
         pattern = createPattern(element, kind, { x0, y0, x1, y1 }, { now: serverNow, fps: options.fps, maxPixelRatio: options.maxPixelRatio })

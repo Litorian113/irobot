@@ -41,7 +41,7 @@ export default function SnapshotView({ entryKey }: { entryKey: string }) {
         // The figure loads first; until then the pose would be dropped.
         feed = window.setInterval(() => figures.setPoses([{ id: 1, points: syntheticPose(0.47, 0.2, 0.75, 1.2) }]), 100)
         drawn = figures
-      } else if (pattern.key === 'silhouette' || pattern.key === 'schraffur') {
+      } else if (pattern.key === 'silhouette' || pattern.key === 'schraffur' || pattern.key === 'gewirr') {
         const silhouette = createSilhouette(canvasRef.current, view, { now: () => 40_000, maxPixelRatio: 1, style: pattern.key })
         silhouette.setShape(syntheticShape(0.62, 0.3, 0.6, 2, syntheticShape(0.42, 0.22, 0.85, 1)))
         drawn = silhouette

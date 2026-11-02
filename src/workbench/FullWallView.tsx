@@ -49,10 +49,11 @@ export default function FullWallView() {
     return onWallSaved((wall) => { if (wall === 'custom') void load() })
   }, [])
 
-  /** A new pattern or head keeps the banner; `banner` sets or clears it. */
-  const choose = (main: FullWall, banner = pick.banner) => {
+  /** A new pattern or head keeps the banner; `banner` sets one, null takes it away. */
+  const choose = (main: FullWall, banner?: string | null) => {
     const { banner: _old, ...rest } = main
-    const next: FullWall = banner ? { ...rest, banner } : rest
+    const kept = banner === undefined ? pick.banner : banner ?? undefined
+    const next: FullWall = kept ? { ...rest, banner: kept } : rest
     setPick(next)
     const url = new URL(window.location.href)
     url.searchParams.delete('pattern')
@@ -86,7 +87,7 @@ export default function FullWallView() {
     ? PATTERNS.find((p) => p.key === pick.pattern)?.description
     : 'Ein Kopf über alle Bildschirme; die Rahmen und Lücken zwischen ihnen schneiden ihn wie Fenster.'
   const missing = pick.mode !== 'pattern' || !models ? null
-    : (pick.pattern === 'silhouette' || pick.pattern === 'schraffur') && !models.outlines ? 'Umrisse: das Modell yolo26n-seg-320.onnx fehlt'
+    : (pick.pattern === 'silhouette' || pick.pattern === 'schraffur' || pick.pattern === 'gewirr') && !models.outlines ? 'Umrisse: das Modell yolo26n-seg-320.onnx fehlt'
       : pick.pattern === 'figur' && !models.poses ? 'Skelette: das Modell yolo26n-pose-320.onnx fehlt' : null
   const tone: Tone = error ? 'error' : missing ? 'dirty' : onWall ? 'live' : null
   const status = error ?? (missing
@@ -101,7 +102,7 @@ export default function FullWallView() {
         ))}
         <p className="sidebar-hint full-wall-heads">Werbung auf dem mittleren Bildschirm, wenn jemand stehen bleibt</p>
         {PROMO_BANNERS.map((b) => (
-          <Tile key={b.key} name={b.name} snapshot={b.key} title={b.description} active={pick.banner === b.key} onClick={() => choose(pick, pick.banner === b.key ? undefined : b.key)} />
+          <Tile key={b.key} name={b.name} snapshot={b.key} title={b.description} active={pick.banner === b.key} onClick={() => choose(pick, pick.banner === b.key ? null : b.key)} />
         ))}
         <p className="sidebar-hint full-wall-heads">Ein Kopf über die ganze Wand</p>
         <div className="full-wall-filter"><CategoryFilter value={category} onChange={setCategory} /></div>

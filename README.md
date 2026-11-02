@@ -118,7 +118,7 @@ Protokoll: `logs\imacs.log`. Das Admin-Passwort der iMacs liegt dafür auf dem S
 ## Ganze Wand
 
 Tab **Ganze Wand**: alle Bildschirme als ein Bild. Ein **Muster** (`Fäden`, `Falte`, reagieren auf die Person davor;
-`Silhouette` zeichnet die Menschen davor live als Linien auf Weiß nach, `Schraffur` in feinen Strichen auf Schwarz, jede Person in ihrer Farbe aus einem Spektrum, wer ein paar Sekunden bleibt, bekommt eine fließende Aura) oder
+`Silhouette` zeichnet die Menschen davor live als Linien auf Weiß nach, `Schraffur` in feinen Strichen auf Schwarz, jede Person in ihrer Farbe aus einem Spektrum, wer ein paar Sekunden bleibt, bekommt eine Aura aus ineinanderlaufenden Farben; `Gewirr` die Menschen schwarz auf Weiß, aus ihnen laufen Bleistiftlinien und verblassen) oder
 **ein Kopf** über das ganze Regal. Gerechnet wird in echten Metern (`src/fullwall/geometry.ts`: Bildschirm 0,518 × 0,324 m,
 Abstände aus `SETTINGS.shelf`), das Bild läuft also hinter Rahmen und Lücken weiter, auch über die zwei Plätze ohne
 Bildschirm. „Auf die Wand“ zeigt es auf allen iMacs statt der Wand aus Gestalten, „Aus“ gibt die zurück
@@ -131,7 +131,7 @@ auf jedem Bildschirm zu einer eigenen Zeit.
 wirkt ein Glied kürzer als es ist, zeigt es in die Tiefe; schmale Schultern drehen den Körper. Erzeugt wie unten, mit
 `model=yolo26n-pose.pt`. Über das Netz gehen dafür nur die Gelenkpunkte (Zahlen), kein Bild.
 
-**Silhouette** und **Schraffur** brauchen das Segmentierungsmodell `public/models/yolo26n-seg-320.onnx` (sonst bleibt die Wand weiß;
+**Silhouette**, **Schraffur** und **Gewirr** brauchen das Segmentierungsmodell `public/models/yolo26n-seg-320.onnx` (sonst bleibt die Wand weiß;
 die Köpfe laufen mit dem bisherigen Modell weiter). Einmal erzeugen, im Repo-Ordner:
 
 ```
