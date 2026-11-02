@@ -12,12 +12,14 @@ import { FluxHead } from './flux/FluxHead'
 import { JackHead } from './jack/JackHead'
 import { BillyHead } from './billy/BillyHead'
 import { CreeperHead } from './creeper/CreeperHead'
+import { EnderHead } from './ender/EnderHead'
 import { HaendchenHead } from './haendchen/HaendchenHead'
 import { ArtHead } from './art/ArtHead'
 import { WaldHead } from './wald/WaldHead'
 import { XenoHead } from './xeno/XenoHead'
 import { FrankHead } from './frank/FrankHead'
 import { SamaraHead } from './samara/SamaraHead'
+import { VillagerHead } from './villager/VillagerHead'
 import type { HeadDesign } from './types'
 
 /**
@@ -203,5 +205,21 @@ export const DESIGNS: HeadDesign[] = [
     // For Halloween: pick it in "Eigene Wand".
     slot: null,
     create: (canvas, options) => new XenoHead(canvas, options),
+  },
+  {
+    id: 41,
+    name: 'E.N.D.E.R.',
+    description: 'Schwarzer Block-Kopf mit lila Augen: starrt zurück, reißt den Kopf auf und teleportiert sich in einer Wolke aus lila Staub',
+    categories: ['bloecke', 'gruselig'],
+    slot: null,
+    create: (canvas, options) => new EnderHead(canvas, options),
+  },
+  {
+    id: 50,
+    name: 'V.I.L.L.A.G.E.R.',
+    description: 'Dorfbewohner aus echten Würfeln: Riesennase, eine Braue über beiden Augen, verschränkte Arme. Brummt „Hmm" mit einem Nicken, schüttelt den Kopf und lässt grüne Funken steigen, wenn er sich freut',
+    categories: ['bloecke'],
+    slot: null,
+    create: (canvas, options) => new VillagerHead(canvas, options),
   },
 ]
