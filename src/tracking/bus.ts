@@ -14,6 +14,8 @@ export interface GazeMessage {
   count: number
   /** Their outline, packed (silhouette.ts); only with a segmentation model. */
   shape?: string
+  /** Their skeletons: number and 17 keypoints (x, y, sureness) each; only with a pose model. */
+  poses?: { id: number; points: number[] }[]
 }
 
 type Listener = (message: GazeMessage) => void

@@ -123,8 +123,13 @@ Tab **Ganze Wand**: alle Bildschirme als ein Bild. Ein **Muster** (`Fäden`, `Fa
 Abstände aus `SETTINGS.shelf`), das Bild läuft also hinter Rahmen und Lücken weiter, auch über die zwei Plätze ohne
 Bildschirm. „Auf die Wand“ zeigt es auf allen iMacs statt der Wand aus Gestalten, „Aus“ gibt die zurück
 (`walls/full-wall.json`). Die Muster laufen auf der Uhr des Servers, damit alle Bildschirme im Takt bleiben.
-Ein Kopf zeigt auf jedem iMac seinen Ausschnitt; was ein Kopf zufällig tut (Blinzeln, Explodieren), tut er
+Dazu lässt sich eine **Werbung** für den mittleren Bildschirm wählen: Sie blendet sich wie in Gestalten über das Bild, wenn jemand 8 Sekunden stehen bleibt. Ein Kopf zeigt auf jedem iMac seinen Ausschnitt; was ein Kopf zufällig tut (Blinzeln, Explodieren), tut er
 auf jedem Bildschirm zu einer eigenen Zeit.
+
+**Figur** stellt für jede Person eine gezeichnete 3D-Figur auf (`src/fullwall/figure.ts`, Modell aus
+`scripts/build_figur.mjs`): Die Knochen folgen den 17 Gelenkpunkten des Pose-Modells `public/models/yolo26n-pose-320.onnx`,
+wirkt ein Glied kürzer als es ist, zeigt es in die Tiefe; schmale Schultern drehen den Körper. Erzeugt wie unten, mit
+`model=yolo26n-pose.pt`. Über das Netz gehen dafür nur die Gelenkpunkte (Zahlen), kein Bild.
 
 **Silhouette** und **Schraffur** brauchen das Segmentierungsmodell `public/models/yolo26n-seg-320.onnx` (sonst bleibt die Wand weiß;
 die Köpfe laufen mit dem bisherigen Modell weiter). Einmal erzeugen, im Repo-Ordner:

@@ -1,4 +1,4 @@
-import { useEffect, useState, type CSSProperties } from 'react'
+import { useEffect, useState, type CSSProperties, type ReactNode } from 'react'
 import { bannerOf, type Banner } from './banners'
 import HeadCell from './HeadCell'
 import { PROMO_KEY } from './heads/catalog'
@@ -46,22 +46,39 @@ export default function Promo({ slot = 4, standIn = null, banner = null, positio
   position?: Vec3
   style?: CSSProperties
 }) {
-  const present = usePresent()
   const shown = banner ?? bannerOf(PROMO_KEY)!
+  if (!standIn) return <AloneMessage banner={shown} style={style} />
+  return (
+    <BannerOver banner={shown} style={style}>
+      <HeadCell slot={slot} head={standIn} position={position} />
+    </BannerOver>
+  )
+}
+
+function AloneMessage({ banner, style }: { banner: Banner; style?: CSSProperties }) {
+  const present = usePresent()
+  return <Message key={String(present)} banner={banner} present={present} style={style} />
+}
+
+/**
+ * A banner over whatever runs on a screen (a head, a part of the whole-wall picture): it fades in
+ * once someone has stood in front of the wall for PROMO_AFTER_MS, and out PROMO_HOLD_MS after they left.
+ */
+export function BannerOver({ banner, style, children }: { banner: Banner; style?: CSSProperties; children: ReactNode }) {
+  const present = usePresent()
   const [show, setShow] = useState(false)
 
   useEffect(() => {
-    // Someone arrives: the message after a while. They leave: the head after a moment.
+    // Someone arrives: the message after a while. They leave: what runs underneath after a moment.
     const timer = window.setTimeout(() => setShow(present), present ? PROMO_AFTER_MS : PROMO_HOLD_MS)
     return () => window.clearTimeout(timer)
   }, [present])
 
-  if (!standIn) return <Message key={String(present)} banner={shown} present={present} style={style} />
   return (
     <div className="cell promo-stage" style={style}>
-      <HeadCell slot={slot} head={standIn} position={position} />
+      {children}
       <div className={`promo-overlay${show ? ' on' : ''}`} aria-hidden={!show}>
-        <Message key={String(present)} banner={shown} present={present} />
+        <Message key={String(present)} banner={banner} present={present} />
       </div>
     </div>
   )

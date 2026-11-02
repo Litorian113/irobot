@@ -1,5 +1,7 @@
 import { useRef, type PointerEvent } from 'react'
+import { bannerOf } from '../banners'
 import { isOffline } from '../layout'
+import { PROMO_SLOT } from '../wall'
 import { height, tileRect, wallRect, width } from './geometry'
 import type { FullWall } from './state'
 import { useWallPicture, type Person } from './useWallPicture'
@@ -50,6 +52,17 @@ export default function FullWallStage({ state, live = false }: { state: FullWall
             <text x={rect.x0 - wall.x0 + width(rect) / 2} y={svgY(rect.y0) - height(rect) / 2} textAnchor="middle" dominantBaseline="middle" fontSize="0.035" fill="#fff">noch kein Bildschirm</text>
           </g>
         ))}
+        {bannerOf(state.banner) && (() => {
+          const rect = tileRect(PROMO_SLOT)
+          return (
+            <g>
+              <rect x={rect.x0 - wall.x0 + width(rect) / 2 - 0.13} y={svgY(rect.y0) - 0.06} width="0.26" height="0.044" rx="0.022" fill="rgba(10, 132, 255, 0.92)" />
+              <text x={rect.x0 - wall.x0 + width(rect) / 2} y={svgY(rect.y0) - 0.036} textAnchor="middle" dominantBaseline="middle" fontSize="0.022" fill="#fff">
+                {bannerOf(state.banner)!.name}
+              </text>
+            </g>
+          )
+        })()}
       </svg>
     </div>
   )

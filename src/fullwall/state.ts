@@ -1,22 +1,30 @@
 /**
  * What the whole wall shows when it is one picture: off (every screen its own head, as in Gestalten),
- * a pattern, or one head spread over all screens. Stored on the server (vite.config.ts), shared by
- * every screen. Kept free of three.js: the server checks it too.
+ * a pattern, or one head spread over all screens; and maybe an HfG banner over the middle screen,
+ * fading in when someone stands there. Stored on the server (vite.config.ts), shared by every screen.
+ * Kept free of three.js and of other modules: the server checks it too.
  */
 
-export const PATTERN_KEYS = ['faeden', 'falte', 'silhouette', 'schraffur'] as const
+
+export const PATTERN_KEYS = ['faeden', 'falte', 'silhouette', 'schraffur', 'figur'] as const
 export type PatternKey = (typeof PATTERN_KEYS)[number]
 
-export type FullWall =
+export type FullWall = (
   | { mode: 'off' }
   | { mode: 'pattern'; pattern: PatternKey }
   | { mode: 'head'; head: string }
+) & {
+  /** A banner (banners.ts) over the middle screen. */
+  banner?: string
+}
 
 export const FULL_WALL_OFF: FullWall = { mode: 'off' }
 
 export function isFullWall(value: unknown): value is FullWall {
-  const v = value as { mode?: unknown; pattern?: unknown; head?: unknown } | null
+  const v = value as { mode?: unknown; pattern?: unknown; head?: unknown; banner?: unknown } | null
   if (!v || typeof v !== 'object') return false
+  // A banner's key (banners.ts); one that does not exist (any more) is simply not shown.
+  if (v.banner !== undefined && (typeof v.banner !== 'string' || !/^promo(-[a-z0-9]+){0,3}$/.test(v.banner))) return false
   if (v.mode === 'off') return true
   if (v.mode === 'pattern') return PATTERN_KEYS.includes(v.pattern as PatternKey)
   if (v.mode === 'head') return typeof v.head === 'string' && /^main-\d{1,4}$/.test(v.head)

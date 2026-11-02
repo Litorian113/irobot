@@ -55,7 +55,7 @@ export default function WallView({ slot, rows, watch = false }: { slot: number |
       cameraName: SETTINGS.cameraName,
       onUpdate: (state) => {
         setTrackerState(state)
-        publish({ present: state.present, person: state.person, count: state.boxes.length, ...(state.shape ? { shape: packShape(state.shape) } : {}) })
+        publish({ present: state.present, person: state.person, count: state.boxes.length, ...(state.shape ? { shape: packShape(state.shape) } : {}), ...(state.poses.length ? { poses: state.poses } : {}) })
       },
     })
     void instance.start()

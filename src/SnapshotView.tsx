@@ -4,6 +4,7 @@ import { bannerOf } from './banners'
 import { CATALOG, catalogEntry } from './heads/catalog'
 import { createPattern, PATTERNS } from './fullwall/pattern'
 import { createSilhouette } from './fullwall/silhouette'
+import { createFigures, syntheticPose } from './fullwall/figure'
 import { syntheticShape } from './tracking/silhouette'
 import { wallRect } from './fullwall/geometry'
 
@@ -34,7 +35,13 @@ export default function SnapshotView({ entryKey }: { entryKey: string }) {
       const h = (wall.y1 - wall.y0) * 0.62
       const view = { x0: -h * 8 / 9, x1: h * 8 / 9, y0: -h / 2, y1: h / 2 }
       let drawn
-      if (pattern.key === 'silhouette' || pattern.key === 'schraffur') {
+      let feed = 0
+      if (pattern.key === 'figur') {
+        const figures = createFigures(canvasRef.current, view, { now: () => 40_000, maxPixelRatio: 1 })
+        // The figure loads first; until then the pose would be dropped.
+        feed = window.setInterval(() => figures.setPoses([{ id: 1, points: syntheticPose(0.47, 0.2, 0.75, 1.2) }]), 100)
+        drawn = figures
+      } else if (pattern.key === 'silhouette' || pattern.key === 'schraffur') {
         const silhouette = createSilhouette(canvasRef.current, view, { now: () => 40_000, maxPixelRatio: 1, style: pattern.key })
         silhouette.setShape(syntheticShape(0.62, 0.3, 0.6, 2, syntheticShape(0.42, 0.22, 0.85, 1)))
         drawn = silhouette
@@ -43,6 +50,7 @@ export default function SnapshotView({ entryKey }: { entryKey: string }) {
       }
       debugWindow.__snapshotHead = drawn
       return () => {
+        window.clearInterval(feed)
         delete debugWindow.__snapshotHead
         drawn.dispose()
       }

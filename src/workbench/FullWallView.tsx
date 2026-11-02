@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import { bannerOf, PROMO_BANNERS } from '../banners'
 import FullWallStage from '../fullwall/FullWallStage'
 import { PATTERNS } from '../fullwall/pattern'
 import { FULL_WALL_OFF, loadFullWall, saveFullWall, sameFullWall, type FullWall } from '../fullwall/state'
@@ -10,6 +11,11 @@ import { inCategory, useCategoryFilter } from './useCategoryFilter'
 /** What is picked here, before it goes on the wall. */
 function initialPick(): FullWall {
   const params = new URLSearchParams(window.location.search)
+  const banner = bannerOf(params.get('banner'))?.key
+  return { ...initialMain(params), ...(banner ? { banner } : {}) }
+}
+
+function initialMain(params: URLSearchParams): FullWall {
   const pattern = PATTERNS.find((p) => p.key === params.get('pattern'))
   if (pattern) return { mode: 'pattern', pattern: pattern.key }
   const head = params.get('wallhead')
@@ -28,13 +34,13 @@ export default function FullWallView() {
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [category, setCategory] = useCategoryFilter()
-  /** Whether the camera can tell outlines: the segmentation model is on the server. */
-  const [outlines, setOutlines] = useState<boolean | null>(null)
+  /** Whether the camera can tell outlines and skeletons: the segmentation and pose models are on the server. */
+  const [models, setModels] = useState<{ outlines: boolean; poses: boolean } | null>(null)
 
   useEffect(() => {
-    fetch(`${import.meta.env.BASE_URL}models/yolo26n-seg-320.onnx`, { method: 'HEAD', cache: 'no-store' })
-      .then((r) => setOutlines(r.ok && !(r.headers.get('content-type') ?? '').includes('text/html')))
-      .catch(() => setOutlines(false))
+    const there = (file: string) => fetch(`${import.meta.env.BASE_URL}models/${file}`, { method: 'HEAD', cache: 'no-store' })
+      .then((r) => r.ok && !(r.headers.get('content-type') ?? '').includes('text/html'), () => false)
+    void Promise.all([there('yolo26n-seg-320.onnx'), there('yolo26n-pose-320.onnx')]).then(([outlines, poses]) => setModels({ outlines, poses }))
   }, [])
 
   useEffect(() => {
@@ -43,13 +49,18 @@ export default function FullWallView() {
     return onWallSaved((wall) => { if (wall === 'custom') void load() })
   }, [])
 
-  const choose = (next: FullWall) => {
+  /** A new pattern or head keeps the banner; `banner` sets or clears it. */
+  const choose = (main: FullWall, banner = pick.banner) => {
+    const { banner: _old, ...rest } = main
+    const next: FullWall = banner ? { ...rest, banner } : rest
     setPick(next)
     const url = new URL(window.location.href)
     url.searchParams.delete('pattern')
     url.searchParams.delete('wallhead')
+    url.searchParams.delete('banner')
     if (next.mode === 'pattern') url.searchParams.set('pattern', next.pattern)
     if (next.mode === 'head') url.searchParams.set('wallhead', next.head)
+    if (next.banner) url.searchParams.set('banner', next.banner)
     window.history.replaceState(null, '', url)
   }
 
@@ -74,10 +85,12 @@ export default function FullWallView() {
   const description = pick.mode === 'pattern'
     ? PATTERNS.find((p) => p.key === pick.pattern)?.description
     : 'Ein Kopf über alle Bildschirme; die Rahmen und Lücken zwischen ihnen schneiden ihn wie Fenster.'
-  const needsOutlines = pick.mode === 'pattern' && (pick.pattern === 'silhouette' || pick.pattern === 'schraffur')
-  const tone: Tone = error ? 'error' : needsOutlines && outlines === false ? 'dirty' : onWall ? 'live' : null
-  const status = error ?? (needsOutlines && outlines === false
-    ? 'Die Kamera liefert noch keine Umrisse: das Modell yolo26n-seg-320.onnx fehlt (README, Ganze Wand). Bis dahin bleibt dieses Muster leer.'
+  const missing = pick.mode !== 'pattern' || !models ? null
+    : (pick.pattern === 'silhouette' || pick.pattern === 'schraffur') && !models.outlines ? 'Umrisse: das Modell yolo26n-seg-320.onnx fehlt'
+      : pick.pattern === 'figur' && !models.poses ? 'Skelette: das Modell yolo26n-pose-320.onnx fehlt' : null
+  const tone: Tone = error ? 'error' : missing ? 'dirty' : onWall ? 'live' : null
+  const status = error ?? (missing
+    ? `Die Kamera liefert noch keine ${missing} (README, Ganze Wand). Bis dahin bleibt dieses Muster leer.`
     : live === null ? 'Lädt …' : onWall ? 'Läuft gerade auf der Wand' : anyOnWall ? 'Auf der Wand läuft gerade etwas anderes über alle Bildschirme' : 'Die Wand zeigt gerade die Köpfe aus Gestalten')
 
   return (
@@ -85,6 +98,10 @@ export default function FullWallView() {
       <Sidebar label="Ganze Wand" hint="Muster" filter={null}>
         {PATTERNS.map((p) => (
           <Tile key={p.key} name={p.name} snapshot={`pattern-${p.key}`} title={p.description} active={pick.mode === 'pattern' && pick.pattern === p.key} onClick={() => choose({ mode: 'pattern', pattern: p.key })} />
+        ))}
+        <p className="sidebar-hint full-wall-heads">Werbung auf dem mittleren Bildschirm, wenn jemand stehen bleibt</p>
+        {PROMO_BANNERS.map((b) => (
+          <Tile key={b.key} name={b.name} snapshot={b.key} title={b.description} active={pick.banner === b.key} onClick={() => choose(pick, pick.banner === b.key ? undefined : b.key)} />
         ))}
         <p className="sidebar-hint full-wall-heads">Ein Kopf über die ganze Wand</p>
         <div className="full-wall-filter"><CategoryFilter value={category} onChange={setCategory} /></div>
@@ -104,7 +121,8 @@ export default function FullWallView() {
           <FullWallStage key={JSON.stringify(pick)} state={pick} />
         </div>
         <p className="page-hint">
-          {description} Maus oder Finger über die Wand: so reagiert sie auf jemanden davor. Alle Plätze des Regals sind eingerechnet, auch die zwei ohne Bildschirm.
+          {description}. Maus oder Finger über die Wand: so reagiert sie auf jemanden davor. Alle Plätze des Regals sind eingerechnet, auch die zwei ohne Bildschirm.
+          {' '}{pick.banner ? `Auf dem mittleren Bildschirm blendet sich „${bannerOf(pick.banner)?.name}“ ein, wenn jemand stehen bleibt; noch einmal antippen nimmt sie weg.` : 'Eine Werbung links auswählen, dann blendet sie sich in der Mitte ein, wenn jemand stehen bleibt.'}
           {' '}„Aus“ zeigt wieder die Wand aus Gestalten.
         </p>
       </main>

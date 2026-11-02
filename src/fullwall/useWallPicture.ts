@@ -8,6 +8,7 @@ import { height, wallRect, type Rect } from './geometry'
 import { frameAsTileOf } from './headTile'
 import { createPattern, type PatternView } from './pattern'
 import { createSilhouette } from './silhouette'
+import { createFigures, syntheticPose, type PoseInput } from './figure'
 import type { FullWall } from './state'
 
 /** Gaze messages older than this mean the camera window is gone. */
@@ -17,7 +18,7 @@ const MIDDLE: Vec3 = { x: 0, y: 0, z: 0 }
 
 export type Person = { x: number; y: number; z: number } | null
 /** What the picture reacts to: where the person is, and their outline when the camera can tell it. */
-type Seen = { person: Person; shape: Uint8Array | null }
+type Seen = { person: Person; shape: Uint8Array | null; poses: PoseInput[] }
 
 /**
  * Who the picture reacts to: the camera's person (`live`), or a pointer over the preview standing in
@@ -31,10 +32,10 @@ function usePerson(live: boolean, pointer: React.MutableRefObject<Person>, onPer
     let receivedAt = 0
     const off = live ? subscribe((message) => { latest = message; receivedAt = performance.now() }) : () => {}
     const timer = window.setInterval(() => {
-      if (!live) return callback.current({ person: pointer.current, shape: pointer.current ? shapeAt(pointer.current) : null })
+      if (!live) return callback.current({ person: pointer.current, shape: pointer.current ? shapeAt(pointer.current) : null, poses: pointer.current ? poseAt(pointer.current) : [] })
       const message = latest && performance.now() - receivedAt < STALE_MS ? latest : null
       const present = Boolean(message?.present && message.person)
-      callback.current({ person: present ? message!.person : null, shape: present && message?.shape ? unpackShape(message.shape) : null })
+      callback.current({ person: present ? message!.person : null, shape: present && message?.shape ? unpackShape(message.shape) : null, poses: present ? message?.poses ?? [] : [] })
     }, 1000 / 15)
     return () => {
       window.clearInterval(timer)
@@ -52,13 +53,22 @@ function shapeAt(person: { x: number; y: number }) {
   // A second person further back, so that two colours can be seen side by side.
   return syntheticShape(u > 0.5 ? u - 0.22 : u + 0.22, v + 0.08, 0.55, 2, syntheticShape(u, v, 0.78, 1))
 }
+/** For the preview: a made-up person standing with their face at the pointer. */
+function poseAt(person: { x: number; y: number }): PoseInput[] {
+  const wall = wallRect()
+  const frameH = height(wall), frameW = frameH * 16 / 9
+  const u = 0.5 - (person.x - (wall.x0 + wall.x1) / 2) / frameW
+  const v = 0.5 - (person.y - (wall.y0 + wall.y1) / 2) / frameH
+  return [{ id: 1, points: syntheticPose(u, v, 0.7, performance.now() / 1000) }]
+}
+
 /**
  * One head or pattern in `canvas`, steered by `person`; the head looks from the wall's middle.
  * A pattern shows the part `view` of the wall; a head frames the whole wall and, on a screen of it,
  * shows only that screen's part (`view` smaller than the wall).
  */
 export function useWallPicture(canvas: React.RefObject<HTMLCanvasElement | null>, state: FullWall, view: Rect, live: boolean, pointer: React.MutableRefObject<Person>, options: { fps: number; maxPixelRatio: number }) {
-  const picture = useRef<{ pattern?: PatternView; silhouette?: ReturnType<typeof createSilhouette>; head?: HeadView } | null>(null)
+  const picture = useRef<{ pattern?: PatternView; silhouette?: ReturnType<typeof createSilhouette>; figures?: ReturnType<typeof createFigures>; head?: HeadView } | null>(null)
   const key = state.mode === 'pattern' ? state.pattern : state.mode === 'head' ? state.head : 'off'
   const { x0, y0, x1, y1 } = view
 
@@ -67,6 +77,7 @@ export function useWallPicture(canvas: React.RefObject<HTMLCanvasElement | null>
     if (!element || state.mode === 'off') return
     let pattern: PatternView | undefined
     let silhouette: ReturnType<typeof createSilhouette> | undefined
+    let figures: ReturnType<typeof createFigures> | undefined
     let head: HeadView | undefined
     const wall = wallRect()
     const part = x0 > wall.x0 + 1e-6 || x1 < wall.x1 - 1e-6 || y0 > wall.y0 + 1e-6 || y1 < wall.y1 - 1e-6
@@ -74,7 +85,9 @@ export function useWallPicture(canvas: React.RefObject<HTMLCanvasElement | null>
     const unframe = state.mode === 'head' && part ? frameAsTileOf(wall, { x0, y0, x1, y1 }) : null
     try {
       const kind = state.mode === 'pattern' ? state.pattern : null
-      if (kind === 'silhouette' || kind === 'schraffur') {
+      if (kind === 'figur') {
+        figures = createFigures(element, { x0, y0, x1, y1 }, { now: serverNow, fps: options.fps, maxPixelRatio: options.maxPixelRatio })
+      } else if (kind === 'silhouette' || kind === 'schraffur') {
         silhouette = createSilhouette(element, { x0, y0, x1, y1 }, { now: serverNow, fps: options.fps, maxPixelRatio: options.maxPixelRatio, style: kind })
       } else if (kind) {
         pattern = createPattern(element, kind, { x0, y0, x1, y1 }, { now: serverNow, fps: options.fps, maxPixelRatio: options.maxPixelRatio })
@@ -91,12 +104,13 @@ export function useWallPicture(canvas: React.RefObject<HTMLCanvasElement | null>
       unframe?.()
       return
     }
-    picture.current = { pattern, silhouette, head }
-    ;(window as unknown as { __fullWall?: unknown }).__fullWall = pattern ?? silhouette ?? head
+    picture.current = { pattern, silhouette, figures, head }
+    ;(window as unknown as { __fullWall?: unknown }).__fullWall = pattern ?? silhouette ?? figures ?? head
     return () => {
       picture.current = null
       pattern?.dispose()
       silhouette?.dispose()
+      figures?.dispose()
       head?.dispose()
       unframe?.()
     }
@@ -104,11 +118,12 @@ export function useWallPicture(canvas: React.RefObject<HTMLCanvasElement | null>
   }, [canvas, key, state.mode, x0, y0, x1, y1, options.fps, options.maxPixelRatio]) // eslint-disable-line react-hooks/exhaustive-deps
 
   const presentSince = useRef(0)
-  usePerson(live, pointer, ({ person, shape }) => {
+  usePerson(live, pointer, ({ person, shape, poses }) => {
     const current = picture.current
     if (!current) return
     current.pattern?.setPerson(person)
     current.silhouette?.setShape(shape)
+    current.figures?.setPoses(poses)
     const head = current.head
     if (!head) return
     if (person) {

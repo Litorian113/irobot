@@ -11,8 +11,11 @@ import { SHAPE_H, SHAPE_W } from './silhouette'
  */
 
 export type DetectorRequest =
-  /** The first of `modelUrls` that loads is used: the segmentation model if it is there. */
-  | { type: 'init'; modelUrls: string[]; size: number }
+  /**
+   * The first of `modelUrls` that loads is used: the segmentation model if it is there. `poseUrl`:
+   * a pose model run as well, for the skeletons of the Figur pattern, if it is there.
+   */
+  | { type: 'init'; modelUrls: string[]; poseUrl?: string; size: number }
   /**
    * `rotate`: the camera hangs upside down; the frame is turned upright before detection.
    * `enhance`: stretch contrast and lift a dark frame before detection.
@@ -20,9 +23,9 @@ export type DetectorRequest =
   | { type: 'frame'; bitmap: ImageBitmap; rotate?: boolean; enhance?: boolean }
 
 export type DetectorResponse =
-  | { type: 'ready'; provider: string; outlines: boolean }
+  | { type: 'ready'; provider: string; outlines: boolean; poses: boolean }
   /** `light`: how the frame was lifted (contrast gain and gamma), for the preview panel. */
-  | { type: 'result'; boxes: Box[]; ms: number; light: { gain: number; gamma: number } | null; shape: Uint8Array | null }
+  | { type: 'result'; boxes: Box[]; ms: number; light: { gain: number; gamma: number } | null; shape: Uint8Array | null; poses: Pose[] }
   | { type: 'error'; message: string }
 
 // ONNX Runtime would start its CPU threads as extra workers from *this* bundled
@@ -50,7 +53,16 @@ const TARGET_MEAN = 0.42
 /** How fast the exposure follows the frame (0..1 per frame): no flicker from frame to frame. */
 const EASE = 0.15
 
+/**
+ * A person's skeleton: their number (as in the outline) and the 17 COCO keypoints, each x, y in the
+ * upright camera picture (0..1) and how sure the model is (0..1).
+ */
+export interface Pose { id: number; points: number[] }
+
 let session: ort.InferenceSession | null = null
+let poseSession: ort.InferenceSession | null = null
+/** Keypoints this sure count. */
+const KEYPOINT_SCORE = 0.3
 let size = 320
 let canvas: OffscreenCanvas | null = null
 let ctx: OffscreenCanvasRenderingContext2D | null = null
@@ -62,28 +74,34 @@ const histogram = new Uint32Array(256)
 
 const post = (message: DetectorResponse) => self.postMessage(message)
 
-async function init(modelUrls: string[], inputSize: number) {
+async function load(url: string) {
+  const response = await fetch(url).catch(() => null)
+  // A missing file comes back from the dev server as its HTML page: not a model.
+  if (!response?.ok || response.headers.get('content-type')?.includes('text/html')) return null
+  return new Uint8Array(await response.arrayBuffer())
+}
+
+async function init(modelUrls: string[], poseUrl: string | undefined, inputSize: number) {
   size = inputSize
   canvas = new OffscreenCanvas(size, size)
   ctx = canvas.getContext('2d', { willReadFrequently: true })
   input = new Float32Array(3 * size * size)
   let model: Uint8Array | null = null
   for (const url of modelUrls) {
-    const response = await fetch(url).catch(() => null)
-    // A missing file comes back from the dev server as its HTML page: not a model.
-    if (response?.ok && !response.headers.get('content-type')?.includes('text/html')) {
-      model = new Uint8Array(await response.arrayBuffer())
-      break
-    }
+    model = await load(url)
+    if (model) break
   }
   if (!model) throw new Error('Kein Erkennungsmodell gefunden')
+  const poseModel = poseUrl ? await load(poseUrl) : null
   // WebGPU where the browser has it, otherwise WebAssembly on the CPU.
   const providers = 'gpu' in navigator ? ['webgpu', 'wasm'] : ['wasm']
   let lastError: unknown = null
   for (const provider of providers) {
     try {
       session = await withTimeout(start(model, provider), `${provider} did not start`)
-      post({ type: 'ready', provider, outlines: session.outputNames.length > 1 })
+      // Without skeletons the rest works as before.
+      poseSession = poseModel ? await withTimeout(start(poseModel, provider), 'pose model did not start').catch(() => null) : null
+      post({ type: 'ready', provider, outlines: session.outputNames.length > 1, poses: poseSession !== null })
       return
     } catch (error) {
       lastError = error
@@ -180,22 +198,75 @@ async function detect(bitmap: ImageBitmap, rotate = false, enhance = true) {
     }
   }
   ctx.fillRect(0, 0, size, size) // do not leave the last frame lying around
-  const output = await session.run({ [session.inputNames[0]]: new ort.Tensor('float32', input, [1, 3, size, size]) })
+  const tensor = new ort.Tensor('float32', input, [1, 3, size, size])
+  const output = await session.run({ [session.inputNames[0]]: tensor })
   const tensors = session.outputNames.map((name) => output[name])
   const frame = { scale, dx, dy, W, H }
   const protos = tensors.find((t) => t.dims.length === 4)
   const head = tensors.find((t) => t.dims.length === 3) ?? tensors[0]
+
+  // Skeletons, when there is a pose model: they decide who is who.
+  let skeletons: (Person & { points: Float32Array })[] = []
+  if (poseSession) {
+    const result = await poseSession.run({ [poseSession.inputNames[0]]: tensor })
+    const out = result[poseSession.outputNames[0]]
+    skeletons = decodePoses(out.data as Float32Array, out.dims as number[])
+    out.dispose()
+  }
+  const people = protos ? decodeSegmentation(head.data as Float32Array, head.dims as number[]) : []
   let boxes: Box[]
   let shape: Uint8Array | null = null
-  if (protos) {
-    const people = decodeSegmentation(head.data as Float32Array, head.dims as number[])
-    boxes = people.map((p) => toFrame(p, frame))
-    shape = outline(people.filter((p) => p.score >= OUTLINE_SCORE), protos.data as Float32Array, protos.dims as number[], frame)
+  let poses: Pose[] = []
+  if (skeletons.length || protos) {
+    // One number per person, from the skeletons if there are any, else from the outlines.
+    const numbered = numberPeople(skeletons.length ? skeletons : people)
+    const idOf = (p: Person) => {
+      let best = 15, bestIou = SAME_PERSON_IOU
+      for (const n of numbered) { const o = iou(n.box, p); if (o > bestIou) { bestIou = o; best = n.id } }
+      return best
+    }
+    poses = numbered.filter((n) => 'points' in n.box).map((n) => ({ id: n.id, points: toFramePoints((n.box as Person & { points: Float32Array }).points, frame) }))
+    if (protos) {
+      const outlined = people.filter((p) => p.score >= OUTLINE_SCORE).map((p) => ({ box: p, id: skeletons.length ? idOf(p) : numbered.find((n) => n.box === p)?.id ?? 15 }))
+      shape = outline(outlined, protos.data as Float32Array, protos.dims as number[], frame)
+    }
+    boxes = (people.length ? people : skeletons).map((p) => toFrame(p, frame))
   } else {
     boxes = decode(head.data as Float32Array, head.dims as number[], frame)
   }
-  for (const tensor of tensors) tensor.dispose()
-  post({ type: 'result', boxes, ms: performance.now() - started, light, shape })
+  for (const t of tensors) t.dispose()
+  post({ type: 'result', boxes, ms: performance.now() - started, light, shape, poses })
+}
+
+/** Pose model output [1, 4 + 1 + 17 * 3, anchors]: box, person score, then x, y, visibility per keypoint. */
+function decodePoses(data: Float32Array, dims: number[]) {
+  const [, channels, anchors] = dims
+  const keypoints = Math.floor((channels - 5) / 3)
+  const found: (Person & { points: Float32Array })[] = []
+  for (let i = 0; i < anchors; i++) {
+    const score = data[4 * anchors + i]
+    if (score < SCORE) continue
+    const cx = data[i], cy = data[anchors + i], w = data[2 * anchors + i], h = data[3 * anchors + i]
+    const points = new Float32Array(keypoints * 3)
+    for (let k = 0; k < keypoints * 3; k++) points[k] = data[(5 + k) * anchors + i]
+    found.push({ x1: cx - w / 2, y1: cy - h / 2, x2: cx + w / 2, y2: cy + h / 2, score, coeffs: new Float32Array(0), points })
+  }
+  found.sort((p, q) => q.score - p.score)
+  const kept: typeof found = []
+  for (const p of found) if (kept.every((k) => iou(k, p) < NMS_IOU)) kept.push(p)
+  return kept
+}
+
+/** Keypoints from input pixels to the upright camera picture (0..1), rounded for the relay. */
+function toFramePoints(points: Float32Array, frame: Frame) {
+  const out: number[] = []
+  for (let k = 0; k < points.length; k += 3) {
+    const x = (points[k] - frame.dx) / frame.scale / frame.W
+    const y = (points[k + 1] - frame.dy) / frame.scale / frame.H
+    const sure = points[k + 2]
+    out.push(Math.round(x * 1000) / 1000, Math.round(y * 1000) / 1000, sure >= KEYPOINT_SCORE ? Math.round(sure * 100) / 100 : 0)
+  }
+  return out
 }
 
 /** A person found by a segmentation model, still in input pixels, with its mask coefficients. */
@@ -240,13 +311,13 @@ function decodeSegmentation(data: Float32Array, dims: number[]): Person[] {
 }
 
 /** People seen in the last frame with the number they were given, to keep it while they stay. */
-let followed: { box: Person; id: number }[] = []
+let followed: { box: Box; id: number }[] = []
 let nextId = 1
 /** Overlap with last frame's box that counts as the same person. */
 const SAME_PERSON_IOU = 0.3
 
 /** A lasting number (1-15) for each person: the one they had in the last frame, or a new one. */
-function numberPeople(people: Person[]) {
+function numberPeople<T extends Person>(people: T[]) {
   const free = [...followed]
   const numbered = people.map((box) => {
     let best = -1, bestIou = SAME_PERSON_IOU
@@ -260,8 +331,7 @@ function numberPeople(people: Person[]) {
 }
 
 /** The people's masks, in a coarse grid over the upright camera picture: per cell who is there (0: nobody). */
-function outline(found: Person[], protos: Float32Array, dims: number[], frame: Frame) {
-  const people = numberPeople(found)
+function outline(people: { box: Person; id: number }[], protos: Float32Array, dims: number[], frame: Frame) {
   const cells = new Uint8Array(SHAPE_W * SHAPE_H)
   const [, k, ph, pw] = dims
   for (const { box: p, id } of people) {
@@ -305,6 +375,6 @@ function nms(boxes: Box[]): Box[] {
 
 self.onmessage = (event: MessageEvent<DetectorRequest>) => {
   const message = event.data
-  const run = message.type === 'init' ? init(message.modelUrls, message.size) : detect(message.bitmap, message.rotate, message.enhance)
+  const run = message.type === 'init' ? init(message.modelUrls, message.poseUrl, message.size) : detect(message.bitmap, message.rotate, message.enhance)
   run.catch((error: unknown) => post({ type: 'error', message: error instanceof Error ? error.message : String(error) }))
 }
