@@ -197,12 +197,12 @@ const weights = positions.map((p) => {
 function strokeOf(p, bone) {
   const b = bones[bone]
   // Cut by planes tipped a little towards the street: the rows curve round the body as on the drawing.
-  if (Math.abs(b.dir[1]) > 0.8) return [p[1] - 0.32 * p[2], (p[0] * 0.8 + p[2] * 0.6) / 0.16]
+  if (Math.abs(b.dir[1]) > 0.8) return [p[1] - 0.6 * p[2], (p[0] * 0.8 + p[2] * 0.6) / 0.16]
   const along = dot(sub(p, b.start), b.dir)
   const ref = Math.abs(b.dir[2]) < 0.9 ? [0, 0, 1] : [1, 0, 0]
   const u = norm(cross(b.dir, ref)), w = cross(b.dir, u)
   const off = sub(p, add(b.start, mul(b.dir, along)))
-  return [along - 0.32 * dot(off, [0, 0, 1]) + bone * 0.37, ((Math.atan2(dot(off, w), dot(off, u)) / (2 * Math.PI) + 1) % 1) * 1.6]
+  return [along - 0.6 * dot(off, [0, 0, 1]) + bone * 0.37, ((Math.atan2(dot(off, w), dot(off, u)) / (2 * Math.PI) + 1) % 1) * 1.6]
 }
 
 // --- write ---------------------------------------------------------------------------------------

@@ -49,43 +49,35 @@ void main() {
 `
 
 /**
- * Cross-contour hatching: rows of fine strokes round the body, long, tapering at both ends, now and
- * then two in a row. Dense and bright where the light falls, thinning out into the shadow; redrawn a
- * few times a second, as by hand. The body itself is black and hides what is behind it.
+ * Cross-contour hatching, as on the drawing: one line per row round the body, long and calm, with a
+ * slight hand-drawn wave, now and then a break, the ends tapering. Where the light falls the lines are
+ * thick and bright, towards the shadow thin, grey and gappy. The body itself is black and hides what
+ * is behind it.
  */
 const FRAGMENT = /* glsl */ `
 uniform float uScale, uPixel, uTime, uFade;
 varying vec2 vStroke;
 varying vec3 vNormal;
 float hash(vec2 p) { return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453); }
-
-float strokeAt(float row, float along, float light, float frame, float layer) {
-  float r = floor(row);
-  float f = fract(row) - 0.5;
-  float a = along + hash(vec2(r, frame + layer * 17.0)) * 5.0;
-  float seg = floor(a);
-  float t = fract(a);
-  // Each stroke its own length, and a little wave and lean along it.
-  float len = mix(0.55, 0.97, hash(vec2(r * 1.3 + layer, seg + frame)));
-  float k = clamp(t / len, 0.0, 1.0);
-  float inside = step(t, len);
-  f += (hash(vec2(seg, r + layer)) - 0.5) * 0.5 + (k - 0.5) * (hash(vec2(r, seg * 1.7)) - 0.5) * 0.6;
-  // In the shadow fewer rows carry strokes.
-  float shown = step(hash(vec2(r * 3.1 + layer, seg)), light * 1.25 + 0.05);
-  float taper = sin(k * 3.14159);
-  float width = 0.0013 * (0.35 + 0.65 * taper) * (0.6 + 0.6 * light);
-  float across = abs(f) * 0.0085 * uScale;
-  return (1.0 - smoothstep(width * 0.5, width * 0.5 + uPixel, across)) * inside * shown;
-}
-
 void main() {
   vec3 n = normalize(vNormal);
-  float light = clamp(dot(n, normalize(vec3(-0.5, 0.6, 0.62))) * 0.9 + 0.22, 0.0, 1.0);
-  float frame = floor(uTime * 5.0);
-  float row = vStroke.x / 0.0085;
-  float along = vStroke.y * 3.2;
-  float ink = max(strokeAt(row, along, light, frame, 0.0), strokeAt(row + 0.5, along * 0.9 + 0.37, light * 0.85, frame, 1.0) * 0.8);
-  float bright = 0.4 + 0.6 * light;
+  float light = clamp(dot(n, normalize(vec3(-0.5, 0.6, 0.62))) * 0.95 + 0.18, 0.0, 1.0);
+  float spacing = 0.0078;
+  float row = vStroke.x / spacing;
+  float r = floor(row);
+  // A gentle wave along the line, its own for every row.
+  float f = fract(row) - 0.5 + 0.14 * sin(vStroke.y * 2.3 + r * 1.7) * hash(vec2(r, 9.0));
+  // Long strokes with a break now and then.
+  float a = vStroke.y * 1.05 + hash(vec2(r, 3.0)) * 7.0;
+  float seg = floor(a);
+  float t = fract(a);
+  float len = mix(0.8, 1.0, hash(vec2(r, seg)));
+  float taper = smoothstep(0.0, 0.07, t) * smoothstep(len, len - 0.07, t);
+  float shown = step(hash(vec2(r * 2.3, seg)), 0.2 + light * 0.95);
+  float width = 0.0016 * (0.25 + 0.95 * light) * (0.45 + 0.55 * taper);
+  float across = abs(f) * spacing * uScale;
+  float ink = (1.0 - smoothstep(width * 0.5, width * 0.5 + uPixel, across)) * step(t, len) * shown;
+  float bright = 0.35 + 0.65 * light;
   gl_FragColor = vec4(vec3(bright * ink * uFade), 1.0);
 }
 `
@@ -378,22 +370,30 @@ export function createFigures(canvas: HTMLCanvasElement, view: Rect, options: { 
   }
 }
 
+/** The keypoints of the figure at rest (metres, its left at -x), as the pose model would see them. */
+const REST_POINTS: [number, number][] = [
+  [0, 1.62], [-0.03, 1.66], [0.03, 1.66], [-0.07, 1.63], [0.07, 1.63],
+  [-0.2, 1.42], [0.2, 1.42], [-0.25, 1.13], [0.25, 1.13], [-0.29, 0.88], [0.29, 0.88],
+  [-0.1, 0.92], [0.1, 0.92], [-0.11, 0.5], [0.11, 0.5], [-0.11, 0.08], [0.11, 0.08],
+]
+
 /**
- * A made-up person for the preview: standing with their face at (u, v) of the camera picture,
- * `size` from face to feet, breathing and swinging an arm with time `t` (seconds).
+ * A made-up person for the preview, built from the figure's own skeleton so that it fits: standing
+ * with their face at (u, v) of the camera picture, `size` from face to feet, arms swinging gently
+ * with time `t` (seconds).
  */
 export function syntheticPose(u: number, v: number, size: number, t: number): number[] {
-  const a = 16 / 9
-  const P = (dx: number, dy: number) => [u + (dx * size) / a, v + dy * size, 0.9]
-  const wave = Math.sin(t * 1.3)
-  const points = [
-    P(0, 0), P(-0.02, -0.02), P(0.02, -0.02), P(-0.05, 0), P(0.05, 0),
-    P(-0.13, 0.13), P(0.13, 0.13),
-    P(-0.17, 0.33), P(0.15 + 0.12 * wave, 0.25 - 0.12 * Math.abs(wave)),
-    P(-0.19, 0.52), P(0.12 + 0.25 * wave, 0.12 - 0.05 * wave),
-    P(-0.07, 0.56), P(0.07, 0.56),
-    P(-0.08, 0.8), P(0.08, 0.8),
-    P(-0.08, 1.03), P(0.08, 1.03),
-  ]
-  return points.flat()
+  const k = size / 1.54
+  const swing = Math.sin(t * 1.1)
+  return REST_POINTS.flatMap(([x, y], i) => {
+    // The arms hang a little closer and swing a little, one against the other.
+    if (i >= 7 && i <= 10) {
+      const left = i % 2 === 1
+      const lower = i >= 9
+      x = x * 0.85 + (left ? -1 : 1) * swing * (lower ? 0.05 : 0.02)
+      y += Math.abs(swing) * (lower ? 0.03 : 0.01)
+    }
+    // Their left is on the right of the camera picture.
+    return [u - (x * k) / (16 / 9), v + (1.62 - y) * k, 0.9]
+  })
 }
