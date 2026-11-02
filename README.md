@@ -118,7 +118,7 @@ Protokoll: `logs\imacs.log`. Das Admin-Passwort der iMacs liegt dafür auf dem S
 ## Ganze Wand
 
 Tab **Ganze Wand**: alle Bildschirme als ein Bild. Ein **Muster** (`Fäden`, `Falte`, reagieren auf die Person davor;
-`Silhouette` zeichnet die Menschen davor live als Linien auf Weiß nach) oder
+`Silhouette` zeichnet die Menschen davor live als Linien auf Weiß nach, `Schraffur` in feinen weißen Strichen auf Schwarz) oder
 **ein Kopf** über das ganze Regal. Gerechnet wird in echten Metern (`src/fullwall/geometry.ts`: Bildschirm 0,518 × 0,324 m,
 Abstände aus `SETTINGS.shelf`), das Bild läuft also hinter Rahmen und Lücken weiter, auch über die zwei Plätze ohne
 Bildschirm. „Auf die Wand“ zeigt es auf allen iMacs statt der Wand aus Gestalten, „Aus“ gibt die zurück
@@ -126,7 +126,7 @@ Bildschirm. „Auf die Wand“ zeigt es auf allen iMacs statt der Wand aus Gesta
 Ein Kopf zeigt auf jedem iMac seinen Ausschnitt; was ein Kopf zufällig tut (Blinzeln, Explodieren), tut er
 auf jedem Bildschirm zu einer eigenen Zeit.
 
-**Silhouette** braucht das Segmentierungsmodell `public/models/yolo26n-seg-320.onnx` (sonst bleibt die Wand weiß;
+**Silhouette** und **Schraffur** brauchen das Segmentierungsmodell `public/models/yolo26n-seg-320.onnx` (sonst bleibt die Wand weiß;
 die Köpfe laufen mit dem bisherigen Modell weiter). Einmal erzeugen, im Repo-Ordner:
 
 ```

@@ -73,8 +73,8 @@ export function useWallPicture(canvas: React.RefObject<HTMLCanvasElement | null>
     const unframe = state.mode === 'head' && part ? frameAsTileOf(wall, { x0, y0, x1, y1 }) : null
     try {
       const kind = state.mode === 'pattern' ? state.pattern : null
-      if (kind === 'silhouette') {
-        silhouette = createSilhouette(element, { x0, y0, x1, y1 }, { now: serverNow, fps: options.fps, maxPixelRatio: options.maxPixelRatio })
+      if (kind === 'silhouette' || kind === 'schraffur') {
+        silhouette = createSilhouette(element, { x0, y0, x1, y1 }, { now: serverNow, fps: options.fps, maxPixelRatio: options.maxPixelRatio, style: kind })
       } else if (kind) {
         pattern = createPattern(element, kind, { x0, y0, x1, y1 }, { now: serverNow, fps: options.fps, maxPixelRatio: options.maxPixelRatio })
       } else if (state.mode === 'head') {

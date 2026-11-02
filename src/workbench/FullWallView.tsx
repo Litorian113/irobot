@@ -28,6 +28,14 @@ export default function FullWallView() {
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [category, setCategory] = useCategoryFilter()
+  /** Whether the camera can tell outlines: the segmentation model is on the server. */
+  const [outlines, setOutlines] = useState<boolean | null>(null)
+
+  useEffect(() => {
+    fetch(`${import.meta.env.BASE_URL}models/yolo26n-seg-320.onnx`, { method: 'HEAD', cache: 'no-store' })
+      .then((r) => setOutlines(r.ok && !(r.headers.get('content-type') ?? '').includes('text/html')))
+      .catch(() => setOutlines(false))
+  }, [])
 
   useEffect(() => {
     const load = () => loadFullWall().then(setLive, () => setLive(FULL_WALL_OFF))
@@ -66,8 +74,11 @@ export default function FullWallView() {
   const description = pick.mode === 'pattern'
     ? PATTERNS.find((p) => p.key === pick.pattern)?.description
     : 'Ein Kopf über alle Bildschirme; die Rahmen und Lücken zwischen ihnen schneiden ihn wie Fenster.'
-  const tone: Tone = error ? 'error' : onWall ? 'live' : null
-  const status = error ?? (live === null ? 'Lädt …' : onWall ? 'Läuft gerade auf der Wand' : anyOnWall ? 'Auf der Wand läuft gerade etwas anderes über alle Bildschirme' : 'Die Wand zeigt gerade die Köpfe aus Gestalten')
+  const needsOutlines = pick.mode === 'pattern' && (pick.pattern === 'silhouette' || pick.pattern === 'schraffur')
+  const tone: Tone = error ? 'error' : needsOutlines && outlines === false ? 'dirty' : onWall ? 'live' : null
+  const status = error ?? (needsOutlines && outlines === false
+    ? 'Die Kamera liefert noch keine Umrisse: das Modell yolo26n-seg-320.onnx fehlt (README, Ganze Wand). Bis dahin bleibt dieses Muster leer.'
+    : live === null ? 'Lädt …' : onWall ? 'Läuft gerade auf der Wand' : anyOnWall ? 'Auf der Wand läuft gerade etwas anderes über alle Bildschirme' : 'Die Wand zeigt gerade die Köpfe aus Gestalten')
 
   return (
     <div className="split full-wall">

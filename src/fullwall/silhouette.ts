@@ -4,12 +4,19 @@ import { height, wallRect, width, type Rect } from './geometry'
 import type { PatternView } from './pattern'
 
 /**
+ * Silhouette and Schraffur, from the same outline of the people in front of the wall.
+ *
  * Silhouette: the people in front of the wall, drawn back on it as lines across their bodies on
  * white, like a mirror: the lines bow with the body, thicker parts more. The camera picture is laid
  * over the whole wall, its height to the wall's, mirrored. Only a coarse outline arrives
  * (tracking/silhouette.ts); it is smoothed here, so the people seem to flow rather than flicker.
+ * Schraffur: the same people on black, hatched in fine white strokes of uneven length that fray at
+ * the edges and redraw a few times a second, lit from one side, with a few strokes of floor under
+ * their feet.
  * WebGL 1 safe: one quad, a 64 x 36 texture, GLSL ES 1.0 without derivatives.
  */
+
+export type OutlineStyle = 'silhouette' | 'schraffur'
 
 const PAPER = 0xefece6
 const INK = new THREE.Color(0x1e1e1e)
@@ -52,6 +59,62 @@ void main() {
 }
 `
 
+const HATCH_FRAGMENT = /* glsl */ `
+uniform sampler2D uShape;
+uniform vec4 uFrame;
+uniform vec3 uFloor;   // the feet in the picture: u, v, half width in u; v < 0: no one standing
+uniform float uPixel, uTime;
+varying vec2 vWall;
+
+float hash(vec2 p) { return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453); }
+
+void main() {
+  vec2 uv = vec2(0.5 - (vWall.x - uFrame.x) / uFrame.z, 0.5 - (vWall.y - uFrame.y) / uFrame.w);
+  // Redrawn by hand a few times a second.
+  float frame = floor(uTime * 7.0);
+  float spacing = 0.0062;
+  float ink = 0.0;
+  float light = 1.0;
+
+  if (uv.x >= 0.0 && uv.x <= 1.0 && uv.y >= 0.0 && uv.y <= 1.0) {
+    vec4 shape = texture2D(uShape, uv);
+    // Light from the left of the picture: brighter where the body rises towards it.
+    float gx = texture2D(uShape, uv + vec2(1.0 / 64.0, 0.0)).g - texture2D(uShape, uv - vec2(1.0 / 64.0, 0.0)).g;
+    light = clamp(0.55 + gx * 5.0 + shape.g * 0.25, 0.25, 1.0);
+    float y = vWall.y + 0.03 * shape.g;
+    float row = floor(y / spacing);
+    // Long strokes of uneven length along the row, with gaps; each leans a little on its own.
+    float along = vWall.x / 0.11 + hash(vec2(row, 3.0 + frame)) * 13.0;
+    float stroke = floor(along);
+    float t = fract(along);
+    float on = step(t, mix(0.45, 0.98, hash(vec2(row * 1.7, stroke + frame))));
+    float lean = (hash(vec2(row * 3.1, stroke + frame)) - 0.5) * spacing * 1.6;
+    float across = abs(fract((y + (t - 0.5) * lean) / spacing) - 0.5) * spacing;
+    // Frayed edges: some strokes reach past the outline, some stop short.
+    float edge = (hash(vec2(row + 11.0, stroke + frame * 0.5)) - 0.5) * 0.32;
+    float body = smoothstep(0.42, 0.58, shape.r + edge);
+    float width = 0.0009 * (0.7 + 0.7 * hash(vec2(row, stroke)));
+    light *= 0.55 + 0.45 * hash(vec2(row * 7.0, stroke + frame));
+    ink = (1.0 - smoothstep(width * 0.5, width * 0.5 + uPixel, across)) * on * body;
+
+    // A little floor under the feet: flat strokes, densest under them, fading out sideways.
+    if (uFloor.y > 0.0) {
+      float below = (uv.y - uFloor.y) * uFrame.w;
+      float side = abs(uv.x - uFloor.x) / max(uFloor.z, 0.02);
+      float band = (1.0 - smoothstep(-0.006, 0.03, abs(below - 0.008))) * (1.0 - smoothstep(0.8, 2.6 + hash(vec2(row, frame)) * 1.4, side));
+      float fy = vWall.y / (spacing * 0.55);
+      float fRow = floor(fy);
+      float fAlong = vWall.x / 0.07 + hash(vec2(fRow, 7.0 + frame)) * 5.0;
+      float fOn = step(fract(fAlong), mix(0.4, 0.95, hash(vec2(fRow, floor(fAlong) + frame))));
+      float fLine = 1.0 - smoothstep(0.0005, 0.0005 + uPixel, abs(fract(fy) - 0.5) * spacing * 0.55);
+      ink = max(ink, fLine * fOn * band * 0.8);
+    }
+  }
+  if (ink <= 0.01) discard;
+  gl_FragColor = vec4(vec3(0.93 * light + 0.07), ink);
+}
+`
+
 /** Box blur, in place, `radius` cells wide: soft edges from the coarse grid, and the body's thickness. */
 function blur(values: Float32Array, radius: number) {
   const out = new Float32Array(values.length)
@@ -71,12 +134,36 @@ function blur(values: Float32Array, radius: number) {
   return values
 }
 
-/** Draw the silhouettes into `canvas`, showing the part `view` of the wall. */
-export function createSilhouette(canvas: HTMLCanvasElement, view: Rect, options: { now: () => number; fps?: number; maxPixelRatio?: number }): PatternView & { setShape(cells: Uint8Array | null): void } {
+/**
+ * Where the feet are: the lowest rows that still hold someone, their middle and width, in picture
+ * coordinates (v down). Nobody: v below 0, no floor.
+ */
+function placeFloor(cells: Float32Array, floor: THREE.Vector3) {
+  for (let y = SHAPE_H - 1; y >= 0; y--) {
+    let sum = 0, weighted = 0, lo = SHAPE_W, hi = -1
+    for (let x = 0; x < SHAPE_W; x++) {
+      const v = cells[y * SHAPE_W + x]
+      if (v < 0.5) continue
+      sum += v
+      weighted += v * x
+      lo = Math.min(lo, x)
+      hi = Math.max(hi, x)
+    }
+    if (sum < 1) continue
+    const u = (weighted / sum + 0.5) / SHAPE_W
+    floor.set(u, (y + 1) / SHAPE_H, Math.max(1.5, (hi - lo + 1) / 2) / SHAPE_W)
+    return
+  }
+  floor.set(0, -1, 0)
+}
+
+/** Draw the people into `canvas` in `style`, showing the part `view` of the wall. */
+export function createSilhouette(canvas: HTMLCanvasElement, view: Rect, options: { now: () => number; fps?: number; maxPixelRatio?: number; style?: OutlineStyle }): PatternView & { setShape(cells: Uint8Array | null): void } {
+  const hatched = options.style === 'schraffur'
   const attributes: WebGLContextAttributes = { antialias: true, alpha: false, powerPreference: 'high-performance' }
   const renderer = new THREE.WebGLRenderer({ canvas, ...attributes })
   renderer.setPixelRatio(Math.min(window.devicePixelRatio, options.maxPixelRatio ?? 1.5))
-  renderer.setClearColor(PAPER, 1)
+  renderer.setClearColor(hatched ? 0x000000 : PAPER, 1)
   const scene = new THREE.Scene()
   const camera = new THREE.OrthographicCamera(view.x0, view.x1, view.y1, view.y0, -1, 1)
   const wall = wallRect()
@@ -99,9 +186,10 @@ export function createSilhouette(canvas: HTMLCanvasElement, view: Rect, options:
       uBow: { value: BOW },
       uPixel: { value: 0.001 },
       uTime: { value: 0 },
+      uFloor: { value: new THREE.Vector3(0, -1, 0) },
     },
     vertexShader: VERTEX,
-    fragmentShader: FRAGMENT,
+    fragmentShader: hatched ? HATCH_FRAGMENT : FRAGMENT,
     transparent: true,
   })
   const quad = new THREE.Mesh(new THREE.PlaneGeometry(width(view), height(view)), material)
@@ -139,6 +227,7 @@ export function createSilhouette(canvas: HTMLCanvasElement, view: Rect, options:
       data[i * 4 + 3] = 255
     }
     texture.needsUpdate = true
+    if (hatched) placeFloor(edge, material.uniforms.uFloor.value as THREE.Vector3)
     material.uniforms.uTime.value = (options.now() / 1000) % 3600
     renderer.render(scene, camera)
     frames++
@@ -156,7 +245,7 @@ export function createSilhouette(canvas: HTMLCanvasElement, view: Rect, options:
       else target.fill(0)
     },
     setPerson() {},
-    debug: () => ({ webgl: renderer.capabilities.isWebGL2 ? 2 : 1, renderedFps, headLoaded: true, pattern: 'silhouette', cells: target.reduce((a, b) => a + b, 0) }),
+    debug: () => ({ webgl: renderer.capabilities.isWebGL2 ? 2 : 1, renderedFps, headLoaded: true, pattern: options.style ?? 'silhouette', cells: target.reduce((a, b) => a + b, 0) }),
     dispose() {
       disposed = true
       cancelAnimationFrame(raf)

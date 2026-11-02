@@ -4,7 +4,7 @@
  * every screen. Kept free of three.js: the server checks it too.
  */
 
-export const PATTERN_KEYS = ['faeden', 'falte', 'silhouette'] as const
+export const PATTERN_KEYS = ['faeden', 'falte', 'silhouette', 'schraffur'] as const
 export type PatternKey = (typeof PATTERN_KEYS)[number]
 
 export type FullWall =
