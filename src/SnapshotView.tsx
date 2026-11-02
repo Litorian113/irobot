@@ -4,6 +4,7 @@ import { bannerOf } from './banners'
 import { CATALOG, catalogEntry } from './heads/catalog'
 import { createPattern, PATTERNS } from './fullwall/pattern'
 import { createSilhouette } from './fullwall/silhouette'
+import { createScribble } from './fullwall/scribble'
 import { createFigures, syntheticPose } from './fullwall/figure'
 import { syntheticShape } from './tracking/silhouette'
 import { wallRect } from './fullwall/geometry'
@@ -41,6 +42,11 @@ export default function SnapshotView({ entryKey }: { entryKey: string }) {
         // The figure loads first; until then the pose would be dropped.
         feed = window.setInterval(() => figures.setPoses([{ id: 1, points: syntheticPose(0.47, 0.2, 0.75, 1.2) }]), 100)
         drawn = figures
+      } else if (pattern.key === 'kritzel') {
+        // Someone who has stood a while: the drawing well on its way.
+        const scribble = createScribble(canvasRef.current, view, { now: () => 40_000, maxPixelRatio: 1, ahead: 14_000 })
+        feed = window.setInterval(() => scribble.setShape(syntheticShape(0.5, 0.25, 0.75, 1)), 100)
+        drawn = scribble
       } else if (pattern.key === 'silhouette' || pattern.key === 'schraffur' || pattern.key === 'gewirr') {
         const silhouette = createSilhouette(canvasRef.current, view, { now: () => 40_000, maxPixelRatio: 1, style: pattern.key })
         silhouette.setShape(syntheticShape(0.62, 0.3, 0.6, 2, syntheticShape(0.42, 0.22, 0.85, 1)))

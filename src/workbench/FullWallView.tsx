@@ -87,7 +87,7 @@ export default function FullWallView() {
     ? PATTERNS.find((p) => p.key === pick.pattern)?.description
     : 'Ein Kopf über alle Bildschirme; die Rahmen und Lücken zwischen ihnen schneiden ihn wie Fenster.'
   const missing = pick.mode !== 'pattern' || !models ? null
-    : (pick.pattern === 'silhouette' || pick.pattern === 'schraffur' || pick.pattern === 'gewirr') && !models.outlines ? 'Umrisse: das Modell yolo26n-seg-320.onnx fehlt'
+    : (pick.pattern === 'silhouette' || pick.pattern === 'schraffur' || pick.pattern === 'gewirr' || pick.pattern === 'kritzel') && !models.outlines ? 'Umrisse: das Modell yolo26n-seg-320.onnx fehlt'
       : pick.pattern === 'figur' && !models.poses ? 'Skelette: das Modell yolo26n-pose-320.onnx fehlt' : null
   const tone: Tone = error ? 'error' : missing ? 'dirty' : onWall ? 'live' : null
   const status = error ?? (missing

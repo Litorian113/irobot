@@ -8,6 +8,7 @@ import { height, wallRect, type Rect } from './geometry'
 import { frameAsTileOf } from './headTile'
 import { createPattern, type PatternView } from './pattern'
 import { createSilhouette } from './silhouette'
+import { createScribble } from './scribble'
 import { createFigures, syntheticPose, type PoseInput } from './figure'
 import type { FullWall } from './state'
 
@@ -68,7 +69,7 @@ function poseAt(person: { x: number; y: number }): PoseInput[] {
  * shows only that screen's part (`view` smaller than the wall).
  */
 export function useWallPicture(canvas: React.RefObject<HTMLCanvasElement | null>, state: FullWall, view: Rect, live: boolean, pointer: React.MutableRefObject<Person>, options: { fps: number; maxPixelRatio: number }) {
-  const picture = useRef<{ pattern?: PatternView; silhouette?: ReturnType<typeof createSilhouette>; figures?: ReturnType<typeof createFigures>; head?: HeadView } | null>(null)
+  const picture = useRef<{ pattern?: PatternView; silhouette?: ReturnType<typeof createSilhouette> | ReturnType<typeof createScribble>; figures?: ReturnType<typeof createFigures>; head?: HeadView } | null>(null)
   const key = state.mode === 'pattern' ? state.pattern : state.mode === 'head' ? state.head : 'off'
   const { x0, y0, x1, y1 } = view
 
@@ -76,7 +77,7 @@ export function useWallPicture(canvas: React.RefObject<HTMLCanvasElement | null>
     const element = canvas.current
     if (!element || state.mode === 'off') return
     let pattern: PatternView | undefined
-    let silhouette: ReturnType<typeof createSilhouette> | undefined
+    let silhouette: ReturnType<typeof createSilhouette> | ReturnType<typeof createScribble> | undefined
     let figures: ReturnType<typeof createFigures> | undefined
     let head: HeadView | undefined
     const wall = wallRect()
@@ -87,6 +88,8 @@ export function useWallPicture(canvas: React.RefObject<HTMLCanvasElement | null>
       const kind = state.mode === 'pattern' ? state.pattern : null
       if (kind === 'figur') {
         figures = createFigures(element, { x0, y0, x1, y1 }, { now: serverNow, fps: options.fps, maxPixelRatio: options.maxPixelRatio })
+      } else if (kind === 'kritzel') {
+        silhouette = createScribble(element, { x0, y0, x1, y1 }, { now: serverNow, fps: options.fps, maxPixelRatio: options.maxPixelRatio })
       } else if (kind === 'silhouette' || kind === 'schraffur' || kind === 'gewirr') {
         silhouette = createSilhouette(element, { x0, y0, x1, y1 }, { now: serverNow, fps: options.fps, maxPixelRatio: options.maxPixelRatio, style: kind })
       } else if (kind) {
