@@ -15,7 +15,7 @@ export const PATTERNS: { key: PatternKey; name: string; description: string }[] 
   { key: 'falte', name: 'Falte', description: 'Ein Feld aus Linien mit einer Falte, die der Person vor der Wand folgt' },
   { key: 'silhouette', name: 'Silhouette', description: 'Die Menschen vor der Wand, live als Linien quer über ihre Körper auf Weiß, wie ein Spiegel' },
   { key: 'gewirr', name: 'Gewirr', description: 'Die Menschen schwarz auf Weiß, aus ihnen laufen feine Bleistiftlinien in alle Richtungen und verblassen' },
-  { key: 'geaest', name: 'Geäst', description: 'Von der Seite, aus der jemand kommt, wächst ein Netz aus Ästen; wer stehen bleibt, wird von ihm nachgeformt, und es blüht' },
+  { key: 'geaest', name: 'Geäst', description: 'Ranken wachsen schwungvoll hinter jedem her, der vorbeiläuft; wer stehen bleibt, wird von Blüten nachgeformt. Ist niemand da, ist die Wand sofort leer' },
   { key: 'figur', name: 'Figur', description: 'Eine gezeichnete 3D-Figur für jede Person vor der Wand, die steht und sich bewegt wie sie' },
   { key: 'schraffur', name: 'Schraffur', description: 'Die Menschen vor der Wand auf Schwarz, in feinen weißen Strichen schraffiert, mit etwas Boden unter den Füßen' },
 ]

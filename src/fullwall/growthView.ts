@@ -10,10 +10,10 @@ import type { PatternView } from './pattern'
  */
 
 const PAPER = 0xf1f0ec
-const CAPACITY = 7200
-const FLOWER_CAPACITY = 260
+const CAPACITY = 12500
+const FLOWER_CAPACITY = 440
 /** A flower takes this long (s) to open. */
-const OPEN_S = 1.6
+const OPEN_S = 1.1
 
 const BRANCH_VERTEX = /* glsl */ `
 uniform float uPixel;
@@ -48,34 +48,67 @@ uniform float uTime;
 attribute vec4 aFlower;  // x, y, size, hue
 attribute float aBorn;
 varying vec2 vLocal;
-varying float vHue, vSeed;
+varying float vHue, vSeed, vOpen;
 void main() {
   float open = smoothstep(0.0, ${OPEN_S.toFixed(1)}, uTime - aBorn);
-  vLocal = position.xy * 2.0;
+  vOpen = open;
   vHue = aFlower.w;
   vSeed = fract(aFlower.x * 37.0 + aFlower.y * 11.0);
-  vec2 p = aFlower.xy + position.xy * aFlower.z * 2.0 * open;
-  gl_Position = projectionMatrix * viewMatrix * vec4(p, 0.0, 1.0);
+  // It turns a little as it opens.
+  float turn = vSeed * 6.2831 + (1.0 - open) * 0.9;
+  float c = cos(turn), s = sin(turn);
+  vLocal = mat2(c, s, -s, c) * (position.xy * 2.0);
+  // Opens with a little overshoot.
+  float size = aFlower.z * 2.0 * (open + 0.12 * sin(open * 3.14159));
+  gl_Position = projectionMatrix * viewMatrix * vec4(aFlower.xy + position.xy * size, 0.0, 1.0);
 }
 `
+
+/**
+ * A blossom: six outer petals and five inner ones turned between them, each petal paler at its
+ * root and deeper at its tip, a fine darker rim; a golden heart with a ring of stamens.
+ */
 const FLOWER_FRAGMENT = /* glsl */ `
 uniform float uFade;
 varying vec2 vLocal;
-varying float vHue, vSeed;
+varying float vHue, vSeed, vOpen;
+
+vec3 palette(float h) {
+  vec3 blush = vec3(0.97, 0.76, 0.80), rose = vec3(0.88, 0.48, 0.58), coral = vec3(0.95, 0.62, 0.50), ivory = vec3(0.99, 0.94, 0.90), wine = vec3(0.70, 0.25, 0.37);
+  if (h < 0.25) return mix(ivory, blush, h / 0.25);
+  if (h < 0.5) return mix(blush, rose, (h - 0.25) / 0.25);
+  if (h < 0.75) return mix(rose, coral, (h - 0.5) / 0.25);
+  return mix(coral, wine, (h - 0.75) / 0.25);
+}
+
+// How far out a petal reaches at angle a: rounded petals with a small notch at the tip.
+float petals(float a, float count) {
+  float p = abs(cos(a * count * 0.5));
+  return 0.55 + 0.45 * pow(p, 0.6) - 0.06 * pow(p, 18.0);
+}
+
 void main() {
   float r = length(vLocal);
-  float a = atan(vLocal.y, vLocal.x) + vSeed * 6.2831;
-  // Five round petals, a darker heart.
-  float petal = 0.62 + 0.38 * abs(cos(a * 2.5));
-  float inside = 1.0 - smoothstep(petal - 0.06, petal, r);
-  if (inside <= 0.01) discard;
-  vec3 pink = vec3(0.96, 0.66, 0.74), rose = vec3(0.86, 0.36, 0.48), cream = vec3(0.99, 0.93, 0.86), peach = vec3(0.98, 0.72, 0.58);
-  vec3 col = vHue < 0.35 ? mix(pink, rose, vHue / 0.35) : vHue < 0.7 ? mix(cream, pink, (vHue - 0.35) / 0.35) : mix(peach, pink, (vHue - 0.7) / 0.3);
-  col *= 0.92 + 0.08 * (1.0 - r);
-  // The petals' edges and the heart, drawn in.
-  col = mix(col, vec3(0.45, 0.2, 0.22), smoothstep(petal - 0.14, petal - 0.04, r) * 0.35);
-  col = mix(col, vec3(0.55, 0.38, 0.12), 1.0 - smoothstep(0.12, 0.2, r));
-  gl_FragColor = vec4(col, inside * uFade);
+  float a = atan(vLocal.y, vLocal.x);
+  float outer = 0.98 * petals(a, 6.0);
+  float inner = 0.66 * petals(a + 0.5236, 5.0) * mix(0.6, 1.0, vOpen);
+  float inOuter = 1.0 - smoothstep(outer - 0.05, outer, r);
+  float inInner = 1.0 - smoothstep(inner - 0.05, inner, r);
+  if (inOuter <= 0.01) discard;
+  vec3 tipCol = palette(vHue);
+  vec3 rootCol = mix(tipCol, vec3(1.0, 0.97, 0.94), 0.55);
+  vec3 col = mix(rootCol, tipCol, smoothstep(0.15, outer, r));
+  // The inner petals, a shade deeper, with a soft shadow round them.
+  vec3 innerCol = mix(rootCol, tipCol * 0.92, smoothstep(0.1, inner, r));
+  col = mix(col * (1.0 - 0.18 * smoothstep(inner, inner + 0.12, r) * (1.0 - smoothstep(inner + 0.12, inner + 0.3, r))), innerCol, inInner);
+  // Rims.
+  col *= 1.0 - 0.25 * smoothstep(outer - 0.09, outer - 0.02, r) * (1.0 - inInner);
+  // A golden heart with stamens round it.
+  float heart = 1.0 - smoothstep(0.13, 0.17, r);
+  float stamens = (1.0 - smoothstep(0.035, 0.05, length(vLocal - 0.24 * vec2(cos(floor(a / 0.6981 + 0.5) * 0.6981), sin(floor(a / 0.6981 + 0.5) * 0.6981))))) * step(0.18, r) * step(r, 0.3);
+  col = mix(col, vec3(0.86, 0.64, 0.22), heart);
+  col = mix(col, vec3(0.55, 0.32, 0.12), stamens);
+  gl_FragColor = vec4(col, inOuter * uFade * smoothstep(0.0, 0.25, vOpen));
 }
 `
 
@@ -177,7 +210,8 @@ export function createGrowthView(canvas: HTMLCanvasElement, view: Rect, options:
     if (now - last < 1000 / fps - 2) return
     const dt = Math.min(0.1, (now - last) / 1000)
     last = now
-    uFade.value += (fadeTarget - uFade.value) * Math.min(1, dt * (fadeTarget < uFade.value ? 1 : 4))
+    // Nobody there: gone quickly.
+    uFade.value += (fadeTarget - uFade.value) * Math.min(1, dt * (fadeTarget < uFade.value ? 6 : 6))
     uTime.value = clock()
     renderer.render(scene, camera)
     frames++

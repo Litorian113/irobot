@@ -1,12 +1,12 @@
 /**
- * Geäst: a net of branches growing over the whole wall. Where someone walks past, branches come
- * in from the side they came from and follow them, thick at the root and finer towards the tips;
- * where someone stands still, the branches grow into their outline and flowers open on the twigs.
- * When nobody has been there for a while, it all fades and starts afresh.
+ * Geäst: vines growing over the whole wall, only where people are. Someone walks in: from the edge
+ * they came from, swirling vines race after them and grow into the places they passed. Someone stands
+ * still: the vines fill their outline and blossoms open on it, until the person stands there again as
+ * a figure of flowers. Nobody in front of the wall: it is gone at once, ready for the next.
  *
  * Growth has chance in it, so it runs in one place only, on the server (vite.config.ts), and every
- * screen gets the same new branches (or, for the preview, in the page itself). Pure logic, no
- * three.js: positions in wall metres, as in geometry.ts.
+ * screen gets the same new pieces (or, for the preview, in the page itself). Pure logic, no three.js:
+ * positions in wall metres, as in geometry.ts.
  */
 
 export interface WallBox { x0: number; y0: number; x1: number; y1: number }
@@ -39,25 +39,30 @@ export interface GrowthDelta {
 
 export interface GrowthSnapshot { segments: number[]; flowers: number[]; fade: number }
 
-/** One step of growth, in metres. */
-const STEP = 0.015
-/** Branches feel the points they grow towards from this far, and reach them at this distance. */
-const INFLUENCE = 0.75
-const KILL = 0.035
-const MAX_SEGMENTS = 7000
-const MAX_TIPS = 70
-const MAX_FLOWERS = 240
-const ROOT_WIDTH = 0.024
-/** Thinner than this, a twig stops. */
-const MIN_WIDTH = 0.0008
-/** Standing this long (s) before flowers open; nobody this long (s) before it fades, and this long to fade. */
-const STILL_FOR = 2.5
-const EMPTY_FOR = 3.5
-const FADE_FOR = 3
+/** One piece of vine, in metres, and pieces per step: fast. */
+const STEP = 0.012
+const PIECES_PER_STEP = 4
+/** Vines feel the points they grow towards from this far, and reach them at this distance. */
+const INFLUENCE = 0.6
+const KILL = 0.03
+const MAX_SEGMENTS = 12000
+const MAX_TIPS = 90
+const MAX_FLOWERS = 420
+/** The places a person passed or stands in: points the vines grow into, the oldest forgotten first. */
+const MAX_ATTRACTORS = 700
+const ROOT_WIDTH = 0.016
+/** Thinner than this, a tendril stops. */
+const MIN_WIDTH = 0.0007
+/** Standing this long (s) before the blossoms come. */
+const STILL_FOR = 1.5
+/** Nobody for this long (s): fade, which takes this long (s), then empty. */
+const EMPTY_FOR = 0.25
+const FADE_FOR = 0.6
 /** Slower than this (m/s) counts as standing. */
 const STILL_SPEED = 0.18
 
-interface Tip { x: number; y: number; dx: number; dy: number; width: number; idle: number }
+/** A growing end: where, which way, how thick, and how it curls (radians per piece, drifting). */
+interface Tip { x: number; y: number; dx: number; dy: number; width: number; curl: number; idle: number }
 
 const round = (v: number) => Math.round(v * 10000) / 10000
 
@@ -66,6 +71,8 @@ export class Growth {
   private random: () => number
   private tips: Tip[] = []
   private attractors: { x: number; y: number }[] = []
+  /** The person's outline as wall points, for the blossoms. */
+  private body: { x: number; y: number }[] = []
   private segments: number[] = []
   private flowers: number[] = []
   private roots = 0
@@ -85,14 +92,13 @@ export class Growth {
     return { segments: [...this.segments], flowers: [...this.flowers], fade: this.fade }
   }
 
-  /** One step, `now` in seconds. */
+  /** One step (10 a second), `now` in seconds. */
   step(input: GrowthInput, now: number): GrowthDelta | null {
     const delta: GrowthDelta = { segments: [], flowers: [] }
     const person = input.person
     if (person) {
       this.seenAt = now
       if (this.fading !== null) {
-        // Someone came back while it faded: it stays.
         this.fading = null
         this.fade = 1
         delta.fade = 1
@@ -101,8 +107,7 @@ export class Growth {
         const dt = Math.max(0.05, now - this.lastPerson.at)
         const vx = (person.x - this.lastPerson.x) / dt
         this.velocityX += (vx - this.velocityX) * 0.3
-        const speed = Math.hypot(vx, (person.y - this.lastPerson.y) / dt)
-        if (speed > STILL_SPEED) this.stillSince = now
+        if (Math.hypot(vx, (person.y - this.lastPerson.y) / dt) > STILL_SPEED) this.stillSince = now
       } else {
         this.stillSince = now
       }
@@ -118,18 +123,20 @@ export class Growth {
         this.clear()
         return { segments: [], flowers: [], reset: true, fade: 1 }
       }
+      return delta.fade !== undefined ? delta : null
     }
 
     this.updateAttractors(input)
-    if (person && this.fading === null) this.plant(person)
-    this.grow(person, delta)
-    if (person && now - this.stillSince > STILL_FOR) this.bloom(delta)
+    this.plant(person)
+    for (let i = 0; i < PIECES_PER_STEP; i++) this.grow(person, delta)
+    if (now - this.stillSince > STILL_FOR) this.bloom(delta)
     return delta.segments.length || delta.flowers.length || delta.fade !== undefined ? delta : null
   }
 
   private clear() {
     this.tips = []
     this.attractors = []
+    this.body = []
     this.segments = []
     this.flowers = []
     this.roots = 0
@@ -145,56 +152,50 @@ export class Growth {
     return { x: cx + (0.5 - u) * w, y: cy + (0.5 - v) * h }
   }
 
-  /** What the branches grow towards: points in the person's outline, or round where they are. */
+  /**
+   * Where the vines go: into the person's outline, wherever it has been - the places they passed stay
+   * in the list until newer ones push them out, so the vines trail their way. Without an outline, a
+   * person-shaped cloud under the face.
+   */
   private updateAttractors(input: GrowthInput) {
     const { person, cells, gridW, gridH } = input
-    if (!person) {
-      this.attractors = []
-      return
-    }
+    if (!person) return
+    const fresh: { x: number; y: number }[] = []
     if (cells) {
       const inside: number[] = []
       for (let i = 0; i < cells.length; i++) if (cells[i]) inside.push(i)
-      if (inside.length) {
-        // The outline moves with the person: points that left it go, new ones come in.
-        const inBody = (p: { x: number; y: number }) => {
-          const h = this.wall.y1 - this.wall.y0, w = h * 16 / 9
-          const u = 0.5 - (p.x - (this.wall.x0 + this.wall.x1) / 2) / w
-          const v = 0.5 - (p.y - (this.wall.y0 + this.wall.y1) / 2) / h
-          const gx = Math.floor(u * gridW), gy = Math.floor(v * gridH)
-          return gx >= 0 && gy >= 0 && gx < gridW && gy < gridH && cells[gy * gridW + gx] > 0
-        }
-        this.attractors = this.attractors.filter(inBody)
-        for (let n = 0; n < 14 && this.attractors.length < 320; n++) {
-          const i = inside[Math.floor(this.random() * inside.length)]
-          this.attractors.push(this.cellToWall(i % gridW, Math.floor(i / gridW), gridW, gridH))
-        }
-        return
+      for (let n = 0; n < Math.min(28, inside.length); n++) {
+        const i = inside[Math.floor(this.random() * inside.length)]
+        fresh.push(this.cellToWall(i % gridW, Math.floor(i / gridW), gridW, gridH))
       }
     }
-    // No outline: a person-shaped cloud under the face.
-    this.attractors = this.attractors.filter((a) => Math.abs(a.x - person.x) < 0.3 && a.y < person.y + 0.15 && a.y > person.y - 1.6)
-    for (let n = 0; n < 8 && this.attractors.length < 160; n++) {
-      this.attractors.push({ x: person.x + (this.random() - 0.5) * 0.4, y: person.y + 0.1 - this.random() * 1.6 })
+    if (!fresh.length) {
+      for (let n = 0; n < 16; n++) {
+        const t = this.random()
+        // Narrow at the head, wide at the shoulders, two legs.
+        const y = person.y + 0.1 - t * 1.6
+        const half = t < 0.12 ? 0.08 : t < 0.55 ? 0.2 : 0.14
+        fresh.push({ x: person.x + (this.random() - 0.5) * 2 * half, y })
+      }
     }
+    // The outline as it is now, for the blossoms.
+    this.body = [...fresh, ...this.body].slice(0, 260)
+    this.attractors.push(...fresh)
+    if (this.attractors.length > MAX_ATTRACTORS) this.attractors.splice(0, this.attractors.length - MAX_ATTRACTORS)
   }
 
-  /** New roots at the edge the person came from (and now and then from the floor). */
+  /** New vines from the edge the person came from, at the height of their body. */
   private plant(person: { x: number; y: number }) {
-    if (this.roots >= 5 || this.tips.length > 2) return
-    // From the side they came from; standing, from the nearer edge.
+    if (this.roots >= 4 || this.tips.length > 3) return
     const fromLeft = this.velocityX > 0.05 || (this.velocityX >= -0.05 && person.x < (this.wall.x0 + this.wall.x1) / 2)
-    const fromFloor = this.roots > 0 && this.random() < 0.35
-    const x = fromFloor ? person.x + (this.random() - 0.5) * 0.8 : fromLeft ? this.wall.x0 : this.wall.x1
-    const y = fromFloor ? this.wall.y0 : this.wall.y0 + (this.wall.y1 - this.wall.y0) * (0.1 + this.random() * 0.5)
-    const dx = person.x - x, dy = person.y - 0.6 - y, d = Math.hypot(dx, dy) || 1
-    this.tips.push({ x, y, dx: dx / d, dy: dy / d, width: ROOT_WIDTH * (0.75 + this.random() * 0.4), idle: 0 })
+    const x = fromLeft ? this.wall.x0 - 0.02 : this.wall.x1 + 0.02
+    const y = person.y - 0.15 - this.random() * 1.1
+    this.tips.push({ x, y, dx: fromLeft ? 1 : -1, dy: (this.random() - 0.5) * 0.4, width: ROOT_WIDTH * (0.8 + this.random() * 0.4), curl: (this.random() - 0.5) * 0.1, idle: 0 })
     this.roots++
   }
 
-  private grow(person: { x: number; y: number } | null, delta: GrowthDelta) {
-    if (this.fading !== null) return
-    // Space colonisation: every point pulls only the tip nearest to it, so the branches fan out
+  private grow(person: { x: number; y: number }, delta: GrowthDelta) {
+    // Space colonisation: every point pulls only the tip nearest to it, so the vines fan out
     // and fill the outline instead of all heading for the same middle.
     const pull = this.tips.map(() => ({ x: 0, y: 0, n: 0 }))
     for (const a of this.attractors) {
@@ -209,68 +210,76 @@ export class Growth {
     this.tips.forEach((tip, i) => {
       if (this.segments.length / 5 >= MAX_SEGMENTS) return
       let { x: ax, y: ay, n: felt } = pull[i]
-      // Nothing near: a long branch heads after the person; the rest wait.
-      if (!felt && person && tip.width > ROOT_WIDTH * 0.35) {
-        const dx = person.x - tip.x, dy = person.y - 0.7 - tip.y, d = Math.hypot(dx, dy)
-        if (d > 0.25) { ax = dx / d; ay = dy / d; felt = 1 }
+      // Nothing near: the strong vines race after the person; the fine ones rest.
+      if (!felt && tip.width > ROOT_WIDTH * 0.3) {
+        const dx = person.x - tip.x, dy = person.y - 0.6 - tip.y, d = Math.hypot(dx, dy)
+        if (d > 0.15) { ax = dx / d; ay = dy / d; felt = 1 }
       }
       if (!felt) {
         tip.idle++
         return
       }
+      // Sweeping curves: the curl drifts slowly, and the pull steers gently, so the vine swings round.
+      tip.curl = Math.max(-0.07, Math.min(0.07, tip.curl + (this.random() - 0.5) * 0.03))
+      const c = Math.cos(tip.curl), s = Math.sin(tip.curl)
+      let dx = tip.dx * c - tip.dy * s, dy = tip.dx * s + tip.dy * c
       const strength = Math.hypot(ax, ay) || 1
-      // Gnarled: much of where it went before, and a twist of its own.
-      const twist = (this.random() - 0.5) * 0.75
-      let dx = tip.dx * 0.6 + (ax / strength) * 0.6 - tip.dy * twist * 0.45
-      let dy = tip.dy * 0.6 + (ay / strength) * 0.6 + tip.dx * twist * 0.45
+      // Inside the outline it follows the pull more, so the figure fills; on the way it swings freely.
+      const steer = pull[i].n > 3 ? 0.4 : 0.2
+      dx = dx * (1 - steer) + (ax / strength) * steer
+      dy = dy * (1 - steer) + (ay / strength) * steer
       const d = Math.hypot(dx, dy) || 1
       dx /= d
       dy /= d
       const nx = tip.x + dx * STEP, ny = tip.y + dy * STEP
-      const width = tip.width
-      const piece = [round(tip.x), round(tip.y), round(nx), round(ny), round(width)]
+      const piece = [round(tip.x), round(tip.y), round(nx), round(ny), round(tip.width)]
       this.segments.push(...piece)
       delta.segments.push(...piece)
       tip.x = nx
       tip.y = ny
       tip.dx = dx
       tip.dy = dy
-      tip.width *= 0.994
+      tip.width *= 0.995
       tip.idle = 0
       this.attractors = this.attractors.filter((a) => Math.hypot(a.x - nx, a.y - ny) > KILL)
-      // Branching: more of it where there is much to reach, as in a crown.
-      const chance = 0.025 + Math.min(0.09, felt * 0.012)
-      if (this.tips.length + born.length < MAX_TIPS && tip.width > MIN_WIDTH * 2 && this.random() < chance) {
-        const angle = (0.4 + this.random() * 0.6) * (this.random() < 0.5 ? -1 : 1)
-        const c = Math.cos(angle), s = Math.sin(angle)
-        born.push({ x: nx, y: ny, dx: dx * c - dy * s, dy: dx * s + dy * c, width: width * 0.6, idle: 0 })
-        tip.width *= 0.85
+      // Tendrils branch off and curl the other way, more where there is much to reach.
+      const chance = 0.012 + Math.min(0.05, felt * 0.006)
+      if (this.tips.length + born.length < MAX_TIPS && tip.width > MIN_WIDTH * 2.5 && this.random() < chance) {
+        const angle = (0.45 + this.random() * 0.5) * (this.random() < 0.5 ? -1 : 1)
+        const ca = Math.cos(angle), sa = Math.sin(angle)
+        born.push({ x: nx, y: ny, dx: dx * ca - dy * sa, dy: dx * sa + dy * ca, width: tip.width * 0.62, curl: -Math.sign(angle) * (0.03 + this.random() * 0.04), idle: 0 })
+        tip.width *= 0.9
       }
     })
     const outside = (t: Tip) => t.x < this.wall.x0 - 0.3 || t.x > this.wall.x1 + 0.3 || t.y < this.wall.y0 - 0.3 || t.y > this.wall.y1 + 0.3
-    this.tips = [...this.tips, ...born].filter((t) => t.width > MIN_WIDTH && t.idle < 25 && !outside(t))
+    this.tips = [...this.tips, ...born].filter((t) => t.width > MIN_WIDTH && t.idle < 20 && !outside(t))
   }
 
-  /** Flowers on the twigs: at the tips, and on fine branches near the person. */
+  /**
+   * Blossoms on the person's outline, so that they stand there again as a figure of flowers; a few
+   * more on the ends of the tendrils.
+   */
   private bloom(delta: GrowthDelta) {
-    if (this.flowers.length / 4 >= MAX_FLOWERS || this.fading !== null) return
-    for (let n = 0; n < 2; n++) {
+    for (let n = 0; n < 6 && this.flowers.length / 4 < MAX_FLOWERS; n++) {
       let x: number, y: number
-      const thin = this.tips.filter((t) => t.width < ROOT_WIDTH * 0.25)
-      if (thin.length && this.random() < 0.6) {
-        const t = thin[Math.floor(this.random() * thin.length)]
+      if (this.body.length && this.random() < 0.85) {
+        const p = this.body[Math.floor(this.random() * this.body.length)]
+        x = p.x
+        y = p.y
+      } else if (this.tips.length) {
+        const t = this.tips[Math.floor(this.random() * this.tips.length)]
         x = t.x
         y = t.y
       } else {
-        const count = this.segments.length / 5
-        if (!count) return
-        // A fine branch from the newer half of the net.
-        const i = Math.floor(count * (0.5 + this.random() * 0.5)) * 5
-        if (this.segments[i + 4] > ROOT_WIDTH * 0.3) continue
-        x = this.segments[i + 2]
-        y = this.segments[i + 3]
+        return
       }
-      const flower = [round(x), round(y), round(0.012 + this.random() * 0.018), round(this.random())]
+      // Not on top of the last ones: spread over the figure.
+      let crowded = false
+      for (let i = Math.max(0, this.flowers.length - 160); i < this.flowers.length; i += 4) {
+        if (Math.hypot(this.flowers[i] - x, this.flowers[i + 1] - y) < 0.022) { crowded = true; break }
+      }
+      if (crowded) continue
+      const flower = [round(x), round(y), round(0.014 + this.random() * 0.016), round(this.random())]
       this.flowers.push(...flower)
       delta.flowers.push(...flower)
     }

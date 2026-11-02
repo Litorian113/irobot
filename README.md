@@ -118,7 +118,7 @@ Protokoll: `logs\imacs.log`. Das Admin-Passwort der iMacs liegt dafür auf dem S
 ## Ganze Wand
 
 Tab **Ganze Wand**: alle Bildschirme als ein Bild. Ein **Muster** (`Fäden`, `Falte`, reagieren auf die Person davor;
-`Silhouette` zeichnet die Menschen davor live als Linien auf Weiß nach, `Schraffur` in feinen Strichen auf Schwarz, jede Person in ihrer Farbe aus einem Spektrum, wer ein paar Sekunden bleibt, bekommt eine Aura aus ineinanderlaufenden Farben; `Gewirr` die Menschen schwarz auf Weiß, aus ihnen laufen Bleistiftlinien und verblassen; `Geäst`: von der Seite, aus der jemand kommt, wächst ein Netz aus Ästen, wer stehen bleibt, wird nachgeformt und es blüht) oder
+`Silhouette` zeichnet die Menschen davor live als Linien auf Weiß nach, `Schraffur` in feinen Strichen auf Schwarz, jede Person in ihrer Farbe aus einem Spektrum, wer ein paar Sekunden bleibt, bekommt eine Aura aus ineinanderlaufenden Farben; `Gewirr` die Menschen schwarz auf Weiß, aus ihnen laufen Bleistiftlinien und verblassen; `Geäst`: von der Seite, aus der jemand kommt, wachsen schwungvolle Ranken hinter jemandem her, wer stehen bleibt, wird von Blüten nachgeformt, ohne Publikum sofort leer) oder
 **ein Kopf** über das ganze Regal. Gerechnet wird in echten Metern (`src/fullwall/geometry.ts`: Bildschirm 0,518 × 0,324 m,
 Abstände aus `SETTINGS.shelf`), das Bild läuft also hinter Rahmen und Lücken weiter, auch über die zwei Plätze ohne
 Bildschirm. „Auf die Wand“ zeigt es auf allen iMacs statt der Wand aus Gestalten, „Aus“ gibt die zurück
