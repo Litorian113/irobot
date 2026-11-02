@@ -118,12 +118,12 @@ Protokoll: `logs\imacs.log`. Das Admin-Passwort der iMacs liegt dafür auf dem S
 ## Ganze Wand
 
 Tab **Ganze Wand**: alle Bildschirme als ein Bild. Ein **Muster** (`Fäden`, `Falte`, reagieren auf die Person davor;
-`Silhouette` zeichnet die Menschen davor live als Linien auf Weiß nach, `Schraffur` in feinen Strichen auf Schwarz, jede Person in ihrer Farbe aus einem Spektrum, wer ein paar Sekunden bleibt, bekommt eine Aura aus ineinanderlaufenden Farben; `Gewirr` die Menschen schwarz auf Weiß, aus ihnen laufen Bleistiftlinien und verblassen) oder
+`Silhouette` zeichnet die Menschen davor live als Linien auf Weiß nach, `Schraffur` in feinen Strichen auf Schwarz, jede Person in ihrer Farbe aus einem Spektrum, wer ein paar Sekunden bleibt, bekommt eine Aura aus ineinanderlaufenden Farben; `Gewirr` die Menschen schwarz auf Weiß, aus ihnen laufen Bleistiftlinien und verblassen; `Geäst`: von der Seite, aus der jemand kommt, wächst ein Netz aus Ästen, wer stehen bleibt, wird nachgeformt und es blüht) oder
 **ein Kopf** über das ganze Regal. Gerechnet wird in echten Metern (`src/fullwall/geometry.ts`: Bildschirm 0,518 × 0,324 m,
 Abstände aus `SETTINGS.shelf`), das Bild läuft also hinter Rahmen und Lücken weiter, auch über die zwei Plätze ohne
 Bildschirm. „Auf die Wand“ zeigt es auf allen iMacs statt der Wand aus Gestalten, „Aus“ gibt die zurück
 (`walls/full-wall.json`). Die Muster laufen auf der Uhr des Servers, damit alle Bildschirme im Takt bleiben.
-Dazu lässt sich eine **Werbung** für den mittleren Bildschirm wählen: Sie blendet sich wie in Gestalten über das Bild, wenn jemand 8 Sekunden stehen bleibt. Ein Kopf zeigt auf jedem iMac seinen Ausschnitt; was ein Kopf zufällig tut (Blinzeln, Explodieren), tut er
+Dazu lässt sich eine **Werbung** für den mittleren Bildschirm wählen: Sie blendet sich wie in Gestalten über das Bild, wenn jemand 8 Sekunden stehen bleibt. Das Geäst wächst nur auf dem Server (`src/fullwall/growth.ts`, in `vite.config.ts`), alle Bildschirme bekommen dieselben Äste (`/api/growth` für einen, der später startet). Ein Kopf zeigt auf jedem iMac seinen Ausschnitt; was ein Kopf zufällig tut (Blinzeln, Explodieren), tut er
 auf jedem Bildschirm zu einer eigenen Zeit.
 
 **Figur** stellt für jede Person eine gezeichnete 3D-Figur auf (`src/fullwall/figure.ts`, Modell aus

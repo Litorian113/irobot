@@ -1,4 +1,5 @@
 import type { Vec3 } from './gaze'
+import type { GrowthDelta } from '../fullwall/growth'
 
 /**
  * The only thing that travels between screens: whether someone is there and
@@ -22,6 +23,15 @@ type Listener = (message: GazeMessage) => void
 
 const listeners = new Set<Listener>()
 const notify = (message: GazeMessage) => { for (const listener of listeners) listener(message) }
+
+/** New branches of the Geäst, grown on the server (src/fullwall/growth.ts). */
+type GrowthListener = (delta: GrowthDelta) => void
+const growthListeners = new Set<GrowthListener>()
+
+export function onGrowth(listener: GrowthListener) {
+  growthListeners.add(listener)
+  return () => { growthListeners.delete(listener) }
+}
 
 /** The server says a custom wall was saved (see vite.config.ts). */
 type WallListener = (wall: string) => void
@@ -52,8 +62,13 @@ function connect() {
   ws.onmessage = (event) => {
     heard = Date.now()
     try {
-      const data = JSON.parse(String(event.data)) as GazeMessage | { kind: 'wall-saved' | 'tick'; wall?: string; at?: number }
+      const data = JSON.parse(String(event.data)) as GazeMessage | ({ kind: 'wall-saved' | 'tick' | 'growth'; wall?: string; at?: number } & Partial<GrowthDelta>)
       if ('kind' in data) {
+        if (data.kind === 'growth') {
+          const delta = { segments: data.segments ?? [], flowers: data.flowers ?? [], fade: data.fade, reset: data.reset }
+          for (const listener of growthListeners) listener(delta)
+          return
+        }
         if (data.kind === 'tick' && typeof data.at === 'number') {
           // Smoothed, so one late message does not make the pattern jump.
           const offset = data.at - Date.now()
