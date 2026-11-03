@@ -10,6 +10,8 @@ import { WebSocket, WebSocketServer } from 'ws'
 import { PeopleCounter, VISITOR_AFTER_MS, dayKey, type Stats } from './src/analytics.ts'
 import { isLayout } from './src/layout.ts'
 import { FULL_WALL_OFF, isFullWall } from './src/fullwall/state.ts'
+import { DEFAULT_WALL, Growth, type GrowthInput } from './src/fullwall/growth.ts'
+import { SHAPE_H, SHAPE_W, unpackShape } from './src/tracking/silhouette.ts'
 import { DEFAULT_SCHEDULE, changes, imacsProgram, isOn, isSchedule, type Schedule } from './src/schedule.ts'
 
 /** The middle screen (see src/wall.ts): the promo, with the camera above it. */
@@ -110,6 +112,40 @@ function fullWallApi(broadcast: (message: unknown) => void) {
         })
         .catch((error: unknown) => send(500, { error: String(error) }))
     })
+  }
+}
+
+/**
+ * Geäst (src/fullwall/growth.ts) grows here, in one place, from what the camera sends; every screen
+ * gets the new branches. GET /api/growth: everything grown so far, for a screen that starts late.
+ */
+function growthRecorder(broadcast: (message: unknown) => void) {
+  const growth = new Growth(DEFAULT_WALL)
+  let input: GrowthInput = { person: null, cells: null, gridW: SHAPE_W, gridH: SHAPE_H }
+  let heard = 0
+  setInterval(() => {
+    // The camera went quiet: nobody is there.
+    if (Date.now() - heard > CAMERA_LOST_MS) input = { ...input, person: null, cells: null }
+    const delta = growth.step(input, Date.now() / 1000)
+    if (delta) broadcast({ kind: 'growth', ...delta })
+  }, 100).unref()
+  return {
+    hear(data: unknown) {
+      try {
+        const message = JSON.parse(String(data)) as { present?: unknown; person?: { x: number; y: number } | null; shape?: unknown }
+        if (typeof message.present !== 'boolean') return
+        heard = Date.now()
+        const person = message.present && message.person ? { x: message.person.x, y: message.person.y } : null
+        input = { ...input, person, cells: person && typeof message.shape === 'string' ? unpackShape(message.shape) : null }
+      } catch {
+        /* not ours */
+      }
+    },
+    api(request: IncomingMessage, response: ServerResponse) {
+      response.setHeader('Content-Type', 'application/json')
+      response.setHeader('Cache-Control', 'no-store')
+      response.end(JSON.stringify(request.method === 'GET' ? growth.snapshot() : { error: 'GET' }))
+    },
   }
 }
 
@@ -287,7 +323,10 @@ function gazeRelay(): Plugin {
   const analytics = analyticsRecorder()
   relay.on('connection', (socket) => {
     socket.on('message', (data, isBinary) => {
-      if (!isBinary) analytics.hear(data)
+      if (!isBinary) {
+        analytics.hear(data)
+        growth.hear(data)
+      }
       for (const client of relay.clients) {
         if (client !== socket && client.readyState === WebSocket.OPEN) client.send(data, { binary: isBinary })
       }
@@ -301,6 +340,7 @@ function gazeRelay(): Plugin {
   // with a server reboot, and wait on it forever (src/tracking/bus.ts reconnects when it stops).
   // It also carries the server's time: patterns over the whole wall move in step on every screen.
   setInterval(() => broadcast({ kind: 'tick', at: Date.now() }), HEARTBEAT_MS).unref()
+  const growth = growthRecorder(broadcast)
   const api = customWallApi(broadcast)
   const schedule = scheduleApi()
   const fullWall = fullWallApi(broadcast)
@@ -321,6 +361,7 @@ function gazeRelay(): Plugin {
       server.middlewares.use('/api/analytics', analytics.api)
       server.middlewares.use('/api/schedule', schedule)
       server.middlewares.use('/api/full-wall', fullWall)
+      server.middlewares.use('/api/growth', growth.api)
       server.middlewares.use('/api/log', screenLogApi())
       attach(server.httpServer as Server | null, 'dev')
     },
@@ -329,6 +370,7 @@ function gazeRelay(): Plugin {
       server.middlewares.use('/api/analytics', analytics.api)
       server.middlewares.use('/api/schedule', schedule)
       server.middlewares.use('/api/full-wall', fullWall)
+      server.middlewares.use('/api/growth', growth.api)
       server.middlewares.use('/api/log', screenLogApi())
       attach(server.httpServer as Server, 'wall')
     },

@@ -6,6 +6,9 @@ import { createPattern, PATTERNS } from './fullwall/pattern'
 import { createSilhouette } from './fullwall/silhouette'
 import { createScribble } from './fullwall/scribble'
 import { createFigures, syntheticPose } from './fullwall/figure'
+import { Growth } from './fullwall/growth'
+import { createGrowthView } from './fullwall/growthView'
+import { SHAPE_H, SHAPE_W } from './tracking/silhouette'
 import { syntheticShape } from './tracking/silhouette'
 import { wallRect } from './fullwall/geometry'
 
@@ -37,7 +40,18 @@ export default function SnapshotView({ entryKey }: { entryKey: string }) {
       const view = { x0: -h * 8 / 9, x1: h * 8 / 9, y0: -h / 2, y1: h / 2 }
       let drawn
       let feed = 0
-      if (pattern.key === 'figur') {
+      if (pattern.key === 'geaest') {
+        // Grown ahead, seeded, so the picture is the same every time.
+        const branches = createGrowthView(canvasRef.current, view, { maxPixelRatio: 1 })
+        let seed = 7
+        const growth = new Growth(wallRect(), () => { seed = (seed * 16807) % 2147483647; return seed / 2147483647 })
+        const shape = syntheticShape(0.5, 0.25, 0.6)
+        for (let i = 0; i < 260; i++) {
+          const delta = growth.step({ person: { x: 0, y: 0.25 }, cells: shape, gridW: SHAPE_W, gridH: SHAPE_H }, i * 0.1)
+          if (delta) branches.apply(delta)
+        }
+        drawn = branches
+      } else if (pattern.key === 'figur') {
         const figures = createFigures(canvasRef.current, view, { now: () => 40_000, maxPixelRatio: 1 })
         // The figure loads first; until then the pose would be dropped.
         feed = window.setInterval(() => figures.setPoses([{ id: 1, points: syntheticPose(0.47, 0.2, 0.75, 1.2) }]), 100)

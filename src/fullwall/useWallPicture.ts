@@ -1,8 +1,8 @@
 import { useEffect, useRef } from 'react'
 import { catalogEntry } from '../heads/catalog'
 import type { HeadView } from '../heads/types'
-import { serverNow, subscribe, type GazeMessage } from '../tracking/bus'
-import { syntheticShape, unpackShape } from '../tracking/silhouette'
+import { onGrowth, serverNow, subscribe, type GazeMessage } from '../tracking/bus'
+import { SHAPE_H, SHAPE_W, syntheticShape, unpackShape } from '../tracking/silhouette'
 import { lookAngles, type Vec3 } from '../tracking/gaze'
 import { height, wallRect, type Rect } from './geometry'
 import { frameAsTileOf } from './headTile'
@@ -10,6 +10,8 @@ import { createPattern, type PatternView } from './pattern'
 import { createSilhouette } from './silhouette'
 import { createScribble } from './scribble'
 import { createFigures, syntheticPose, type PoseInput } from './figure'
+import { Growth } from './growth'
+import { createGrowthView } from './growthView'
 import type { FullWall } from './state'
 
 /** Gaze messages older than this mean the camera window is gone. */
@@ -79,6 +81,8 @@ export function useWallPicture(canvas: React.RefObject<HTMLCanvasElement | null>
     let pattern: PatternView | undefined
     let silhouette: ReturnType<typeof createSilhouette> | ReturnType<typeof createScribble> | undefined
     let figures: ReturnType<typeof createFigures> | undefined
+    let growthView: ReturnType<typeof createGrowthView> | undefined
+    let stopGrowth: (() => void) | undefined
     let head: HeadView | undefined
     const wall = wallRect()
     const part = x0 > wall.x0 + 1e-6 || x1 < wall.x1 - 1e-6 || y0 > wall.y0 + 1e-6 || y1 < wall.y1 - 1e-6
@@ -86,7 +90,25 @@ export function useWallPicture(canvas: React.RefObject<HTMLCanvasElement | null>
     const unframe = state.mode === 'head' && part ? frameAsTileOf(wall, { x0, y0, x1, y1 }) : null
     try {
       const kind = state.mode === 'pattern' ? state.pattern : null
-      if (kind === 'figur') {
+      if (kind === 'geaest') {
+        const view = createGrowthView(element, { x0, y0, x1, y1 }, { fps: options.fps, maxPixelRatio: options.maxPixelRatio })
+        growthView = view
+        if (live) {
+          // On the wall: the server grows it; first what it has, then each new piece.
+          const off = onGrowth((delta) => view.apply(delta))
+          void fetch('/api/growth', { cache: 'no-store' }).then((r) => r.json()).then((snapshot) => view.load(snapshot), () => {})
+          stopGrowth = off
+        } else {
+          // The preview grows its own, from the pointer.
+          const growth = new Growth(wallRect())
+          const timer = window.setInterval(() => {
+            const p = pointer.current
+            const delta = growth.step({ person: p, cells: p ? shapeAt(p) : null, gridW: SHAPE_W, gridH: SHAPE_H }, performance.now() / 1000)
+            if (delta) view.apply(delta)
+          }, 100)
+          stopGrowth = () => window.clearInterval(timer)
+        }
+      } else if (kind === 'figur') {
         figures = createFigures(element, { x0, y0, x1, y1 }, { now: serverNow, fps: options.fps, maxPixelRatio: options.maxPixelRatio })
       } else if (kind === 'kritzel') {
         silhouette = createScribble(element, { x0, y0, x1, y1 }, { now: serverNow, fps: options.fps, maxPixelRatio: options.maxPixelRatio })
@@ -108,12 +130,14 @@ export function useWallPicture(canvas: React.RefObject<HTMLCanvasElement | null>
       return
     }
     picture.current = { pattern, silhouette, figures, head }
-    ;(window as unknown as { __fullWall?: unknown }).__fullWall = pattern ?? silhouette ?? figures ?? head
+    ;(window as unknown as { __fullWall?: unknown }).__fullWall = pattern ?? silhouette ?? figures ?? growthView ?? head
     return () => {
       picture.current = null
       pattern?.dispose()
       silhouette?.dispose()
       figures?.dispose()
+      stopGrowth?.()
+      growthView?.dispose()
       head?.dispose()
       unframe?.()
     }

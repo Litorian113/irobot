@@ -16,11 +16,12 @@ export const PATTERNS: { key: PatternKey; name: string; description: string }[] 
   { key: 'silhouette', name: 'Silhouette', description: 'Die Menschen vor der Wand, live als Linien quer über ihre Körper auf Weiß, wie ein Spiegel' },
   { key: 'gewirr', name: 'Gewirr', description: 'Die Menschen schwarz auf Weiß, aus ihnen laufen feine Bleistiftlinien in alle Richtungen und verblassen' },
   { key: 'kritzel', name: 'Kritzel', description: 'Die Menschen vor der Wand in Bleistift: erst eine schnelle Skizze, dann Schlaufen und Kreuzschraffur, je länger sie stehen, desto dichter; wer bleibt, sieht das Gekritzel immer mehr wabern, auseinanderfliegen und zu HfG werden' },
+  { key: 'geaest', name: 'Geäst', description: 'Ranken wachsen schwungvoll hinter jedem her, der vorbeiläuft; wer stehen bleibt, wird von Blüten nachgeformt. Ist niemand da, ist die Wand sofort leer' },
   { key: 'figur', name: 'Figur', description: 'Eine gezeichnete 3D-Figur für jede Person vor der Wand, die steht und sich bewegt wie sie' },
   { key: 'schraffur', name: 'Schraffur', description: 'Die Menschen vor der Wand auf Schwarz, in feinen weißen Strichen schraffiert, mit etwas Boden unter den Füßen' },
 ]
 
-const LINES: Record<Exclude<PatternKey, 'silhouette' | 'schraffur' | 'gewirr' | 'kritzel' | 'figur'>, number> = { faeden: 64, falte: 96 }
+const LINES: Record<Exclude<PatternKey, 'silhouette' | 'schraffur' | 'gewirr' | 'kritzel' | 'geaest' | 'figur'>, number> = { faeden: 64, falte: 96 }
 const SEGMENTS = 220
 /** Line width in metres: about 2.6 mm, a few pixels on an iMac. */
 const WIDTH = 0.0026
@@ -118,7 +119,7 @@ export interface PatternView {
  * Draw `key` into `canvas`, showing the part `view` of the wall. `now` gives seconds on the
  * shared clock; `fps` caps the frame rate.
  */
-export function createPattern(canvas: HTMLCanvasElement, key: Exclude<PatternKey, 'silhouette' | 'schraffur' | 'gewirr' | 'kritzel' | 'figur'>, view: Rect, options: { now: () => number; fps?: number; webgl1?: boolean; maxPixelRatio?: number }): PatternView {
+export function createPattern(canvas: HTMLCanvasElement, key: Exclude<PatternKey, 'silhouette' | 'schraffur' | 'gewirr' | 'kritzel' | 'geaest' | 'figur'>, view: Rect, options: { now: () => number; fps?: number; webgl1?: boolean; maxPixelRatio?: number }): PatternView {
   const attributes: WebGLContextAttributes = { antialias: true, alpha: false, powerPreference: 'high-performance' }
   const context = options.webgl1 ? canvas.getContext('webgl', attributes) ?? undefined : undefined
   const renderer = new THREE.WebGLRenderer({ canvas, context, ...attributes })

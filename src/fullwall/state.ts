@@ -6,7 +6,7 @@
  */
 
 
-export const PATTERN_KEYS = ['faeden', 'falte', 'silhouette', 'schraffur', 'gewirr', 'kritzel', 'figur'] as const
+export const PATTERN_KEYS = ['faeden', 'falte', 'silhouette', 'schraffur', 'gewirr', 'kritzel', 'geaest', 'figur'] as const
 export type PatternKey = (typeof PATTERN_KEYS)[number]
 
 export type FullWall = (
