@@ -35,10 +35,10 @@ const ANCHORS = 2048
  * directions across each other.
  */
 const LAYERS = [
-  { hand: 'sketch', steps: 8, perLoop: 14, start: 0.1, draw: 3.5, slow: 1.8, ink: 0.65, size: 1.3, step: 0.016, margin: true },
-  { hand: 'gesture', steps: 16, perLoop: 16, start: 1.5, draw: 24, slow: 1.3, ink: 0.55, size: 1, step: 0.016, margin: true },
-  { hand: 'loops', steps: 24, perLoop: 12, start: 1.2, draw: 22, slow: 1.6, ink: 1, size: 1, step: 0.012, margin: true },
-  { hand: 'cross', steps: 12, perLoop: 8, start: 6, draw: 20, slow: 1.2, ink: 0.7, size: 1.4, step: 0.014, margin: false },
+  { hand: 'sketch', steps: 8, perLoop: 14, start: 0.1, draw: 2.5, slow: 1.8, ink: 0.65, size: 1.3, step: 0.016, margin: true },
+  { hand: 'gesture', steps: 16, perLoop: 16, start: 0.8, draw: 8, slow: 1.3, ink: 0.55, size: 1, step: 0.016, margin: true },
+  { hand: 'loops', steps: 24, perLoop: 12, start: 0.5, draw: 9, slow: 1.6, ink: 1, size: 1, step: 0.012, margin: true },
+  { hand: 'cross', steps: 12, perLoop: 8, start: 2, draw: 8, slow: 1.2, ink: 0.7, size: 1.4, step: 0.014, margin: false },
 ] as const
 type Layer = (typeof LAYERS)[number]
 const LINES = PEOPLE * LAYERS.length
@@ -54,14 +54,14 @@ const MARGIN = 0.07
 const LETTER_STEP = 0.02
 
 /** When the scribble turns into the letters (s of standing), and how long it takes. */
-const MORPH_AFTER = 32
-const MORPH_S = 9
+const MORPH_AFTER = 6
+const MORPH_S = 4
 /** How far the strands fly apart on their way to the letters, metres. */
 const SCATTER = 0.35
 /** How far the drawing sways to and fro (m): a little at first, more the longer someone stands, up to SWAY_FULL s. */
 const SWAY = 0.004
 const SWAY_LATE = 0.03
-const SWAY_FULL = 32
+const SWAY_FULL = MORPH_AFTER
 
 /** How fast the shown outline and the anchors follow a new one (per second). */
 const FOLLOW = 7
@@ -699,8 +699,9 @@ export function createScribble(canvas: HTMLCanvasElement, view: Rect, options: {
         writeAnchors(slot, person, l, stood, t)
         material.uniforms.uSpin.value = spin
         material.uniforms.uFade.value = slot.presence
-        // Fast at first, then slower, as a hand that has the figure and goes over it again.
-        const drawn = 1 - Math.pow(1 - Math.min(1, Math.max(0, stood - layer.start) / layer.draw), layer.slow)
+        // Fast at first, then slower, as a hand that has the figure and goes over it again; what is
+        // not drawn yet when the scribble turns into the letters is drawn on the way, so they are whole.
+        const drawn = Math.max(1 - Math.pow(1 - Math.min(1, Math.max(0, stood - layer.start) / layer.draw), layer.slow), smoothstep(MORPH_AFTER, MORPH_AFTER + MORPH_S * 0.6, stood))
         mesh.geometry.setDrawRange(0, Math.floor(drawn * (kinds[l].points - 1)) * 6)
         changed = true
       })

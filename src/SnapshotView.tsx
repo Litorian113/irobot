@@ -58,7 +58,7 @@ export default function SnapshotView({ entryKey }: { entryKey: string }) {
         drawn = figures
       } else if (pattern.key === 'kritzel') {
         // Someone who has stood a while: the drawing well on its way.
-        const scribble = createScribble(canvasRef.current, view, { now: () => 40_000, maxPixelRatio: 1, ahead: 14_000 })
+        const scribble = createScribble(canvasRef.current, view, { now: () => 40_000, maxPixelRatio: 1, ahead: 3_000 })
         feed = window.setInterval(() => scribble.setShape(syntheticShape(0.5, 0.25, 0.75, 1)), 100)
         drawn = scribble
       } else if (pattern.key === 'silhouette' || pattern.key === 'schraffur' || pattern.key === 'gewirr') {
